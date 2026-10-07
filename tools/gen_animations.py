@@ -649,6 +649,11 @@ def anim_perf_shadow():
 
 
 # ============ demo-compare：三种形态上手步骤对比 ============
+def lcard(d, box, r=12, border=None, fill=WHITE):
+    """无阴影卡片：内容密集的动画用它，可显著降低 GIF 体积（阴影渐变是主因）"""
+    rrect(d, box, r, fill=fill, outline=border, width=2 if border else 1)
+
+
 def anim_compare():
     def frame(step, note):
         img, d = new_screen(); status_bar(d); nav_bar(d, "上手步骤对比")
@@ -657,7 +662,7 @@ def anim_compare():
                 ("原生 App", ["商店下载", "安装", "打开"], ORANGE)]
         y = 130
         for name, steps, col in rows:
-            card(d, (20, y, 355, y + 118), 14, border=col if step > 0 else None)
+            lcard(d, (20, y, 355, y + 118), 14, border=col if step > 0 else None)
             txt(d, (36, y + 14), name, font_b(16), col)
             sx = 36
             for i, s in enumerate(steps):
@@ -676,7 +681,7 @@ def anim_compare():
            frame(1, "小程序：扫码即用（1 步）"),
            frame(2, "H5：需打开浏览器输入网址（2 步）"),
            frame(3, "App：需下载 + 安装（3 步，最重）")]
-    build(kfs, hold=1100, tween=4, tdur=70, colors=96, name="demo-compare.gif")
+    build(kfs, hold=1100, tween=5, tdur=70, colors=128, name="demo-compare.gif")
 
 
 # ============ demo-env：环境准备四步 ============
@@ -691,7 +696,7 @@ def anim_env():
         y = 120
         for i, (title, sub, col) in enumerate(steps):
             done = i < n
-            card(d, (20, y, 355, y + 96), 14, border=col if done else None)
+            lcard(d, (20, y, 355, y + 96), 14, border=col if done else None)
             d.ellipse([36 * S, (y + 30) * S, 60 * S, (y + 54) * S],
                       fill=col if done else WHITE, outline=col if done else GRAY_L, width=S)
             txt(d, (42, y + 36), str(i + 1), font_b(12), WHITE if done else GRAY)
@@ -706,7 +711,7 @@ def anim_env():
            frame(2, "② 安装工具并扫码登录"),
            frame(3, "③ 新建项目"),
            frame(4, "④ 编译运行 + 真机预览")]
-    build(kfs, hold=1000, tween=4, tdur=70, colors=96, name="demo-env.gif")
+    build(kfs, hold=1000, tween=5, tdur=70, colors=128, name="demo-env.gif")
 
 
 # ============ demo-langflow：四种语言协作数据流 ============
@@ -722,7 +727,7 @@ def anim_langflow():
         y = 108
         for i, (name, sub, col) in enumerate(nodes):
             on = i == active
-            card(d, (24, y, 351, y + 78), 12, border=col if on else None)
+            lcard(d, (24, y, 351, y + 78), 12, border=col if on else None)
             txt(d, (42, y + 14), name, font_b(15), col if on else GRAY)
             txt(d, (42, y + 44), sub, font(11), DARK if on else GRAY)
             if i < len(nodes) - 1:
@@ -738,7 +743,7 @@ def anim_langflow():
            frame(2, "③ WXML 用 {{}} 渲染结构"),
            frame(3, "④ WXSS 给结构上样式"),
            frame(4, "⑤ 用户点击 → 事件回调 JS（闭环）")]
-    build(kfs, hold=1000, tween=4, tdur=70, colors=96, name="demo-langflow.gif")
+    build(kfs, hold=1000, tween=5, tdur=70, colors=128, name="demo-langflow.gif")
 
 
 # ============ demo-cloudinit：云开发开通流程 ============
@@ -754,7 +759,7 @@ def anim_cloudinit():
         y = 116
         for i, (title, sub, col) in enumerate(steps):
             done = i < n
-            card(d, (24, y, 351, y + 86), 12, border=col if done else None)
+            lcard(d, (24, y, 351, y + 86), 12, border=col if done else None)
             d.ellipse([40 * S, (y + 26) * S, 60 * S, (y + 46) * S],
                       fill=col if done else WHITE, outline=col if done else GRAY_L, width=S)
             txt(d, (44, y + 31), str(i + 1), font_b(11), WHITE if done else GRAY)
@@ -769,7 +774,70 @@ def anim_cloudinit():
            frame(3, "初始化 wx.cloud.init"),
            frame(4, "写并部署云函数"),
            frame(5, "调用成功 → 链路打通")]
-    build(kfs, hold=1000, tween=4, tdur=70, colors=96, name="demo-cloudinit.gif")
+    build(kfs, hold=1000, tween=5, tdur=70, colors=128, name="demo-cloudinit.gif")
+
+
+# ============ demo-path：学习路线推进 ============
+def anim_path():
+    stages = [("① 认知", "认识小程序 · 编程语言与技术栈", BLUE),
+              ("② 准备", "环境准备 · 项目结构", GREEN),
+              ("③ 基础", "WXML · WXSS · JS · 生命周期", ORANGE),
+              ("④ 进阶", "组件 · 网络 · 性能优化", PURPLE),
+              ("⑤ 实战与发布", "云开发 · 实战项目 · 上线", RED)]
+
+    def frame(active):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "学习路径推进")
+        y = 116
+        for i, (name, sub, col) in enumerate(stages):
+            done = i <= active
+            lcard(d, (20, y, 355, y + 88), 12, border=col if done else None)
+            d.ellipse([36 * S, (y + 28) * S, 60 * S, (y + 52) * S],
+                      fill=col if done else WHITE, outline=col if done else GRAY_L, width=S)
+            txt(d, (43, y + 33), str(i + 1), font_b(12), WHITE if done else GRAY)
+            txt(d, (72, y + 18), name, font_b(15), col if done else GRAY)
+            if done:
+                txt(d, (72, y + 48), sub, font(11), DARK)
+            else:
+                txt(d, (72, y + 48), "待学习", font(11), GRAY)
+            if i == active:
+                rrect(d, (20, y, 26, y + 88), 3, fill=col)
+            y += 102
+        # 进度条
+        rrect(d, (20, 630, 355, 638), 4, fill=(235, 235, 238))
+        rrect(d, (20, 630, 20 + 335 * (active + 1) / 5, 638), 4, fill=GREEN)
+        return img
+
+    kfs = [frame(i) for i in range(5)]
+    build(kfs, hold=1100, tween=5, tdur=70, colors=128, name="demo-path.gif")
+
+
+# ============ demo-resources：资源获取流程 ============
+def anim_resources():
+    steps = [("① 遇到报错", "先把报错信息完整读一遍", RED),
+             ("② 查官方文档", "第一优先级，版本以文档为准", BLUE),
+             ("③ 搜社区", "微信开放社区 / 掘金 / CSDN", GREEN),
+             ("④ 提问四要素", "报错 + 基础库版本 + 机型 + 复现步骤", ORANGE),
+             ("⑤ 定位解决", "对照文档与社区答案修复", PURPLE)]
+
+    def frame(n):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "遇到问题怎么办")
+        y = 116
+        for i, (title, sub, col) in enumerate(steps):
+            done = i < n
+            lcard(d, (20, y, 355, y + 88), 12, border=col if done else None)
+            d.ellipse([36 * S, (y + 28) * S, 60 * S, (y + 52) * S],
+                      fill=col if done else WHITE, outline=col if done else GRAY_L, width=S)
+            txt(d, (43, y + 33), str(i + 1), font_b(12), WHITE if done else GRAY)
+            txt(d, (72, y + 18), title, font_b(15), col if done else GRAY)
+            txt(d, (72, y + 48), sub, font(11), DARK if done else GRAY)
+            if i < 4:
+                c = col if done else GRAY_L
+                d.line([187 * S, (y + 88) * S, 187 * S, (y + 102) * S], fill=c, width=2 * S)
+            y += 102
+        return img
+
+    kfs = [frame(1), frame(2), frame(3), frame(4), frame(5)]
+    build(kfs, hold=1100, tween=5, tdur=70, colors=128, name="demo-resources.gif")
 
 
 if __name__ == "__main__":
@@ -796,6 +864,8 @@ if __name__ == "__main__":
     anim_env()
     anim_langflow()
     anim_cloudinit()
+    anim_path()
+    anim_resources()
     print("全部动画生成完成")
 
     # 补间后处理：把静态帧切换的动画升级为含过渡的真动画

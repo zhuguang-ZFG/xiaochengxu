@@ -140,9 +140,20 @@ def phone_frame(screen_img):
     return img.resize((W // S, H // S), Image.LANCZOS)
 
 
+def quantize_shared(frames, colors=128):
+    """所有帧共享一个调色板。
+
+    逐帧独立自适应量化（ADAPTIVE）会让每帧调色板不同，GIF 无法做帧间差分，
+    导致渐变补间帧体积爆炸。共享调色板后，静态区域在帧间可复用，体积大幅下降。
+    """
+    rgb = [f.convert("RGB") for f in frames]
+    pal_img = rgb[0].quantize(colors=colors, method=Image.Quantize.MEDIANCUT)
+    return [f.quantize(palette=pal_img, dither=Image.Dither.NONE) for f in rgb]
+
+
 def emit(frames, durations, name, colors=256):
     framed = [phone_frame(f) for f in frames]
-    pals = [f.convert("P", palette=Image.ADAPTIVE, colors=colors) for f in framed]
+    pals = quantize_shared(framed, colors)
     out = ASSETS / name
     pals[0].save(out, save_all=True, append_images=pals[1:], duration=durations,
                  loop=0, optimize=True)
@@ -164,10 +175,10 @@ def build(kfs, hold=950, tween=4, tdur=80, colors=128, name=""):
             for k in range(1, tw):
                 frames.append(Image.blend(kfs[i], kfs[i + 1], ease(k / tw))); durs.append(tdur)
         frames.append(kfs[-1]); durs.append(int(hold * 1.3))
-        for colors in (colors, 64, 48, 32, 24, 16):
-            pals = [f.convert("P", palette=Image.ADAPTIVE, colors=colors) for f in frames]
+        for colors in (colors, 96, 64, 48, 32):
+            pals = quantize_shared(frames, colors)
             pals[0].save(out, save_all=True, append_images=pals[1:], duration=durs, loop=0, optimize=True)
-            if out.stat().st_size <= 200 * 1024 or colors == 16:
+            if out.stat().st_size <= 200 * 1024 or colors == 32:
                 break
         if out.stat().st_size <= 200 * 1024:
             break
@@ -214,10 +225,10 @@ def retween_gif(name, tween=5, hold=1000, tdur=75, colors=96):
                 frames.append(Image.blend(kfs[i], kfs[i + 1], ease(k / tw)))
                 durs.append(tdur)
         frames.append(kfs[-1]); durs.append(int(hold * 1.4))
-        for colors in (96, 64, 48, 32, 24):
-            pals = [f.convert("P", palette=Image.ADAPTIVE, colors=colors) for f in frames]
+        for colors in (96, 64, 48, 32):
+            pals = quantize_shared(frames, colors)
             pals[0].save(out, save_all=True, append_images=pals[1:], duration=durs, loop=0, optimize=True)
-            if out.stat().st_size <= 200 * 1024 or colors == 24:
+            if out.stat().st_size <= 200 * 1024 or colors == 32:
                 break
         if out.stat().st_size <= 200 * 1024:
             break
