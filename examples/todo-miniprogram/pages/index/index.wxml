@@ -1,0 +1,33 @@
+<!-- pages/index/index.wxml -->
+<view class="page">
+  <!-- 输入区 -->
+  <view class="input-bar">
+    <input
+      class="input"
+      value="{{title}}"
+      placeholder="输入待办事项"
+      bindinput="onInput"
+      bindconfirm="onAdd"
+      confirm-type="done"
+    />
+    <button class="add-btn" bindtap="onAdd">添加</button>
+  </view>
+
+  <!-- 筛选 -->
+  <view class="filter">
+    <text class="filter-item {{status === 'all' ? 'active' : ''}}" data-status="all" bindtap="onFilter">全部</text>
+    <text class="filter-item {{status === 'todo' ? 'active' : ''}}" data-status="todo" bindtap="onFilter">未完成</text>
+    <text class="filter-item {{status === 'done' ? 'active' : ''}}" data-status="done" bindtap="onFilter">已完成</text>
+  </view>
+
+  <!-- 列表 -->
+  <view class="list">
+    <view class="todo-item {{item.done ? 'done' : ''}}"
+      wx:for="{{list}}" wx:key="_id"
+      bindtap="onToggle" data-id="{{item._id}}" data-done="{{item.done}}">
+      <text class="todo-text">{{item.title}}</text>
+      <text class="del" catchtap="onRemove" data-id="{{item._id}}">删除</text>
+    </view>
+    <view wx:if="{{list.length === 0}}" class="empty">暂无待办</view>
+  </view>
+</view>

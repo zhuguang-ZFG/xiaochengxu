@@ -1,0 +1,30 @@
+name: repo-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安装依赖（PIL 供部分检查）
+        run: pip install pillow
+
+      - name: 运行仓库一致性校验（链接/元数据/序号/孤儿资产）
+        run: python tools/check_repo.py
+
+      - name: 示例工程 JS 语法校验
+        run: |
+          set -e
+          for f in $(find examples -name "*.js"); do
+            node --check "$f"
+          done
+          echo "JS 语法全部通过"

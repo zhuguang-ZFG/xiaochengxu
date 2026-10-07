@@ -68,6 +68,15 @@ flowchart LR
 - ❌ 第三方框架（Taro、uni-app 等）不在当前范围（可另行共建）
 - ❌ 微信小游戏不在当前范围
 
+## 示例工程
+
+[examples/todo-miniprogram](examples/todo-miniprogram/) 是可运行的完整工程（待办清单，对应[实战篇](docs/06-实战/01-待办清单实战.md)）：导入微信开发者工具 + 开通云开发即可跑通，代码与教程逐行对应。
+
+## 质量保障
+
+- **CI 校验**：每次 push/PR 自动运行 [tools/check_repo.py](tools/check_repo.py)（链接断链、元数据、目录序号、孤儿资产）+ 示例工程 JS 语法检查，见 [.github/workflows/check.yml](.github/workflows/check.yml)
+- 本地可随时运行 `python tools/check_repo.py` 自查
+
 ## 参考
 
 - 官方文档：[微信开放文档 · 小程序](https://developers.weixin.qq.com/miniprogram/dev/framework/)
