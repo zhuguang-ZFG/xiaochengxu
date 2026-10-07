@@ -4,10 +4,11 @@ import sys
 import pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from PIL import Image, ImageDraw, ImageEnhance  # noqa: E402
 from render import (  # noqa: E402
     new_screen, rrect, txt, text_w, text_c, status_bar, nav_bar, card, ripple,
     emit, build, retween_gif, ease, ease_out, lerp, font, font_b, shadow,
-    GREEN, GREEN_DARK, BG, WHITE, DARK, GRAY, GRAY_L, RED, BLUE, ORANGE, PURPLE, NAV_BG, S,
+    GREEN, GREEN_DARK, BG, WHITE, DARK, GRAY, GRAY_L, RED, BLUE, ORANGE, PURPLE, NAV_BG, S, SW, SH,
 )
 
 
@@ -840,6 +841,281 @@ def anim_resources():
     build(kfs, hold=1100, tween=5, tdur=70, colors=128, name="demo-resources.gif")
 
 
+# ============ demo-media：选图 → 预览 → 上传 ============
+def anim_media():
+    from PIL import ImageEnhance
+
+    def base(img_card, uploaded):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "选择图片")
+        rrect(d, (24, 116, 351, 320), 12, fill=WHITE, outline=GRAY_L, width=2)
+        if img_card:
+            rrect(d, (40, 132, 335, 304), 8, fill=(216, 228, 242))
+            d.polygon([(40 * S, 304 * S), (150 * S, 190 * S), (210 * S, 255 * S),
+                       (260 * S, 170 * S), (335 * S, 304 * S)], fill=(126, 178, 126))
+            d.polygon([(40 * S, 304 * S), (335 * S, 304 * S), (335 * S, 260 * S),
+                       (250 * S, 205 * S), (180 * S, 245 * S)], fill=(160, 198, 160))
+            txt(d, (48, 268), "本地临时文件 wxfile://…", font(11), GRAY)
+        else:
+            text_c(d, 187, 205, "点击「选择图片」", font(13), GRAY)
+        rrect(d, (24, 340, 351, 388), 12, fill=GREEN if img_card else GRAY_L)
+        text_c(d, 187, 358, "上传到云存储", font_b(15), WHITE if img_card else GRAY)
+        if uploaded:
+            lcard(d, (24, 406, 351, 466), 10, border=GREEN, fill=(238, 250, 243))
+            txt(d, (40, 420), "上传成功 fileID", font_b(14), GREEN)
+            txt(d, (40, 444), "cloud://env-xxx/avatar/…", font(11), DARK)
+        return img, d
+
+    def sheet(img, d, slide):
+        img = ImageEnhance.Brightness(img).enhance(0.55)
+        d = ImageDraw.Draw(img)
+        y = 398 + slide
+        rrect(d, (24, y, 351, y + 186), 14, fill=WHITE)
+        text_c(d, 187, y + 18, "选择图片来源", font_b(15), DARK)
+        rrect(d, (24, y + 48, 351, y + 94), 10, fill=(245, 245, 245))
+        text_c(d, 187, y + 65, "拍照", font(14), DARK)
+        rrect(d, (24, y + 102, 351, y + 148), 10, fill=(245, 245, 245))
+        text_c(d, 187, y + 119, "从相册选择", font(14), DARK)
+        rrect(d, (24, y + 156, 351, y + 186), 10, fill=(250, 250, 250))
+        text_c(d, 187, y + 168, "取消", font(14), GRAY)
+        return img
+
+    frames, durs = [], []
+    img0, _ = base(False, False)
+    frames.append(img0); durs.append(900)
+    for i in range(6):                      # 弹窗滑入
+        img, d = base(False, False)
+        frames.append(sheet(img, d, (1 - ease(i / 5)) * 240)); durs.append(60)
+    img1, _ = base(False, False)
+    frames.append(sheet(img1, ImageDraw.Draw(img1), 0)); durs.append(800)
+    img2, _ = base(True, False)
+    frames.append(img2); durs.append(1100)
+    img3, _ = base(True, True)
+    frames.append(img3); durs.append(1400)
+    emit(frames, durs, "demo-media.gif", colors=96)
+
+
+# ============ demo-map：定位 → 门店标记 ============
+def anim_map():
+    def frame(show_dot, show_marker, ripple_t):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "附近门店")
+        # 简化地图：底色 + 街道 + 建筑块
+        rrect(d, (16, 104, 359, 560), 12, fill=(233, 240, 233))
+        for y in (170, 260, 350, 440, 520):
+            d.line([16 * S, y * S, 359 * S, y * S], fill=WHITE, width=3 * S)
+        for x in (90, 200, 300):
+            d.line([x * S, 104 * S, x * S, 560 * S], fill=WHITE, width=3 * S)
+        for bx, by in [(60, 200), (120, 300), (240, 190), (320, 420), (70, 480), (260, 300)]:
+            rrect(d, (bx, by, bx + 46, by + 34), 4, fill=(205, 218, 205))
+        if show_dot:
+            cx, cy = 187, 320
+            if ripple_t is not None:
+                layer = Image.new("RGBA", (SW, SH), (0, 0, 0, 0))
+                ld = ImageDraw.Draw(layer)
+                for r in (18, 30, 42):
+                    a = int(90 * (1 - ripple_t))
+                    ld.ellipse([(cx - r) * S, (cy - r) * S, (cx + r) * S, (cy + r) * S],
+                               outline=(22, 93, 255, a), width=int(2.5 * S))
+                img.paste(layer, (0, 0), layer)
+            d.ellipse([(cx - 9) * S, (cy - 9) * S, (cx + 9) * S, (cy + 9) * S], fill=BLUE, outline=WHITE, width=2 * S)
+        if show_marker:
+            lcard(d, (120, 208, 262, 276), 10, border=GREEN, fill=WHITE)
+            d.ellipse([156 * S, 222 * S, 178 * S, 244 * S], fill=GREEN)
+            txt(d, (168, 234), "店", font_b(12), WHITE)
+            txt(d, (188, 220), "门店 A · 距你 300m", font(12), DARK)
+            d.line([187 * S, 276 * S, 187 * S, 292 * S], fill=GREEN, width=3 * S)
+            d.polygon([(180 * S, 292 * S), (194 * S, 292 * S), (187 * S, 302 * S)], fill=GREEN)
+        # 底部按钮
+        rrect(d, (24, 590, 351, 636), 12, fill=GREEN)
+        text_c(d, 187, 608, "重新定位", font_b(15), WHITE)
+        return img
+
+    frames, durs = [], []
+    frames.append(frame(False, False, None)); durs.append(900)
+    for i in range(5):                       # 蓝点出现 + 波纹
+        frames.append(frame(True, False, i / 4)); durs.append(110)
+    frames.append(frame(True, False, None)); durs.append(500)
+    for i in range(6):                       # marker 弹出
+        t = ease(i / 5)
+        img, d = new_screen(); status_bar(d); nav_bar(d, "附近门店")
+        frames.append(frame(True, True, None)); durs.append(90)
+    frames.append(frame(True, True, None)); durs.append(1300)
+    emit(frames, durs, "demo-map.gif", colors=96)
+
+
+# ============ demo-auth：授权弹窗 → 允许 → 已授权 ============
+def anim_auth():
+    from PIL import ImageEnhance
+
+    def base(authorized):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "定位权限")
+        if authorized:
+            lcard(d, (24, 140, 351, 240), 12, border=GREEN, fill=(238, 250, 243))
+            txt(d, (40, 158), "已授权 · scope.userLocation", font_b(14), GREEN)
+            txt(d, (40, 190), "lat 39.9042 · lng 116.4074", font(12), DARK)
+        else:
+            lcard(d, (24, 140, 351, 240), 12, fill=WHITE, border=GRAY_L)
+            txt(d, (40, 158), "未授权 · scope.userLocation", font_b(14), DARK)
+            txt(d, (40, 190), "调用 getLocation 前需要用户授权", font(12), GRAY)
+        rrect(d, (24, 270, 351, 318), 12, fill=GREEN if not authorized else GRAY_L)
+        text_c(d, 187, 288, "获取我的位置", font_b(15), WHITE if not authorized else GRAY)
+        return img, d
+
+    def popup(img, d, slide):
+        img = ImageEnhance.Brightness(img).enhance(0.55)
+        d = ImageDraw.Draw(img)
+        y = 200 + slide
+        rrect(d, (54, y, 321, y + 300), 14, fill=WHITE)
+        d.ellipse([(151) * S, (y + 24) * S, (189) * S, (y + 62) * S], fill=(220, 230, 240))
+        d.ellipse([(165) * S, (y + 38) * S, (175) * S, (y + 48) * S], fill=DARK)
+        d.arc([(158) * S, (y + 42) * S, (182) * S, (y + 58) * S], 200, 340, fill=DARK, width=2 * S)
+        text_c(d, 187, y + 76, "申请获取你的位置信息", font_b(15), DARK)
+        text_c(d, 187, y + 106, "用于展示附近的合作门店", font(12), GRAY)
+        rrect(d, (70, y + 138, 153, y + 182), 10, fill=(250, 250, 250))
+        text_c(d, 111, y + 156, "拒绝", font(14), GRAY)
+        rrect(d, (163, y + 138, 305, y + 182), 10, fill=GREEN)
+        text_c(d, 234, y + 156, "允许", font(14), WHITE)
+        text_c(d, 187, y + 216, "由微信系统弹出的授权框", font(11), GRAY)
+        text_c(d, 187, y + 236, "开发者无法自定义文案", font(11), GRAY)
+        return img
+
+    frames, durs = [], []
+    img0, _ = base(False)
+    frames.append(img0); durs.append(900)
+    for i in range(6):                       # 授权弹窗滑入
+        img, d = base(False)
+        frames.append(popup(img, d, (1 - ease(i / 5)) * 300)); durs.append(60)
+    img1, _ = base(False)
+    frames.append(popup(img1, ImageDraw.Draw(img1), 0)); durs.append(1100)
+    img2, _ = base(True)
+    frames.append(img2); durs.append(1500)
+    emit(frames, durs, "demo-auth.gif", colors=96)
+
+
+# ============ demo-share：分享面板 → 订阅弹窗 ============
+def anim_share():
+    from PIL import ImageEnhance
+
+    def base():
+        img, d = new_screen(); status_bar(d); nav_bar(d, "分享与订阅")
+        lcard(d, (24, 140, 351, 340), 12, fill=WHITE, border=GRAY_L)
+        txt(d, (40, 160), "待办清单", font_b(17), DARK)
+        txt(d, (40, 196), "今天 3 项待办 · 点击查看", font(12), GRAY)
+        rrect(d, (250, 150, 335, 320), 10, fill=(222, 232, 244))
+        d.polygon([(250 * S, 320 * S), (300 * S, 220 * S), (335 * S, 320 * S)], fill=(140, 170, 220))
+        rrect(d, (24, 380, 351, 428), 12, fill=GREEN)
+        text_c(d, 187, 398, "分享给好友", font_b(15), WHITE)
+        rrect(d, (24, 446, 351, 494), 12, fill=ORANGE)
+        text_c(d, 187, 464, "订阅：完成提醒", font_b(15), WHITE)
+        return img, d
+
+    def share_panel(img, d, slide):
+        img = ImageEnhance.Brightness(img).enhance(0.55)
+        d = ImageDraw.Draw(img)
+        y = 452 + slide
+        rrect(d, (16, y, 359, y + 168), 14, fill=WHITE)
+        text_c(d, 187, y + 16, "转发给好友", font_b(14), DARK)
+        for i, (label, col) in enumerate([("微信好友", GREEN), ("朋友圈", ORANGE)]):
+            x0 = 60 + i * 140
+            d.ellipse([(x0) * S, (y + 50) * S, (x0 + 56) * S, (y + 106) * S], fill=col)
+            text_c(d, x0 + 28, y + 62, "发", font_b(18), WHITE)
+            text_c(d, x0 + 28, y + 122, label, font(12), DARK)
+        return img
+
+    def subscribe(img, d, slide):
+        img = ImageEnhance.Brightness(img).enhance(0.55)
+        d = ImageDraw.Draw(img)
+        y = 180 + slide
+        rrect(d, (44, y, 331, y + 290), 14, fill=WHITE)
+        text_c(d, 187, y + 20, "订阅通知", font_b(15), DARK)
+        text_c(d, 187, y + 50, "勾选后每次最多展示 3 个模板", font(11), GRAY)
+        rrect(d, (60, y + 76, 315, y + 126), 10, fill=(245, 245, 245))
+        txt(d, (76, y + 92), "完成提醒：待办处理通知", font(13), DARK)
+        d.ellipse([(286) * S, (y + 88) * S, (302) * S, (y + 104) * S], fill=GREEN, outline=GREEN)
+        d.line([(290) * S, (y + 97) * S, (294) * S, (y + 101) * S], fill=WHITE, width=2 * S)
+        d.line([(294) * S, (y + 101) * S, (300) * S, (y + 91) * S], fill=WHITE, width=2 * S)
+        rrect(d, (60, y + 150, 315, y + 194), 10, fill=GREEN)
+        text_c(d, 187, y + 168, "允许", font(14), WHITE)
+        rrect(d, (60, y + 204, 315, y + 248), 10, fill=(250, 250, 250))
+        text_c(d, 187, y + 222, "取消", font(14), GRAY)
+        text_c(d, 187, y + 266, "一次授权 = 一条消息额度", font(11), GRAY)
+        return img
+
+    frames, durs = [], []
+    img0, _ = base()
+    frames.append(img0); durs.append(900)
+    for i in range(6):                       # 分享面板滑出
+        img, d = base()
+        frames.append(share_panel(img, d, (1 - ease(i / 5)) * 220)); durs.append(60)
+    img1, _ = base()
+    frames.append(share_panel(img1, ImageDraw.Draw(img1), 0)); durs.append(1000)
+    for i in range(6):                       # 订阅弹窗滑入
+        img, d = base()
+        frames.append(subscribe(img, d, (1 - ease(i / 5)) * 260)); durs.append(60)
+    img2, _ = base()
+    frames.append(subscribe(img2, ImageDraw.Draw(img2), 0)); durs.append(1300)
+    emit(frames, durs, "demo-share.gif", colors=96)
+
+
+# ============ demo-skyline：WebView vs Skyline 动画对比 ============
+def anim_skyline():
+    def frame(t, web_steps):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "动画对比")
+        for y0, title, col in [(140, "WebView · setData 驱动", ORANGE), (400, "Skyline · worklet 驱动", GREEN)]:
+            lcard(d, (24, y0, 351, y0 + 220), 12, fill=WHITE, border=GRAY_L)
+            txt(d, (40, y0 + 16), title, font_b(14), col)
+            # 轨道
+            d.line([48 * S, (y0 + 150) * S, 327 * S, (y0 + 150) * S], fill=GRAY_L, width=4 * S)
+            x = 40 + t * 272
+            if "WebView" in title:
+                x = 40 + (t // 0.2) / 5 * 272   # 阶梯：0.2 步进
+            d.ellipse([(x - 14) * S, (y0 + 136) * S, (x + 14) * S, (y0 + 164) * S],
+                      fill=col, outline=WHITE, width=2 * S)
+            if "WebView" in title:
+                text_c(d, 187, y0 + 188, f"每帧跨线程通信 ×{int(t * 60)}/s", font(11), GRAY)
+            else:
+                text_c(d, 187, y0 + 188, "渲染线程本地计算 · 0 次通信", font(11), GREEN)
+        rrect(d, (24, 590, 351, 636), 12, fill=(245, 245, 245))
+        text_c(d, 187, 608, "同一动画：左阶梯卡顿，右顺滑", font(13), DARK)
+        return img
+
+    frames, durs = [], []
+    for i in range(25):
+        t = i / 24
+        frames.append(frame(t, None)); durs.append(70)
+    frames.append(frame(1.0, None)); durs.append(900)
+    emit(frames, durs, "demo-skyline.gif", colors=128)
+
+
+# ============ demo-storage：上传进度 → 完成 ============
+def anim_storage():
+    def frame(progress):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "云存储上传")
+        # 左侧缩略图
+        rrect(d, (24, 130, 150, 300), 10, fill=(216, 228, 242))
+        d.polygon([(24 * S, 300 * S), (90 * S, 210 * S), (130 * S, 260 * S), (150 * S, 300 * S)],
+                  fill=(126, 178, 126))
+        txt(d, (30, 310), "本地文件", font(11), GRAY)
+        # 右侧进度区
+        lcard(d, (168, 130, 351, 300), 12, fill=WHITE, border=GRAY_L)
+        txt(d, (184, 150), "uploadFile", font_b(14), DARK)
+        txt(d, (184, 180), "cloudPath: avatar/20261008-…", font(11), GRAY)
+        rrect(d, (184, 230, 335, 246), 8, fill=GRAY_L)
+        rrect(d, (184, 230, 184 + 151 * progress, 246), 8, fill=GREEN)
+        if progress >= 1:
+            txt(d, (184, 258), "上传完成 · fileID: cloud://…", font(12), GREEN)
+        else:
+            txt(d, (184, 258), f"上传中 {int(progress * 100)}%", font(12), GRAY)
+        # 底部链路提示
+        lcard(d, (24, 360, 351, 470), 12, fill=(248, 248, 250), border=GRAY_L)
+        txt(d, (40, 378), "本地临时文件", font_b(13), DARK)
+        txt(d, (40, 404), "→ 云存储 fileID（小程序可读）", font(12), GRAY)
+        txt(d, (40, 430), "→ getTempFileURL 换临时链接（外部可读）", font(12), GRAY)
+        return img
+
+    kfs = [frame(0.0), frame(0.35), frame(0.7), frame(1.0)]
+    build(kfs, hold=1000, tween=5, tdur=70, colors=96, name="demo-storage.gif")
+
+
 if __name__ == "__main__":
     anim_setdata()
     anim_lifecycle()
@@ -866,6 +1142,12 @@ if __name__ == "__main__":
     anim_cloudinit()
     anim_path()
     anim_resources()
+    anim_media()
+    anim_map()
+    anim_auth()
+    anim_share()
+    anim_skyline()
+    anim_storage()
     print("全部动画生成完成")
 
     # 补间后处理：把静态帧切换的动画升级为含过渡的真动画
