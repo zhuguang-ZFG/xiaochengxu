@@ -97,6 +97,10 @@ Page({
 
 ### 基本用法
 
+列表渲染演示（渲染示意图动画：`wx:for` 逐条渲染数组项）：
+
+![wx:for 列表渲染演示](../assets/demo-wxfor.gif)
+
 **index.js**
 
 ```js
