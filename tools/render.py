@@ -156,20 +156,22 @@ def build(kfs, hold=950, tween=4, tdur=80, colors=128, name=""):
     kfs: 关键帧列表（同尺寸 RGB）
     hold: 每个关键帧停留时长(ms)
     """
-    frames, durs = [], []
-    for i in range(len(kfs) - 1):
-        frames.append(kfs[i]); durs.append(hold)
-        for k in range(1, tween):
-            t = ease(k / tween)
-            frames.append(Image.blend(kfs[i], kfs[i + 1], t)); durs.append(tdur)
-    frames.append(kfs[-1]); durs.append(int(hold * 1.3))
     out = ASSETS / name
-    for colors in (colors, 64, 48, 32, 24):
-        pals = [f.convert("P", palette=Image.ADAPTIVE, colors=colors) for f in frames]
-        pals[0].save(out, save_all=True, append_images=pals[1:], duration=durs, loop=0, optimize=True)
-        if out.stat().st_size <= 200 * 1024 or colors == 24:
+    for tw in (tween, 3, 2):
+        frames, durs = [], []
+        for i in range(len(kfs) - 1):
+            frames.append(kfs[i]); durs.append(hold)
+            for k in range(1, tw):
+                frames.append(Image.blend(kfs[i], kfs[i + 1], ease(k / tw))); durs.append(tdur)
+        frames.append(kfs[-1]); durs.append(int(hold * 1.3))
+        for colors in (colors, 64, 48, 32, 24, 16):
+            pals = [f.convert("P", palette=Image.ADAPTIVE, colors=colors) for f in frames]
+            pals[0].save(out, save_all=True, append_images=pals[1:], duration=durs, loop=0, optimize=True)
+            if out.stat().st_size <= 200 * 1024 or colors == 16:
+                break
+        if out.stat().st_size <= 200 * 1024:
             break
-    print(f"{name}: {out.stat().st_size} bytes, {len(frames)} frames")
+    print(f"{name}: {out.stat().st_size} bytes, {len(frames)} frames (tween={tw}, {colors}c)")
 
 
 def slide_tween(img_a, img_b, n=6, dx=0, dy=0):

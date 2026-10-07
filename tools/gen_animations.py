@@ -648,6 +648,130 @@ def anim_perf_shadow():
     build(kfs, hold=1200, tween=4, tdur=70, colors=96, name="demo-perf-shadow.gif")
 
 
+# ============ demo-compare：三种形态上手步骤对比 ============
+def anim_compare():
+    def frame(step, note):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "上手步骤对比")
+        rows = [("H5 网页", ["打开浏览器", "输入网址"], BLUE),
+                ("微信小程序", ["扫码即用"], GREEN),
+                ("原生 App", ["商店下载", "安装", "打开"], ORANGE)]
+        y = 130
+        for name, steps, col in rows:
+            card(d, (20, y, 355, y + 118), 14, border=col if step > 0 else None)
+            txt(d, (36, y + 14), name, font_b(16), col)
+            sx = 36
+            for i, s in enumerate(steps):
+                on = step > i
+                rrect(d, (sx, y + 54, sx + 92, y + 96), 10,
+                      fill=(col if on else (242, 242, 245)) if False else ((235, 250, 241) if on else (242, 242, 245)),
+                      outline=col if on else None, width=2)
+                txt(d, (sx + 8, y + 66), s, font(11), DARK if on else GRAY)
+                sx += 100
+            txt(d, (36, y + 100), f"{len(steps)} 步", font(11), col)
+            y += 136
+        text_c(d, 187, 540, note, font(13), DARK)
+        return img
+
+    kfs = [frame(0, "从「看到」到「用上」的步骤数"),
+           frame(1, "小程序：扫码即用（1 步）"),
+           frame(2, "H5：需打开浏览器输入网址（2 步）"),
+           frame(3, "App：需下载 + 安装（3 步，最重）")]
+    build(kfs, hold=1100, tween=4, tdur=70, colors=96, name="demo-compare.gif")
+
+
+# ============ demo-env：环境准备四步 ============
+def anim_env():
+    steps = [("① 注册小程序账号", "mp.weixin.qq.com → 拿 AppID", BLUE),
+             ("② 安装开发者工具", "下载稳定版 → 微信扫码登录", GREEN),
+             ("③ 新建项目", "填 AppID → 选空白模板", ORANGE),
+             ("④ 跑通 Hello World", "改 WXML/JS → 编译 → 真机预览", RED)]
+
+    def frame(n, note):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "环境准备四步")
+        y = 120
+        for i, (title, sub, col) in enumerate(steps):
+            done = i < n
+            card(d, (20, y, 355, y + 96), 14, border=col if done else None)
+            d.ellipse([36 * S, (y + 30) * S, 60 * S, (y + 54) * S],
+                      fill=col if done else WHITE, outline=col if done else GRAY_L, width=S)
+            txt(d, (42, y + 36), str(i + 1), font_b(12), WHITE if done else GRAY)
+            txt(d, (72, y + 22), title, font_b(14), col if done else GRAY)
+            txt(d, (72, y + 52), sub, font(11), DARK if done else GRAY)
+            y += 112
+        text_c(d, 187, 580, note, font(13), GREEN)
+        return img
+
+    kfs = [frame(0, "四步跑通开发环境"),
+           frame(1, "① 注册账号获取 AppID"),
+           frame(2, "② 安装工具并扫码登录"),
+           frame(3, "③ 新建项目"),
+           frame(4, "④ 编译运行 + 真机预览")]
+    build(kfs, hold=1000, tween=4, tdur=70, colors=96, name="demo-env.gif")
+
+
+# ============ demo-langflow：四种语言协作数据流 ============
+def anim_langflow():
+    nodes = [("JavaScript", "定义 data / 处理事件", BLUE),
+             ("setData", "数据推送到渲染层", GRAY),
+             ("WXML", "{{}} 渲染结构", GREEN),
+             ("WXSS", "rpx / flex 上样式", ORANGE),
+             ("事件回调", "点击 → 回到 JS", RED)]
+
+    def frame(active, note):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "四种语言如何协作")
+        y = 108
+        for i, (name, sub, col) in enumerate(nodes):
+            on = i == active
+            card(d, (24, y, 351, y + 78), 12, border=col if on else None)
+            txt(d, (42, y + 14), name, font_b(15), col if on else GRAY)
+            txt(d, (42, y + 44), sub, font(11), DARK if on else GRAY)
+            if i < len(nodes) - 1:
+                c = col if on else GRAY_L
+                d.line([187 * S, (y + 78) * S, 187 * S, (y + 96) * S], fill=c, width=2 * S)
+                d.polygon([(187 * S, (y + 96) * S), (181 * S, (y + 88) * S), (193 * S, (y + 88) * S)], fill=c)
+            y += 96
+        text_c(d, 187, 600, note, font(13), DARK)
+        return img
+
+    kfs = [frame(0, "① JS 定义 data"),
+           frame(1, "② setData 把数据推给渲染层"),
+           frame(2, "③ WXML 用 {{}} 渲染结构"),
+           frame(3, "④ WXSS 给结构上样式"),
+           frame(4, "⑤ 用户点击 → 事件回调 JS（闭环）")]
+    build(kfs, hold=1000, tween=4, tdur=70, colors=96, name="demo-langflow.gif")
+
+
+# ============ demo-cloudinit：云开发开通流程 ============
+def anim_cloudinit():
+    steps = [("开通云开发", "工具栏「云开发」→ 按量付费", GREEN),
+             ("创建环境", "dev / prod，记下环境 ID", BLUE),
+             ("wx.cloud.init", "app.js onLaunch 里初始化", ORANGE),
+             ("写 test 云函数", "exports.main → 返回数据", PURPLE),
+             ("调用验证", "callFunction → 拿到 res.result", RED)]
+
+    def frame(n, note):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "云开发开通流程")
+        y = 116
+        for i, (title, sub, col) in enumerate(steps):
+            done = i < n
+            card(d, (24, y, 351, y + 86), 12, border=col if done else None)
+            d.ellipse([40 * S, (y + 26) * S, 60 * S, (y + 46) * S],
+                      fill=col if done else WHITE, outline=col if done else GRAY_L, width=S)
+            txt(d, (44, y + 31), str(i + 1), font_b(11), WHITE if done else GRAY)
+            txt(d, (72, y + 18), title, font_b(14), col if done else GRAY)
+            txt(d, (72, y + 48), sub, font(11), DARK if done else GRAY)
+            y += 100
+        text_c(d, 187, 615, note, font(13), GREEN if n > 0 else GRAY)
+        return img
+
+    kfs = [frame(0, "从开通到跑通云能力"),
+           frame(2, "开通 + 创建环境"),
+           frame(3, "初始化 wx.cloud.init"),
+           frame(4, "写并部署云函数"),
+           frame(5, "调用成功 → 链路打通")]
+    build(kfs, hold=1000, tween=4, tdur=70, colors=96, name="demo-cloudinit.gif")
+
+
 if __name__ == "__main__":
     anim_setdata()
     anim_lifecycle()
@@ -668,6 +792,10 @@ if __name__ == "__main__":
     anim_todo_flow()
     anim_perf_setdata()
     anim_perf_shadow()
+    anim_compare()
+    anim_env()
+    anim_langflow()
+    anim_cloudinit()
     print("全部动画生成完成")
 
     # 补间后处理：把静态帧切换的动画升级为含过渡的真动画
