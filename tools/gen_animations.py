@@ -6,7 +6,7 @@ import pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from render import (  # noqa: E402
     new_screen, rrect, txt, text_w, text_c, status_bar, nav_bar, card, ripple,
-    emit, ease, ease_out, lerp, font, font_b, shadow,
+    emit, build, retween_gif, ease, ease_out, lerp, font, font_b, shadow,
     GREEN, GREEN_DARK, BG, WHITE, DARK, GRAY, GRAY_L, RED, BLUE, ORANGE, PURPLE, NAV_BG, S,
 )
 
@@ -560,6 +560,94 @@ def anim_todo_flow():
     emit(frames, durs, "demo-todo-flow.gif")
 
 
+# ============ demo-perf-setdata：拆组件优化对比 ============
+def anim_perf_setdata():
+    def grid(d, x0, y0, cols, rows, lit, cell=13, gap=3, col=GRAY_L, lit_col=GREEN):
+        """节点网格，前 lit 个高亮"""
+        for i in range(cols * rows):
+            cx = x0 + (i % cols) * (cell + gap)
+            cy = y0 + (i // cols) * (cell + gap)
+            c = lit_col if i < lit else col
+            rrect(d, (cx, cy, cx + cell, cy + cell), 3, fill=c)
+
+    def bar(d, x0, y0, w, h, t, col):
+        rrect(d, (x0, y0, x0 + w, y0 + h), h // 2, fill=(235, 235, 238))
+        if t > 0:
+            rrect(d, (x0, y0, x0 + w * t, y0 + h), h // 2, fill=col)
+
+    def frame(t_left, t_right, note):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "setData 优化对比")
+        # 左：页面级更新（大树，慢）
+        card(d, (20, 104, 183, 400), 12)
+        text_c(d, 101, 116, "页面级 setData", font_b(14), RED)
+        txt(d, (34, 144), "Shadow 树 20 节点", font(11), GRAY)
+        grid(d, 34, 168, 5, 4, int(20 * t_left), cell=17, gap=5, lit_col=RED)
+        bar(d, 34, 300, 130, 10, t_left, RED)
+        txt(d, (34, 322), f"updateCost: {int(48*t_left)}ms", font(12), RED)
+        txt(d, (34, 350), "全树遍历", font(10), GRAY)
+        # 右：组件内更新（小树，快）
+        card(d, (192, 104, 355, 400), 12)
+        text_c(d, 273, 116, "组件内 setData", font_b(14), GREEN)
+        txt(d, (206, 144), "Shadow 树 4 节点", font(11), GRAY)
+        grid(d, 206, 168, 2, 2, int(4 * t_right), cell=17, gap=5, lit_col=GREEN)
+        bar(d, 206, 300, 130, 10, t_right, GREEN)
+        txt(d, (206, 322), f"updateCost: {int(3*t_right)}ms", font(11), GREEN)
+        txt(d, (206, 350), "仅组件子树", font(10), GRAY)
+        if note:
+            text_c(d, 187, 430, note, font(13), DARK)
+        return img
+
+    kfs = [frame(0, 0, "同一字段更新，两种代价"),
+           frame(0.35, 1.0, "组件范围小 → 遍历节点少 → 更快"),
+           frame(1.0, 1.0, "结论：拆组件 > 减数据（节点量影响更大）")]
+    build(kfs, hold=1300, tween=6, tdur=70, colors=96, name="demo-perf-setdata.gif")
+
+
+# ============ demo-perf-shadow：更新算法对比 ============
+def anim_perf_shadow():
+    N_COLS, N_ROWS = 5, 4
+    TARGET = 12  # 目标绑定所在节点索引
+
+    def grid(d, x0, y0, lit_set, target_lit=False):
+        for i in range(N_COLS * N_ROWS):
+            cx = x0 + (i % N_COLS) * 20
+            cy = y0 + (i // N_COLS) * 20
+            if i == TARGET and target_lit:
+                fill = GREEN
+            elif i in lit_set:
+                fill = ORANGE
+            else:
+                fill = GRAY_L
+            rrect(d, (cx, cy, cx + 15, cy + 15), 3, fill=fill)
+
+    def frame(visited, note):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "数据更新算法")
+        # 左：虚拟树更新（DFS 逐个访问）
+        card(d, (20, 104, 183, 360), 12)
+        text_c(d, 101, 116, "虚拟树更新", font_b(14), ORANGE)
+        txt(d, (34, 142), "遍历 Shadow 树找绑定", font(10), GRAY)
+        lit = set(range(visited))
+        grid(d, 36, 168, lit, target_lit=(visited > TARGET))
+        txt(d, (34, 280), f"已访问 {min(visited, N_COLS*N_ROWS)}/{N_COLS*N_ROWS} 节点", font(11), ORANGE)
+        txt(d, (34, 306), "成本 ∝ 节点量", font(10), GRAY)
+        # 右：绑定映射表（直接定位）
+        card(d, (192, 104, 355, 360), 12)
+        text_c(d, 273, 116, "绑定映射表", font_b(14), GREEN)
+        txt(d, (206, 142), "编译期信息直接定位", font(10), GRAY)
+        hit = {TARGET} if visited > TARGET else set()
+        grid(d, 208, 168, hit, target_lit=(visited > TARGET))
+        txt(d, (206, 280), "直接命中目标绑定" if visited > TARGET else "等待…", font(11), GREEN)
+        txt(d, (206, 306), "免遍历，成本低", font(10), GRAY)
+        text_c(d, 187, 392, note, font(13), DARK)
+        return img
+
+    kfs = [frame(0, "更新 1 个字段（未用于 wx:if/wx:for）"),
+           frame(4, "虚拟树：逐节点深度优先遍历"),
+           frame(TARGET + 1, "绑定映射表：跳过遍历，直接命中"),
+           frame(N_COLS * N_ROWS, "小更新走映射表，否则回退虚拟树")]
+    build(kfs, hold=1200, tween=4, tdur=70, colors=96, name="demo-perf-shadow.gif")
+
+
 if __name__ == "__main__":
     anim_setdata()
     anim_lifecycle()
@@ -578,4 +666,15 @@ if __name__ == "__main__":
     anim_scroll()
     anim_wxkey()
     anim_todo_flow()
+    anim_perf_setdata()
+    anim_perf_shadow()
     print("全部动画生成完成")
+
+    # 补间后处理：把静态帧切换的动画升级为含过渡的真动画
+    print("--- 补间后处理 ---")
+    from render import retween_gif
+    for name in ["demo-ifhidden.gif", "demo-event.gif", "demo-component.gif", "demo-rpx.gif",
+                 "demo-domain.gif", "demo-callfunction.gif", "demo-database.gif", "demo-release.gif",
+                 "demo-loading.gif", "demo-stack.gif", "demo-input.gif", "demo-scroll.gif", "demo-wxkey.gif"]:
+        retween_gif(name, tween=5, hold=1000, tdur=75, colors=96)
+    print("补间完成")

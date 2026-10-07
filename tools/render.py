@@ -149,6 +149,79 @@ def emit(frames, durations, name, colors=256):
     print(f"{name}: {out.stat().st_size} bytes, {len(framed)} frames")
 
 
+def build(kfs, hold=950, tween=4, tdur=80, colors=128, name=""):
+    """关键帧 → 补间序列并直接输出。
+
+    在相邻关键帧之间插入 tween-1 帧交叉淡化过渡，消除"整屏跳变"的幻灯片感。
+    kfs: 关键帧列表（同尺寸 RGB）
+    hold: 每个关键帧停留时长(ms)
+    """
+    frames, durs = [], []
+    for i in range(len(kfs) - 1):
+        frames.append(kfs[i]); durs.append(hold)
+        for k in range(1, tween):
+            t = ease(k / tween)
+            frames.append(Image.blend(kfs[i], kfs[i + 1], t)); durs.append(tdur)
+    frames.append(kfs[-1]); durs.append(int(hold * 1.3))
+    out = ASSETS / name
+    for colors in (colors, 64, 48, 32, 24):
+        pals = [f.convert("P", palette=Image.ADAPTIVE, colors=colors) for f in frames]
+        pals[0].save(out, save_all=True, append_images=pals[1:], duration=durs, loop=0, optimize=True)
+        if out.stat().st_size <= 200 * 1024 or colors == 24:
+            break
+    print(f"{name}: {out.stat().st_size} bytes, {len(frames)} frames")
+
+
+def slide_tween(img_a, img_b, n=6, dx=0, dy=0):
+    """带位移的过渡：A 滑出同时 B 滑入（比纯淡化更能表达"移动"）"""
+    frames = []
+    for i in range(1, n):
+        t = ease(i / n)
+        a = img_a.transform(img_a.size, Image.AFFINE,
+                            (1, 0, -dx * t, 0, 1, -dy * t), resample=Image.BILINEAR)
+        b = img_b.transform(img_b.size, Image.AFFINE,
+                            (1, 0, dx * (1 - t), 0, 1, dy * (1 - t)), resample=Image.BILINEAR)
+        frames.append(Image.blend(a, b, t))
+    return frames
+
+
+def retween_gif(name, tween=5, hold=1000, tdur=75, colors=96):
+    """对已生成的 GIF 做补间后处理：把每帧视为关键帧，帧间插入交叉淡化过渡帧。
+
+    用途：批量把"静态帧切换"动画升级为含过渡的真动画。
+    """
+    src = Image.open(ASSETS / name)
+    kfs = []
+    n = 0
+    try:
+        while True:
+            src.seek(n)
+            kfs.append(src.convert("RGB"))
+            n += 1
+    except EOFError:
+        pass
+    if len(kfs) < 2:
+        return
+    out = ASSETS / name
+    # 自适应：先试多补间帧+多色，超限则降补间帧数、再降色数
+    for tw in (tween, max(3, tween - 1), 3):
+        frames, durs = [], []
+        for i in range(len(kfs) - 1):
+            frames.append(kfs[i]); durs.append(hold)
+            for k in range(1, tw):
+                frames.append(Image.blend(kfs[i], kfs[i + 1], ease(k / tw)))
+                durs.append(tdur)
+        frames.append(kfs[-1]); durs.append(int(hold * 1.4))
+        for colors in (96, 64, 48, 32, 24):
+            pals = [f.convert("P", palette=Image.ADAPTIVE, colors=colors) for f in frames]
+            pals[0].save(out, save_all=True, append_images=pals[1:], duration=durs, loop=0, optimize=True)
+            if out.stat().st_size <= 200 * 1024 or colors == 24:
+                break
+        if out.stat().st_size <= 200 * 1024:
+            break
+    print(f"{name}: {out.stat().st_size} bytes, {len(frames)} frames (tween={tw}, {colors} colors)")
+
+
 def ease(t):
     return t * t * (3 - 2 * t)
 
