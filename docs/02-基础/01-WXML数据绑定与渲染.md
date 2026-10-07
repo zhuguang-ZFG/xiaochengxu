@@ -79,7 +79,11 @@ Page({
 
 ### hidden 对比
 
-```wxml
+`wx:if` vs `hidden` 演示（渲染示意图动画：show 切换时 wx:if 节点销毁重建，hidden 节点始终在 DOM 仅隐藏）：
+
+![wx:if 与 hidden 对比演示](../assets/demo-ifhidden.gif)
+
+```xml
 <view hidden="{{!isVip}}">VIP 专属内容</view>
 ```
 
