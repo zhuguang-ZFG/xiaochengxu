@@ -49,18 +49,18 @@ WebView 与 Skyline 动画对比（渲染示意图动画：同一小球动画，
 ![WebView 与 Skyline 动画流畅度对比](../assets/demo-skyline.gif)
 
 ```js
-// Skyline 专属：worklet 动画（WXS 语言，运行在渲染线程）
-import { animate } from 'skyline/worklet';
-
-Page({
-  onLoad() {
-    animate('box', [
-      { transform: 'translateX(0)' },
-      { transform: 'translateX(200px)' }
-    ], { duration: 600, iterations: Infinity, easing: 'ease-in-out' });
-  }
-})
+// Skyline：worklet 函数在渲染（UI）线程直接执行，不经过逻辑层
+function moveBox(dx) {
+  'worklet';                      // worklet 指令：标记该函数编译到渲染线程
+  console.log('在 UI 线程执行，位移', dx);
+}
+// runOnUI 把函数调度到渲染线程；动画每帧都在渲染线程本地完成
+wx.worklet.runOnUI(moveBox)(200);
 ```
+
+worklet 函数顶部必须写 `'worklet'` 指令声明，框架才会把它编译进渲染线程（[官方 Worklet 动画文档](https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/worklet.html)）。动画、滚动、手势事件的每帧处理都因此留在渲染线程，这是「免 setData」机制的落点。
+
+> 注意区分：`this.animate`（关键帧动画）是 **WebView 渲染引擎**的能力（基础库 2.9.0+，[官方文档](https://developers.weixin.qq.com/miniprogram/dev/framework/view/animation.html)）；Skyline 的对应机制是 worklet + 渲染线程直驱。不要混用。
 
 ### 1.2 边界：Skyline 的「支持度」是最大坑
 
