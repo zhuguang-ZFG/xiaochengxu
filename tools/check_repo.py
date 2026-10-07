@@ -60,6 +60,8 @@ def check_images():
         t = f.read_text(encoding="utf-8")
         for m in re.finditer(r"!\[[^\]]*\]\(([^)]+)\)", t):
             target = m.group(1)
+            if target.startswith(("http", "//")):
+                continue
             if not (f.parent / target).resolve().exists():
                 errors.append(f"{f.relative_to(ROOT)}: 图片断链 -> {target}")
 
@@ -107,6 +109,46 @@ def check_orphans():
             errors.append(f"孤儿资产（未被任何文档引用）: docs/assets/{a.name}")
 
 
+def check_gif_size():
+    """契约硬限制：动画 GIF 单文件 ≤ 200KB"""
+    for g in ASSETS.glob("*.gif"):
+        size = g.stat().st_size
+        if size > 200 * 1024:
+            errors.append(f"{g.name}: {size} bytes 超过 200KB 上限（契约视觉资产规范）")
+
+
+def check_example_structure():
+    """示例工程结构一致性：app.json 页面/云函数与磁盘文件对应"""
+    ex = ROOT / "examples" / "todo-miniprogram"
+    if not ex.exists():
+        return
+    app = ex / "app.json"
+    try:
+        cfg = json.loads(app.read_text(encoding="utf-8"))
+    except Exception as e:
+        errors.append(f"examples/todo-miniprogram/app.json 非法: {e}")
+        return
+    for p in cfg.get("pages", []):
+        if not (ex / f"{p}.wxml").exists():
+            errors.append(f"示例工程 app.json 页面无对应文件: {p}")
+    # tabBar 图标（若有）
+    tab = cfg.get("tabBar", {}).get("list", [])
+    for item in tab:
+        for key in ("iconPath", "selectedIconPath"):
+            ic = item.get(key)
+            if ic and not (ex / ic.lstrip("/")).exists():
+                errors.append(f"示例工程 tabBar 图标缺失: {ic}")
+    # 云函数目录
+    cf_root = cfg.get("cloudfunctionRoot", "").strip("/")
+    if cf_root:
+        cdir = ex / cf_root
+        if not cdir.is_dir():
+            errors.append(f"示例工程 cloudfunctionRoot 目录缺失: {cf_root}")
+        for fn in cdir.iterdir():
+            if fn.is_dir() and not (fn / "index.js").exists():
+                errors.append(f"示例工程云函数缺 index.js: {fn.name}")
+
+
 def check_json():
     for f in (ROOT / "examples").rglob("*.json"):
         try:
@@ -131,6 +173,8 @@ def main():
     check_links()
     check_sequence()
     check_orphans()
+    check_gif_size()
+    check_example_structure()
     check_json()
     check_js_syntax()
     if errors:

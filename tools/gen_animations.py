@@ -1116,6 +1116,39 @@ def anim_storage():
     build(kfs, hold=1000, tween=5, tdur=70, colors=96, name="demo-storage.gif")
 
 
+# ============ demo-lib：组件库组件逐层出现 ============
+def anim_lib():
+    def frame(n):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "组件库表单")
+        if n < 1:
+            txt(d, (24, 118), "原生 view/text 手写表单", font_b(14), GRAY)
+            text_c(d, 187, 260, "每个控件都要自己写样式", font(13), GRAY)
+        if n >= 1:
+            txt(d, (24, 118), "van-field 输入框", font_b(14), GREEN)
+            lcard(d, (24, 148, 351, 218), 12, fill=WHITE, border=GRAY_L)
+            txt(d, (40, 166), "待办内容", font(12), GRAY)
+            txt(d, (40, 190), "输入待办事项…", font(13), DARK)
+            d.line([40 * S, 212 * S, 335 * S, 212 * S], fill=GRAY_L, width=1)
+        if n >= 2:
+            txt(d, (24, 248), "van-button 按钮", font_b(14), GREEN)
+            rrect(d, (24, 276, 351, 324), 12, fill=GREEN)
+            text_c(d, 187, 294, "保存", font_b(15), WHITE)
+            rrect(d, (24, 336, 351, 384), 12, fill=(245, 245, 245))
+            text_c(d, 187, 354, "取消", font_b(15), DARK)
+        if n >= 3:
+            img = ImageEnhance.Brightness(img).enhance(0.55)
+            d = ImageDraw.Draw(img)
+            rrect(d, (54, 210, 321, 400), 14, fill=WHITE)
+            text_c(d, 187, 246, "van-dialog 弹窗", font_b(15), DARK)
+            text_c(d, 187, 290, "保存成功", font(13), GRAY)
+            d.line([54 * S, 330 * S, 321 * S, 330 * S], fill=GRAY_L, width=1)
+            text_c(d, 187, 356, "确定", font_b(14), GREEN)
+        return img
+
+    kfs = [frame(0), frame(1), frame(2), frame(3)]
+    build(kfs, hold=1100, tween=5, tdur=70, colors=96, name="demo-lib.gif")
+
+
 if __name__ == "__main__":
     anim_setdata()
     anim_lifecycle()
@@ -1148,6 +1181,7 @@ if __name__ == "__main__":
     anim_share()
     anim_skyline()
     anim_storage()
+    anim_lib()
     print("全部动画生成完成")
 
     # 补间后处理：把静态帧切换的动画升级为含过渡的真动画

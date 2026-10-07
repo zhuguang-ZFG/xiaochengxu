@@ -29,7 +29,7 @@ updated: 2026-10-08
 | 动画 | JS 驱动（setData 跨线程） | **worklet 动画**：渲染线程直接驱动，免 setData |
 | 导航 | 系统默认导航栏 | 自定义导航（navigation）更接近原生 |
 | 长列表 | 需 recycle-view 优化 | 内建按需渲染 |
-| 接入条件 | 无 | 基础库 ≥ 3.0.2、微信客户端 ≥ 8.0.40 |
+| 接入条件 | 无 | 微信客户端与基础库版本要求见[官方支持表](https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/migration/compatibility.html)（分端版本不同：安卓 8.0.33+、iOS 8.0.34+、工具 Stable 1.06.2307260+） |
 
 ### 1.1 机制：Skyline 解决了什么
 
@@ -66,8 +66,8 @@ Page({
 
 Skyline 是全新渲染引擎，**不等于 WebView 的超集**，差异是真实的：
 
-- **组件差异**：部分组件在 Skyline 下行为不同或不支持（如 `web-view` 长期在 Skyline 下受限、部分表单组件样式差异）。官方维护 [组件支持差异表](https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/migration/component.html)。
-- **样式差异**：部分 CSS 特性（如部分伪类、position: fixed 语义）有差异，官方有 [样式差异说明](https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/migration/style.html)。
+- **组件差异**：部分组件在 Skyline 下行为不同或不支持（如 `web-view` 在 Skyline 下受限、部分表单组件样式差异）。官方维护 [基础组件支持与差异](https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/component.html)。
+- **样式差异**：部分 CSS 特性（如部分伪类、position: fixed 语义）有差异，官方有 [WXSS 样式支持与差异](https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/wxss.html)。
 - **代码量**：Skyline 需引入 skyline 专属包（`skyline/worklet` 等），多一份维护。
 
 **混合架构（推荐路径）**：`app.json` 配置 `renderer: "skyline"` + 页面级 `"renderer": "webview"` 逐页回退，让**核心体验页跑 Skyline、功能复杂页回退 WebView**：
@@ -160,5 +160,6 @@ const capsule = wx.getMenuButtonBoundingClientRect();  // 胶囊按钮位置
 - 本库：[性能优化](../03-进阶/04-性能优化.md)（双线程架构、setData 成本、长列表）
 - 官方：[Skyline 渲染引擎](https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/introduction.html)
 - 官方：[Skyline 迁移指南](https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/migration/)
+- 官方：[Skyline 支持与差异（组件/WXSS）](https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/component.html)
 - 官方：[safe-area 环境变量](https://developers.weixin.qq.com/miniprogram/dev/framework/view/wxss.html)
-- 官方：[wx.getMenuButtonBoundingClientRect](https://developers.weixin.qq.com/miniprogram/dev/api/ui/navigation-bar/wx.getMenuButtonBoundingClientRect.html)
+- 官方：[wx.getMenuButtonBoundingClientRect](https://developers.weixin.qq.com/miniprogram/dev/api/ui/menu/wx.getMenuButtonBoundingClientRect.html)
