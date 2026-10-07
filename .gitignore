@@ -1,0 +1,18 @@
+# 系统与工具
+.DS_Store
+Thumbs.db
+*.log
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+
+# Python / 图像生成临时文件
+__pycache__/
+*.pyc
+tools/.cache/
+
+# 微信开发者工具（如本仓库将来加入示例工程）
+project.private.config.json
+miniprogram_npm/
