@@ -60,6 +60,27 @@ flowchart LR
 - **查速查**：直接看对应分类文章；`内置组件`、`WXSS` 等篇章按速查风格组织；找 API 先看 [API 速查索引](docs/00-学习路线/02-API速查索引.md)。
 - **进阶目标**：读完「进阶」十一篇 + 「云开发」四篇后，跟随实战项目做一遍完整上线。
 
+## 项目结构
+
+```text
+.
+├── README.md               # 总览：学习路径 + 文章索引 + 仓库规模
+├── CHANGELOG.md            # 版本历史（Keep a Changelog 风格）
+├── CONTRIBUTING.md         # 贡献指南（写作规范 + 提 PR 自查清单）
+├── LICENSE
+├── .github/
+│   ├── ISSUE_TEMPLATE/     # 纠错报告 / 新增文章模板
+│   └── workflows/check.yml # CI：仓库一致性校验
+├── docs/                   # 知识库正文
+│   ├── 00-学习路线/         # 学习路径总览 + API 速查索引
+│   ├── 01-入门/ … 07-资源/  # 教学链 27 篇（教学顺序见 README 表格）
+│   ├── _契约.md            # 写作契约（元数据/结构/视觉资产/深度要求）
+│   └── assets/             # 43 个视觉资产（脚本生成，勿手改）
+├── examples/
+│   └── todo-miniprogram/   # 可运行示例工程（对应实战篇）
+└── tools/                  # 资产生成（render/gen_animations/gen_statics/gen_diagrams）+ check_repo.py
+```
+
 ## 参与共建
 
 本知识库与 WayToAGI 一样，是开放共建项目。贡献方式：
@@ -69,7 +90,7 @@ flowchart LR
 3. **补案例**：在「实战」分类下新增完整项目教程。
 4. **改视觉资产**：所有动画/示意图由 `tools/` 下脚本程序化生成（2x 超采样渲染管线 + 补间动画），改脚本重跑即可，见 [docs/_契约.md](docs/_契约.md) 的「视觉资产的生成」一节。
 
-写作规范、元数据格式与命名规则见 [docs/_契约.md](docs/_契约.md)。
+写作规范、元数据格式与命名规则见 [docs/_契约.md](docs/_契约.md)；完整贡献流程与提 PR 自查清单见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 内容范围
 
@@ -101,7 +122,8 @@ flowchart LR
 
 ## 参考
 
-- 官方文档：[微信开放文档 · 小程序](https://developers.weixin.qq.com/miniprogram/dev/framework/)
+- 官方文档：[微信开放文档 · 小程序](https://developers.weixin.qq.com/miniprogram/dev/framework/)（深度阅读清单见[资源篇](docs/07-资源/01-资源与工具.md)）
+- 官方源码：[wechat-miniprogram](https://github.com/wechat-miniprogram)（组件扩展、API Promise 化等官方工程）
 - 参考模式：[通往 AGI 之路](https://www.waytoagi.com/) · [WayToAGI_Documents](https://github.com/WayToAGI/WayToAGI_Documents)
 
 ## License
