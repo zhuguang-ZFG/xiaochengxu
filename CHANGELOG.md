@@ -16,13 +16,14 @@
 ### 修复
 
 - **实战篇 `app.json` 缺 `"sitemapLocation": "sitemap.json"`**（示例工程有、教程没有），属上述漂移的首个实例
+- **示例工程内的 Markdown 不在扫描范围**：`all_md_files()` 只覆盖 `docs/**` 与根目录，`examples/todo-miniprogram/README.md` 的断链、图片、代码块语言标注全部无人校验（实测其目录树围栏未标语言）。补齐扫描范围，并新增 `reference_md_files()` 供孤儿/外链检查复用（排除写作契约——契约里的 `assets/...` 是格式示例而非引用）
 - `tools/test_mutations.py` 在 Windows 上必然崩溃：`print("✅ ...")` 触发 `UnicodeEncodeError`，本地以 traceback 退出。CI 跑在 UTF-8 的 Linux 上，一直掩盖着这个差异（与 `check_repo.py` 早先那个崩溃同源）；`test_check_repo.py` 的用例名乱码一并修掉
 - CONTRIBUTING 自查清单序号重复（1,2,2,3,4,5）
 
 ### 新增（校验器自测）
 
-- `test_check_repo.py` 补 5 个用例（共 21）：漂移必须报出、逐行一致不报、未引用工程的文章不参与比对、非源码块不参与比对、「要点」块豁免
-- `test_mutations.py` 补 4 项变异（共 8/8 捕获）：同步检查形同虚设、按文件名全局匹配、「要点」豁免失效、非源码块也参与比对
+- `test_check_repo.py` 补 7 个用例（共 23）：漂移必须报出、逐行一致不报、未引用工程的文章不参与比对、非源码块不参与比对、「要点」块豁免、示例工程 README 的裸围栏与断链必须报出
+- `test_mutations.py` 补 5 项变异（共 9/9 捕获）：同步检查形同虚设、按文件名全局匹配、「要点」豁免失效、非源码块也参与比对、示例工程文档不在扫描范围
 
 ## [v1.1.0] - 2026-10-08
 

@@ -269,6 +269,24 @@ class CheckRepoTest(unittest.TestCase):
         errs = self.run_checks("check_example_sync")
         self.assertEqual(errs, [], f"标注「要点」的节选块应豁免，实际: {errs}")
 
+    # ---------- 示例工程内的 Markdown 同样在扫描范围 ----------
+
+    def test_示例工程README未标语言要报(self):
+        self.fixture({
+            "examples/todo-miniprogram/README.md": "## 目录\n\n```\n裸代码块\n```\n",
+        })
+        errs = self.run_checks("check_fences_language")
+        self.assertTrue(any("未标注语言" in e for e in errs),
+                        f"示例工程 README 的代码块语言必须被检查，实际: {errs}")
+
+    def test_示例工程README断链要报(self):
+        self.fixture({
+            "examples/todo-miniprogram/README.md": "[坏了](./不存在.md)\n",
+        })
+        errs = self.run_checks("check_links")
+        self.assertTrue(any("不存在.md" in e for e in errs),
+                        f"示例工程 README 的断链必须被报出，实际: {errs}")
+
     # ---------- strip_code 行为 ----------
 
     def test_strip_code_行为(self):

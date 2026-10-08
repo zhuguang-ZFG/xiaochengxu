@@ -63,6 +63,11 @@ MUTATIONS = [
         "if EXCERPT_MARK_RE.search(ctx):",
         "if False:",
     ),
+    (
+        "示例工程文档不在扫描范围（工程 README 的断链/裸围栏漏检）",
+        'return sorted(DOCS.rglob("*.md")) + sorted(ROOT.glob("*.md")) + example_md_files()',
+        'return sorted(DOCS.rglob("*.md")) + sorted(ROOT.glob("*.md"))',
+    ),
 ]
 
 

@@ -6,7 +6,7 @@
 
 ## 目录
 
-```
+```text
 todo-miniprogram/
 ├── app.js / app.json / app.wxss / sitemap.json
 ├── project.config.json

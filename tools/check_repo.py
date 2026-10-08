@@ -49,13 +49,28 @@ def md_files():
     return [f for f in DOCS.rglob("*.md") if f.name != CONTRACT_NAME]
 
 
+def example_md_files():
+    """示例工程内的 Markdown（工程 README 等）——同样要受链接/语言校验约束"""
+    ex = ROOT / "examples"
+    return sorted(ex.rglob("*.md")) if ex.is_dir() else []
+
+
 def all_md_files():
-    """仓库内全部 Markdown（含写作契约与根目录文档）——链接/图片类检查用。
+    """仓库内全部 Markdown（含写作契约、根目录文档、示例工程文档）——链接/图片/围栏类检查用。
 
     此前只扫 docs/ 正文 + README.md，导致 CONTRIBUTING.md、CHANGELOG.md
-    里的断链完全无人校验。
+    里的断链完全无人校验；示例工程的 README 同样在扫描范围之外。
     """
-    return sorted(DOCS.rglob("*.md")) + sorted(ROOT.glob("*.md"))
+    return sorted(DOCS.rglob("*.md")) + sorted(ROOT.glob("*.md")) + example_md_files()
+
+
+def reference_md_files():
+    """可作为「资产引用来源」的 Markdown。
+
+    与 all_md_files() 的区别是排除写作契约：契约里的 `assets/...` 是格式示例
+    而非真实引用，计入会让孤儿检查失效。
+    """
+    return md_files() + sorted(ROOT.glob("*.md")) + example_md_files()
 
 
 FENCE_RE = re.compile(r"^[ \t]{0,3}```.*?^[ \t]{0,3}```", re.S | re.M)
@@ -139,7 +154,7 @@ def check_sequence():
 
 def check_orphans():
     referenced = set()
-    for f in md_files() + [ROOT / "README.md"]:
+    for f in reference_md_files():
         t = f.read_text(encoding="utf-8")
         for m in re.finditer(r"assets/([^)\s]+)", t):
             referenced.add(m.group(1))
@@ -412,7 +427,7 @@ def check_external_links():
     import urllib.request, ssl, concurrent.futures
     ctx = ssl.create_default_context()
     links = {}
-    for f in md_files() + [ROOT / "README.md"]:
+    for f in reference_md_files():
         t = f.read_text(encoding="utf-8")
         for m in re.finditer(r"\[[^\]]*\]\(([^)]+)\)", t):
             u = m.group(1)
