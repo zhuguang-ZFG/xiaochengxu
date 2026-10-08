@@ -179,6 +179,119 @@ def check_video_assets():
             errors.append(f"{rel}: {size} bytes 超过 3MB 上限（契约视觉资产规范）")
 
 
+# 文件名 token：长后缀必须排在短后缀前面，否则 "app.json" 会被 "app.js" 抢先匹配
+FILE_TOKEN_RE = re.compile(r"[\w/.-]*\.(?:wxss|wxml|json|js|wxss)\b")
+# 显式标记为「节选/要点」的块不与工程文件做全等比对
+EXCERPT_MARK_RE = re.compile(r"要点|节选|片段|省略|仅列")
+# 只有源码语言的块才可能与工程文件逐行对应；bash/text 等是操作指令或目录树，
+# 其上下文里出现的文件名（如 `node --test .../index.js`）不构成节选关系。
+SOURCE_LANGS = {"js", "javascript", "wxml", "wxss", "css", "json"}
+
+
+def _norm_code(text):
+    """归一化用于比对：去掉首尾空白、空行、行尾空格与文件头注释行。
+
+    示例工程的文件头注释（`// pages/index/index.js`、`<!-- ... -->`）是工程惯例，
+    教程为省版面不写，不应算作漂移；因此两侧都忽略开头的纯注释行。
+    """
+    out = []
+    for ln in text.strip().splitlines():
+        s = ln.rstrip()
+        t = s.strip()
+        if not t:
+            continue
+        if t.startswith("//") or t.startswith("<!--") or t.startswith("/*"):
+            if not out:      # 仅忽略块首的注释行
+                continue
+        out.append(t)
+    return out
+
+
+def _example_files():
+    ex = ROOT / "examples" / "todo-miniprogram"
+    if not ex.is_dir():
+        return {}
+    return {f.relative_to(ex).as_posix(): f for f in ex.rglob("*") if f.is_file()}
+
+
+def check_example_sync():
+    """实战篇内联的代码块必须与 examples/ 工程文件一致。
+
+    README 与教程都声称「代码与教程逐行对应」，但此前无任何机制校验，
+    实测已出现漂移（app.json 漏 sitemapLocation 等）。此处把该声明变成不变量：
+    教程中未标注「要点/节选」的源码块，必须与工程文件逐行一致（忽略缩进与文件头注释）。
+
+    仅在**确实引用了该示例工程**的文档里生效：入门/基础/进阶各篇也会出现
+    `app.json`、`index.js` 等同名代码块，但那是各自独立的教学示例
+    （如 `我的小程序`、`pages/detail/detail`），与示例工程无关，按文件名
+    全局匹配会把它们全部误判为漂移。判定依据是文档正文是否提到工程目录名。
+    """
+    files = _example_files()
+    if not files:
+        return
+    by_name = {}
+    for rel in files:
+        by_name.setdefault(rel.rsplit("/", 1)[-1], []).append(rel)
+
+    # 只检查引用了示例工程的文档：实战篇 + 工程自身 README
+    scope = [DOCS / "06-实战", ROOT / "examples" / "todo-miniprogram"]
+    candidates = []
+    for base in scope:
+        if base.is_dir():
+            candidates.extend(sorted(base.rglob("*.md")))
+
+    for art in candidates:
+        text = art.read_text(encoding="utf-8")
+        if "todo-miniprogram" not in text:
+            continue
+        lines = text.splitlines()
+        try:
+            rel_art = art.relative_to(ROOT)
+        except ValueError:
+            rel_art = art
+
+        in_fence = False
+        lang = ""
+        buf = []
+        start = 0
+        section = ""
+        for i, ln in enumerate(lines):
+            if not in_fence:
+                h = re.match(r"^##\s+(.*)$", ln)
+                if h:
+                    section = h.group(1)
+            m = FENCE_LINE_RE.match(ln)
+            if m and not in_fence:
+                in_fence, lang, buf, start = True, m.group(1), [], i
+                continue
+            if ln.strip() == "```" and in_fence:
+                in_fence = False
+                if lang not in SOURCE_LANGS:   # 目录树、命令行等非源码块
+                    continue
+                ctx = "\n".join(lines[max(0, start - 8):start])
+                toks = FILE_TOKEN_RE.findall(ctx)
+                if not toks:
+                    continue
+                token = toks[-1]
+                cands = [token] if token in files else by_name.get(token, [])
+                if not cands:
+                    continue
+                if len(cands) > 1:       # index.js 同时命中云函数与页面，按章节消歧
+                    want_cloud = ("云函数" in section) or ("cloud" in section.lower())
+                    cands = [c for c in cands if ("cloudfunctions/" in c) == want_cloud] or cands
+                target = cands[0]
+                if EXCERPT_MARK_RE.search(ctx):   # 明确标注为节选，不与全文比对
+                    continue
+                disk = files[target].read_text(encoding="utf-8")
+                if _norm_code("\n".join(buf)) != _norm_code(disk):
+                    errors.append(
+                        f"{rel_art}:{start + 1}: 内联代码块与工程文件不一致 -> "
+                        f"examples/todo-miniprogram/{target}（该块未标注「要点/节选」）")
+                continue
+            if in_fence:
+                buf.append(ln)
+
+
 def check_example_structure():
     """示例工程结构一致性：app.json 页面/云函数与磁盘文件对应"""
     ex = ROOT / "examples" / "todo-miniprogram"
@@ -335,6 +448,7 @@ def main():
     check_orphans()
     check_gif_size()
     check_video_assets()
+    check_example_sync()
     check_example_structure()
     check_json()
     check_js_syntax()

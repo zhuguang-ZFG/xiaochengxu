@@ -110,7 +110,7 @@ flowchart LR
 | 视觉资产 | 43 个（34 动画 GIF + 9 示意图 PNG），全部可脚本复现 |
 | 教学视频 | 3 集（`docs/assets/videos/`，720×1280 竖屏 MP4，含字幕帧，由脚本生成） |
 | 示例工程 | `examples/todo-miniprogram`（可运行，对应实战篇） |
-| 自动校验 | 链接/元数据/序号/孤儿资产/GIF 与视频体积/代码块语言/交叉引用顺序/示例工程结构，见 CI（外链 HTTP 校验为本地可选：`python tools/check_repo.py --external`） |
+| 自动校验 | 链接/元数据/序号/孤儿资产/GIF 与视频体积/代码块语言/交叉引用顺序/示例工程结构/实战篇与示例工程逐行一致，见 CI（外链 HTTP 校验为本地可选：`python tools/check_repo.py --external`） |
 
 ## 示例工程
 
@@ -118,8 +118,8 @@ flowchart LR
 
 ## 质量保障
 
-- **CI 校验**：每次 push/PR 自动运行 [tools/check_repo.py](tools/check_repo.py)（链接断链、元数据、目录序号、孤儿资产、GIF/视频体积上限）+ 示例工程 JS 语法检查与云函数单元测试，见 [.github/workflows/check.yml](.github/workflows/check.yml)
-- **校验器自测**：[tools/test_check_repo.py](tools/test_check_repo.py) 用迷你仓库夹具反证校验逻辑本身有效（16 用例）；[tools/test_mutations.py](tools/test_mutations.py) 把已知缺陷还原成变异体验证自测确实会变红——防止出现「校验静默失效、CI 依旧全绿」
+- **CI 校验**：每次 push/PR 自动运行 [tools/check_repo.py](tools/check_repo.py)（链接断链、元数据、目录序号、孤儿资产、GIF/视频体积上限、代码块语言、交叉引用顺序、实战篇与示例工程逐行一致）+ 示例工程 JS 语法检查与云函数单元测试，见 [.github/workflows/check.yml](.github/workflows/check.yml)
+- **校验器自测**：[tools/test_check_repo.py](tools/test_check_repo.py) 用迷你仓库夹具反证校验逻辑本身有效（21 用例）；[tools/test_mutations.py](tools/test_mutations.py) 把已知缺陷还原成变异体验证自测确实会变红（8/8 捕获）——防止出现「校验静默失效、CI 依旧全绿」
 - 本地可随时运行 `python tools/check_repo.py` 自查
 
 ## 教学视频

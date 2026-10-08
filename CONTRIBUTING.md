@@ -26,14 +26,14 @@
 
 1. 本地跑 `python tools/check_repo.py`（CI 同一套校验）——应全绿
 2. 如果你改了 `tools/check_repo.py` 本身：跑 `python tools/test_check_repo.py`（校验器自测）与 `python tools/test_mutations.py`（变异测试）。本仓库已多次出现「校验逻辑静默失效、CI 依旧全绿」的缺陷（孤儿检查不递归、根目录文档不在扫描范围、代码块示例被当成真实链接），改动校验器必须证明它仍能抓到问题，而不只是「跑完没报错」
-2. 若新增文章：
+3. 若新增文章：
    - [ ] README 表格加行（教学顺序 = 表格顺序）
    - [ ] 前后篇的「上一篇/下一篇」交叉引用已更新
    - [ ] 视觉资产（如有）由 `tools/` 脚本生成且 ≤200KB，已在文中引用
    - [ ] [docs/00-学习路线/01-学习路径总览.md](docs/00-学习路线/01-学习路径总览.md) 阶段列表同步
-3. 若改动示例工程：`node --check` 全部 JS 通过，且与实战篇代码保持一致
-4. 若新增/修改教学视频：`python tools/gen_videos.py` 重新生成，确认单集 ≤3MB、`video-*.mp4` 命名；引用必须用**引用块 + 链接**（`> 📺 配套视频 · 第 N 集：[…](../assets/videos/video-NN-slug.mp4)`），**不要用 `![]()` 内嵌**——GitHub 会过滤 `<video>` 标签，`![]()` 引用 mp4 会显示为坏图
-5. 可选：`python tools/check_repo.py --external` 全量外链 HTTP 校验
+4. 若改动示例工程：`node --check` 全部 JS 通过，且与实战篇代码保持一致——CI 会逐行比对（见[契约「实战篇与示例工程必须逐行一致」](docs/_契约.md#实战篇与示例工程必须逐行一致)）。只贴要点的代码块须在标题或上文标注「要点/节选」，否则按全文比对会报漂移
+5. 若新增/修改教学视频：`python tools/gen_videos.py` 重新生成，确认单集 ≤3MB、`video-*.mp4` 命名；引用必须用**引用块 + 链接**（`> 📺 配套视频 · 第 N 集：[…](../assets/videos/video-NN-slug.mp4)`），**不要用 `![]()` 内嵌**——GitHub 会过滤 `<video>` 标签，`![]()` 引用 mp4 会显示为坏图
+6. 可选：`python tools/check_repo.py --external` 全量外链 HTTP 校验
 
 ## 提交信息规范
 

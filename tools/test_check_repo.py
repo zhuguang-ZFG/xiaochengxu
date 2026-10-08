@@ -15,6 +15,13 @@ import sys
 import tempfile
 import unittest
 
+# Windows 控制台默认 GBK，unittest 打印中文用例名会乱码（不影响断言，但本地没法读）
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import check_repo as chk  # noqa: E402
 
@@ -191,6 +198,76 @@ class CheckRepoTest(unittest.TestCase):
         errs = self.run_checks("check_gif_size")
         self.assertTrue(any("200KB" in e for e in errs),
                         f"GIF 超限必须报出，实际: {errs}")
+
+    # ---------- 示例工程与教程同步（实战篇声称「逐行对应」） ----------
+
+    EXAMPLE_APP_JSON = '{\n  "pages": ["pages/index/index"],\n  "sitemapLocation": "sitemap.json"\n}\n'
+
+    def test_示例工程漂移要报(self):
+        """教程块漏了工程文件里真实存在的字段——这正是历史上发生过的漂移。"""
+        self.fixture({
+            "examples/todo-miniprogram/app.json": self.EXAMPLE_APP_JSON,
+            "docs/06-实战/01-x.md": (
+                "# 实战\n\n本工程位于 examples/todo-miniprogram。\n\n"
+                "### app.json\n\n"
+                "```json\n"
+                '{\n  "pages": ["pages/index/index"]\n}\n'
+                "```\n"
+            ),
+        })
+        errs = self.run_checks("check_example_sync")
+        self.assertTrue(any("不一致" in e and "app.json" in e for e in errs),
+                        f"教程与工程文件的真实漂移必须报出，实际: {errs}")
+
+    def test_示例工程一致不报(self):
+        self.fixture({
+            "examples/todo-miniprogram/app.json": self.EXAMPLE_APP_JSON,
+            "docs/06-实战/01-x.md": (
+                "# 实战\n\n本工程位于 examples/todo-miniprogram。\n\n"
+                "### app.json\n\n```json\n" + self.EXAMPLE_APP_JSON + "```\n"
+            ),
+        })
+        errs = self.run_checks("check_example_sync")
+        self.assertEqual(errs, [], f"逐行一致的块不应报漂移，实际: {errs}")
+
+    def test_未引用示例工程的文章不参与比对(self):
+        """入门/基础各篇也有 `app.json` 等同名块，但那是独立的教学示例。
+
+        按文件名全局匹配会把它们全部误判为漂移（实测 18 处误报）。
+        """
+        self.fixture({
+            "examples/todo-miniprogram/app.json": self.EXAMPLE_APP_JSON,
+            "docs/06-实战/02-另一个实战.md": (
+                "# 另一个实战\n\n与示例工程无关的独立项目。\n\n"
+                "### app.json\n\n```json\n{\n  \"pages\": [\"pages/detail/detail\"]\n}\n```\n"
+            ),
+        })
+        errs = self.run_checks("check_example_sync")
+        self.assertEqual(errs, [], f"未引用示例工程的文章不应参与比对，实际: {errs}")
+
+    def test_非源码块不参与比对(self):
+        """bash 块是操作指令，上下文里的 `index.js` 不构成节选关系。"""
+        self.fixture({
+            "examples/todo-miniprogram/pages/index/index.js": "Page({ data: { a: 1 } })\n",
+            "docs/06-实战/01-x.md": (
+                "# 实战\n\n本工程位于 examples/todo-miniprogram。\n\n"
+                "### 单元测试\n\n页面 `index.js` 的测试：\n\n"
+                "```bash\nnode --test examples/todo-miniprogram/tests/*.test.js\n```\n"
+            ),
+        })
+        errs = self.run_checks("check_example_sync")
+        self.assertEqual(errs, [], f"bash 块不应与源码文件比对，实际: {errs}")
+
+    def test_标注要点的块豁免(self):
+        self.fixture({
+            "examples/todo-miniprogram/pages/index/index.wxss": ".page { padding: 24rpx; }\n.other { color: red; }\n",
+            "docs/06-实战/01-x.md": (
+                "# 实战\n\n本工程位于 examples/todo-miniprogram。\n\n"
+                "### index.wxss（要点）\n\n```css\n.page { padding: 24rpx; }\n```\n"
+            ),
+        })
+        errs = self.run_checks("check_example_sync")
+        self.assertEqual(errs, [], f"标注「要点」的节选块应豁免，实际: {errs}")
 
     # ---------- strip_code 行为 ----------
 

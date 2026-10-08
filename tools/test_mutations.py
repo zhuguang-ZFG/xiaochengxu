@@ -10,6 +10,14 @@ import subprocess
 import sys
 import tempfile
 
+# 同 check_repo.py：Windows 控制台默认 GBK，print ✅/❌ 会抛 UnicodeEncodeError，
+# 使变异测试在本地以 traceback 退出（CI 跑 Linux/UTF-8，一直掩盖着这个差异）。
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 TOOLS = pathlib.Path(__file__).resolve().parent
 ORIG = (TOOLS / "check_repo.py").read_text(encoding="utf-8")
 
@@ -34,6 +42,26 @@ MUTATIONS = [
         "围栏正则锚定行首（漏掉列表项里缩进 2 空格的围栏）",
         'FENCE_LINE_RE = re.compile(r"^[ \\t]{0,3}',
         'FENCE_LINE_RE = re.compile(r"^',
+    ),
+    (
+        "示例工程同步检查形同虚设（永不比对）",
+        'if _norm_code("\\n".join(buf)) != _norm_code(disk):',
+        'if False:',
+    ),
+    (
+        "按文件名全局匹配（未引用示例工程的文章也被误判漂移）",
+        'if "todo-miniprogram" not in text:',
+        'if False:',
+    ),
+    (
+        "非源码块也参与比对（bash 命令行被当成源码节选）",
+        "if lang not in SOURCE_LANGS:",
+        'if lang == "text":',
+    ),
+    (
+        "「要点/节选」豁免失效（摘要块被当成全文漂移）",
+        "if EXCERPT_MARK_RE.search(ctx):",
+        "if False:",
     ),
 ]
 
