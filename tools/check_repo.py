@@ -227,10 +227,9 @@ def check_crossref_order():
                 errors.append(f"{rel}: 下一篇指向 {nxt.group(2)}，教学顺序应为 {order[idx+1][1]}")
 
 
-def check_external_links(offline=False):
-    """外链 HTTP 状态校验（--offline 跳过，CI/本地默认启用）"""
-    if offline:
-        return
+def check_external_links():
+    """外链 HTTP 状态校验（默认关闭：CI/第三方站点网络波动不应阻断校验；
+    需要时用 --external 显式启用）"""
     import urllib.request, ssl, concurrent.futures
     ctx = ssl.create_default_context()
     links = {}
@@ -260,7 +259,8 @@ def check_external_links(offline=False):
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--offline", action="store_true", help="跳过外链 HTTP 校验（离线环境）")
+    parser.add_argument("--external", action="store_true",
+                        help="启用外链 HTTP 状态校验（默认关闭，CI 稳定优先）")
     args = parser.parse_args()
     check_metadata()
     check_images()
@@ -273,7 +273,8 @@ def main():
     check_js_syntax()
     check_fences_language()
     check_crossref_order()
-    check_external_links(args.offline)
+    if args.external:
+        check_external_links()
     if errors:
         print(f"❌ {len(errors)} 个问题:")
         for e in errors:
