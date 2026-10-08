@@ -14,7 +14,18 @@
 import functools
 import math
 import pathlib
+import sys
 from PIL import Image, ImageDraw, ImageFont
+
+# 控制台编码兜底：Windows 本地是 GBK，CI 的英文版 Windows runner 是 cp1252，
+# 两者都不保证能编码中文——脚本末尾那句 print("静态图生成完成…") 会抛
+# UnicodeEncodeError，于是**资产已经写好了，脚本却以 traceback 非零退出**
+# （CI 上实测如此）。四个生成脚本都 import 本模块，在这里统一兜底。
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 ASSETS = pathlib.Path(__file__).resolve().parent.parent / "docs" / "assets"
 ASSETS.mkdir(parents=True, exist_ok=True)
