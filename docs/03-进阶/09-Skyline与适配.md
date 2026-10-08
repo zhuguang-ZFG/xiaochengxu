@@ -157,6 +157,7 @@ const capsule = wx.getMenuButtonBoundingClientRect();  // 胶囊按钮位置
 ## 延伸阅读
 
 - 本库上一篇：[分享与订阅消息](../03-进阶/08-分享与订阅消息.md)
+- 本库下一篇：[第三方组件库](../03-进阶/10-第三方组件库.md)
 - 本库：[性能优化](../03-进阶/04-性能优化.md)（双线程架构、setData 成本、长列表）
 - 官方：[Skyline 渲染引擎](https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/introduction.html)
 - 官方：[Skyline 迁移指南](https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/migration/)

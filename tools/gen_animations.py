@@ -1149,6 +1149,92 @@ def anim_lib():
     build(kfs, hold=1100, tween=5, tdur=70, colors=96, name="demo-lib.gif")
 
 
+# ============ demo-debug：真机调试 → vConsole 日志 ============
+def anim_debug():
+    def base(pressed=False):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "调试演示")
+        txt(d, (24, 118), "页面运行中…", font_b(14), DARK)
+        rrect(d, (24, 560, 351, 608), 12, fill=GREEN if not pressed else GREEN_DARK)
+        text_c(d, 187, 578, "打开 vConsole", font_b(15), WHITE)
+        return img, d
+
+    def console(h, rows, err_hl):
+        img, d = base()
+        h = int(h)
+        rrect(d, (16, 600 - h, 359, 600), 12, fill=(40, 44, 52))
+        y = 600 - h + 18
+        for i, (s, c) in enumerate(rows):
+            if h < (i + 1) * 34:
+                break
+            if err_hl and s.startswith("ERR"):
+                rrect(d, (24, y - 8, 351, y + 16), 8, fill=(120, 40, 40))
+                txt(d, (34, y - 2), s, font(12), (255, 150, 150))
+            else:
+                txt(d, (34, y - 2), s, font(12), c)
+            y += 34
+        return img
+
+    rows = [("LOG 页面加载 page=index", (200, 210, 220)),
+            ("LOG setData ok", (200, 210, 220)),
+            ("WARN 请求耗时 860ms", (240, 200, 90)),
+            ("ERR TypeError: xxx is not a function", (255, 120, 120))]
+    kfs = []
+    img, d = base(); kfs.append(img)
+    img, d = base(True); kfs.append(img)
+    kfs.append(console(170, rows[:2], False))   # 半展开，2 条
+    kfs.append(console(340, rows[:4], False))   # 全展开，4 条
+    kfs.append(console(340, rows[:4], True))    # 错误条目高亮
+    kfs.append(console(0, rows, False))          # 收起
+    build(kfs, hold=1000, tween=5, tdur=70, colors=96, name="demo-debug.gif")
+
+
+# ============ demo-pay：确认支付 → 支付成功 ============
+def anim_pay():
+    def base(pressed=False, paid=False):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "商品详情")
+        lcard(d, (24, 118, 351, 300), 12, fill=WHITE, border=GRAY_L)
+        rrect(d, (40, 134, 335, 250), 8, fill=(235, 240, 235))
+        text_c(d, 187, 178, "示例商品", font_b(16), DARK)
+        text_c(d, 187, 214, "¥ 6.00", font_b(18), RED)
+        if paid:
+            txt(d, (40, 266), "已支付 · 订单 #1024", font(12), GREEN)
+        else:
+            txt(d, (40, 266), "微信支付 · 担保交易", font(12), GRAY)
+        rrect(d, (24, 330, 351, 378), 12, fill=GREEN if not pressed else GREEN_DARK)
+        text_c(d, 187, 348, "立即支付", font_b(15), WHITE)
+        return img, d
+
+    def sheet(img, d):
+        dim = Image.new("RGBA", (SW, SH), (0, 0, 0, 90))
+        img.paste(dim, (0, 0), dim)
+        d = ImageDraw.Draw(img)
+        rrect(d, (24, 380, 351, 620), 14, fill=WHITE)
+        text_c(d, 187, 410, "确认支付", font_b(16), DARK)
+        txt(d, (40, 452), "商户：示例商店", font(13), GRAY)
+        txt(d, (40, 484), "商品：示例商品 × 1", font(13), GRAY)
+        txt(d, (40, 516), "金额：¥ 6.00", font_b(14), DARK)
+        rrect(d, (40, 556, 335, 604), 12, fill=GREEN)
+        text_c(d, 187, 574, "确认支付 ¥6.00", font_b(15), WHITE)
+        return img
+
+    def success(img, d):
+        rrect(d, (120, 300, 255, 430), 14, fill=WHITE)
+        d.ellipse([150 * S, 330 * S, 190 * S, 370 * S], fill=GREEN)
+        d.line([161 * S, 352 * S, 172 * S, 363 * S], fill=WHITE, width=4 * S)
+        d.line([172 * S, 363 * S, 187 * S, 338 * S], fill=WHITE, width=4 * S)
+        text_c(d, 187, 396, "支付成功", font_b(15), DARK)
+        return img
+
+    kfs = []
+    img, d = base(); kfs.append(img)
+    img, d = base(True); kfs.append(img)
+    img, d = base(); kfs.append(sheet(img, d))
+    img, d = base(True); kfs.append(sheet(img, d))
+    img, d = base(); kfs.append(success(img, d))
+    img, d = base(paid=True); kfs.append(img)
+    build(kfs, hold=900, tween=4, tdur=60, colors=64, name="demo-pay.gif")
+
+
 if __name__ == "__main__":
     anim_setdata()
     anim_lifecycle()
@@ -1182,6 +1268,8 @@ if __name__ == "__main__":
     anim_skyline()
     anim_storage()
     anim_lib()
+    anim_debug()
+    anim_pay()
     print("全部动画生成完成")
 
     # 补间后处理：把静态帧切换的动画升级为含过渡的真动画

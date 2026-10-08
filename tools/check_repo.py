@@ -167,7 +167,101 @@ def check_js_syntax():
                 errors.append(f"{f.relative_to(ROOT)}: JS 括号不匹配 {o}={stripped.count(o)} {c}={stripped.count(c)}")
 
 
+def check_fences_language():
+    """契约：代码块必须标注语言（开围栏 ```lang 非空），且所有围栏闭合"""
+    for f in md_files() + [ROOT / "README.md"]:
+        t = f.read_text(encoding="utf-8")
+        in_fence = False
+        for i, line in enumerate(t.splitlines(), 1):
+            m = re.match(r"^```(\S*)\s*$", line)
+            if not m:
+                continue
+            if not in_fence:
+                if not m.group(1):
+                    errors.append(f"{f.relative_to(ROOT)}:{i}: 代码块未标注语言（应 ```js / ```wxml / ```text 等）")
+                in_fence = True
+            else:
+                in_fence = False
+        if in_fence:
+            errors.append(f"{f.relative_to(ROOT)}: 代码块未闭合")
+
+
+def check_crossref_order():
+    """教学顺序 = README 表格顺序；每篇「上一篇/下一篇」必须指向顺序中的相邻篇"""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    order = []  # (路径, 标题)
+    in_table = False
+    for line in readme.splitlines():
+        if line.startswith("| 阶段 |"):
+            in_table = True
+            continue
+        if in_table and line.startswith("|"):
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            m = re.search(r"\[([^\]]+)\]\(([^)]+)\)", cells[1]) if len(cells) >= 2 else None
+            if m and "---" not in cells[0]:
+                order.append((str((ROOT / m.group(2)).resolve()), m.group(1)))
+
+    for f in md_files():
+        if f.parent.name == "00-学习路线":
+            continue
+        t = f.read_text(encoding="utf-8")
+        rel = f.relative_to(ROOT)
+        try:
+            idx = next(i for i, (p, _) in enumerate(order) if p == str(f.resolve()))
+        except StopIteration:
+            errors.append(f"{rel}: 不在 README 教学顺序表格中")
+            continue
+        prev = re.search(r"^- 本库上一篇：\[([^\]]+)\]\(([^)]+)\)", t, re.M)
+        nxt = re.search(r"^- 本库下一篇：\[([^\]]+)\]\(([^)]+)\)", t, re.M)
+        if prev:
+            target = str((f.parent / prev.group(2).split("#")[0]).resolve())
+            if idx == 0:
+                errors.append(f"{rel}: 是教学第一篇，却声明了上一篇 -> {prev.group(2)}")
+            elif target != order[idx - 1][0]:
+                errors.append(f"{rel}: 上一篇指向 {prev.group(2)}，教学顺序应为 {order[idx-1][1]}")
+        if nxt:
+            target = str((f.parent / nxt.group(2).split("#")[0]).resolve())
+            if idx == len(order) - 1:
+                errors.append(f"{rel}: 是教学末篇，却声明了下一篇 -> {nxt.group(2)}")
+            elif target != order[idx + 1][0]:
+                errors.append(f"{rel}: 下一篇指向 {nxt.group(2)}，教学顺序应为 {order[idx+1][1]}")
+
+
+def check_external_links(offline=False):
+    """外链 HTTP 状态校验（--offline 跳过，CI/本地默认启用）"""
+    if offline:
+        return
+    import urllib.request, ssl, concurrent.futures
+    ctx = ssl.create_default_context()
+    links = {}
+    for f in md_files() + [ROOT / "README.md"]:
+        t = f.read_text(encoding="utf-8")
+        for m in re.finditer(r"\[[^\]]*\]\(([^)]+)\)", t):
+            u = m.group(1)
+            if u.startswith(("http://", "https://")):
+                links.setdefault(u, f.relative_to(ROOT))
+
+    def check(u):
+        for _ in range(2):  # 失败重试一次
+            try:
+                req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=20, context=ctx) as r:
+                    return u, r.status
+            except Exception:
+                continue
+        return u, None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+        for u, st in ex.map(check, links):
+            if st is None or st >= 400:
+                errors.append(f"{links[u]}: 外链异常 -> {u} (HTTP {st})")
+
+
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--offline", action="store_true", help="跳过外链 HTTP 校验（离线环境）")
+    args = parser.parse_args()
     check_metadata()
     check_images()
     check_links()
@@ -177,6 +271,9 @@ def main():
     check_example_structure()
     check_json()
     check_js_syntax()
+    check_fences_language()
+    check_crossref_order()
+    check_external_links(args.offline)
     if errors:
         print(f"❌ {len(errors)} 个问题:")
         for e in errors:
