@@ -75,10 +75,10 @@ flowchart LR
 │   ├── 00-学习路线/         # 学习路径总览 + API 速查索引
 │   ├── 01-入门/ … 07-资源/  # 教学链 27 篇（教学顺序见 README 表格）
 │   ├── _契约.md            # 写作契约（元数据/结构/视觉资产/深度要求）
-│   └── assets/             # 43 个视觉资产（脚本生成，勿手改）
+│   └── assets/             # 43 个视觉资产 + videos/ 教学视频（脚本生成，勿手改）
 ├── examples/
 │   └── todo-miniprogram/   # 可运行示例工程（对应实战篇）
-└── tools/                  # 资产生成（render/gen_animations/gen_statics/gen_diagrams）+ check_repo.py
+└── tools/                  # 资产生成（render/gen_animations/gen_statics/gen_diagrams/gen_videos）+ check_repo.py
 ```
 
 ## 参与共建
@@ -108,8 +108,9 @@ flowchart LR
 |---|---|
 | 教程文章 | 29 篇（学习路线 2 篇 + 入门/基础/进阶/云开发/发布/实战/资源 27 篇教学链） |
 | 视觉资产 | 43 个（34 动画 GIF + 9 示意图 PNG），全部可脚本复现 |
+| 教学视频 | 3 集（`docs/assets/videos/`，720×1280 竖屏 MP4，含字幕帧，由脚本生成） |
 | 示例工程 | `examples/todo-miniprogram`（可运行，对应实战篇） |
-| 自动校验 | 链接/元数据/序号/孤儿资产/GIF 体积/代码块语言/交叉引用顺序/示例工程结构，见 CI（外链 HTTP 校验为本地可选：`python tools/check_repo.py --external`） |
+| 自动校验 | 链接/元数据/序号/孤儿资产/GIF 与视频体积/代码块语言/交叉引用顺序/示例工程结构，见 CI（外链 HTTP 校验为本地可选：`python tools/check_repo.py --external`） |
 
 ## 示例工程
 
@@ -117,8 +118,21 @@ flowchart LR
 
 ## 质量保障
 
-- **CI 校验**：每次 push/PR 自动运行 [tools/check_repo.py](tools/check_repo.py)（链接断链、元数据、目录序号、孤儿资产）+ 示例工程 JS 语法检查，见 [.github/workflows/check.yml](.github/workflows/check.yml)
+- **CI 校验**：每次 push/PR 自动运行 [tools/check_repo.py](tools/check_repo.py)（链接断链、元数据、目录序号、孤儿资产、GIF/视频体积上限）+ 示例工程 JS 语法检查与云函数单元测试，见 [.github/workflows/check.yml](.github/workflows/check.yml)
+- **校验器自测**：[tools/test_check_repo.py](tools/test_check_repo.py) 用迷你仓库夹具反证校验逻辑本身有效（16 用例）；[tools/test_mutations.py](tools/test_mutations.py) 把已知缺陷还原成变异体验证自测确实会变红——防止出现「校验静默失效、CI 依旧全绿」
 - 本地可随时运行 `python tools/check_repo.py` 自查
+
+## 教学视频
+
+`docs/assets/videos/` 下有 3 集竖屏教学视频（720×1280、24fps、H.264，单集 ≤ 300KB），由 `python tools/gen_videos.py` 程序化生成——含字幕帧，不需要录音或录屏：
+
+| 集 | 主题 | 时长 | 对应文章 |
+|---|---|---|---|
+| 第 1 集 | 学习路径导览 | 60 秒 | [学习路径总览](docs/00-学习路线/01-学习路径总览.md) |
+| 第 2 集 | 认识小程序 | 75 秒 | [认识小程序](docs/01-入门/01-认识小程序.md) |
+| 第 3 集 | 环境准备 | 75 秒 | [环境准备](docs/01-入门/02-环境准备.md) |
+
+GitHub 渲染仓库 Markdown 时会过滤 `<video>` 标签，因此文章内以**引用块 + 链接**形式给出，点击后由 GitHub 内置播放器播放（见 [docs/_契约.md](docs/_契约.md) 的「视觉资产规范」）。
 
 ## 参考
 

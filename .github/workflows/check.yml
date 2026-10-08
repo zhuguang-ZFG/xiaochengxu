@@ -18,8 +18,14 @@ jobs:
       - name: 安装依赖（PIL 供部分检查）
         run: pip install pillow
 
-      - name: 运行仓库一致性校验（链接/元数据/序号/孤儿资产/代码块语言/交叉引用）
+      - name: 运行仓库一致性校验（链接/元数据/序号/孤儿资产/GIF与视频体积/代码块语言/交叉引用）
         run: python tools/check_repo.py
+
+      - name: 校验器自测（防止校验静默失效）
+        run: python tools/test_check_repo.py
+
+      - name: 变异测试（确认自测真的能抓到缺陷，而非碰巧全绿）
+        run: python tools/test_mutations.py
 
       - name: 示例工程 JS 语法校验
         run: |

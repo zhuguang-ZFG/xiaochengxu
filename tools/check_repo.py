@@ -6,9 +6,10 @@
 2. 图片引用：所有 ![...](...) 指向存在文件
 3. 相对链接：所有 [..](相对路径) 指向存在文件
 4. 目录序号：docs 各分类目录序号连续（1,2,3...）
-5. 孤儿资产：docs/assets/ 下无未被引用的文件
-6. JSON 合法性：示例工程与配置文件的 json 可解析
-7. JS 语法：示例工程 js 可被 node 解析（python 侧仅做括号粗查，CI 用 node）
+5. 孤儿资产：docs/assets/ 下（含子目录）无未被引用的文件
+6. 视觉资产硬限制：GIF ≤200KB、教学视频 MP4 ≤3MB 且命名合规
+7. JSON 合法性：示例工程与配置文件的 json 可解析
+8. JS 语法：示例工程 js 可被 node 解析（python 侧仅做括号粗查，CI 用 node）
 
 用法：python tools/check_repo.py
 退出码：0 = 全部通过；1 = 存在问题
@@ -18,10 +19,21 @@ import pathlib
 import re
 import sys
 
+# Windows 控制台默认 GBK，print ✅/❌ 会抛 UnicodeEncodeError——
+# 导致"检查其实全部通过，却以 traceback 非零退出"。统一把 stdout 切到 UTF-8。
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 ASSETS = DOCS / "assets"
 CONTRACT_NAME = "_契约.md"
+
+GIF_LIMIT = 200 * 1024          # 契约：单个动画 GIF ≤ 200KB
+VIDEO_LIMIT = 3 * 1024 * 1024   # 契约：单集教学视频 ≤ 3MB
 
 META_FIELDS = ["title", "description", "category", "tags", "difficulty", "reading_time", "updated"]
 CATEGORY_DIR = {
@@ -33,7 +45,36 @@ errors = []
 
 
 def md_files():
+    """教学正文（排除写作契约本身）——元数据类检查用"""
     return [f for f in DOCS.rglob("*.md") if f.name != CONTRACT_NAME]
+
+
+def all_md_files():
+    """仓库内全部 Markdown（含写作契约与根目录文档）——链接/图片类检查用。
+
+    此前只扫 docs/ 正文 + README.md，导致 CONTRIBUTING.md、CHANGELOG.md
+    里的断链完全无人校验。
+    """
+    return sorted(DOCS.rglob("*.md")) + sorted(ROOT.glob("*.md"))
+
+
+FENCE_RE = re.compile(r"^[ \t]{0,3}```.*?^[ \t]{0,3}```", re.S | re.M)
+FENCE_LINE_RE = re.compile(r"^[ \t]{0,3}```(\S*)\s*$")
+INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+
+
+def strip_code(text):
+    """剥掉围栏代码块与行内代码，再抽取链接。
+
+    契约与 CONTRIBUTING 里存在大量「用法示例」形式的链接，例如
+    `![说明](../assets/screen-hello.png)`、`../assets/videos/video-NN-slug.mp4`，
+    它们并非真实引用，不剥离会产生成片误报断链。先剥围栏再剥行内代码
+    （围栏行本身由反引号构成，顺序反了会剥不干净）。
+
+    围栏必须允许最多 3 个空格缩进：契约把示例写在列表项里（缩进 2 空格），
+    锚定行首 `^``` ` 会配不上对，导致块内示例被当成真实链接。
+    """
+    return INLINE_CODE_RE.sub("", FENCE_RE.sub("", text))
 
 
 def check_metadata():
@@ -56,8 +97,8 @@ def check_metadata():
 
 
 def check_images():
-    for f in md_files() + [ROOT / "README.md"]:
-        t = f.read_text(encoding="utf-8")
+    for f in all_md_files():
+        t = strip_code(f.read_text(encoding="utf-8"))
         for m in re.finditer(r"!\[[^\]]*\]\(([^)]+)\)", t):
             target = m.group(1)
             if target.startswith(("http", "//")):
@@ -67,8 +108,8 @@ def check_images():
 
 
 def check_links():
-    for f in md_files() + [ROOT / "README.md"]:
-        t = f.read_text(encoding="utf-8")
+    for f in all_md_files():
+        t = strip_code(f.read_text(encoding="utf-8"))
         for m in re.finditer(r"\[[^\]]*\]\(([^)]+)\)", t):
             link = m.group(1)
             if link.startswith(("http", "#", "mailto:")):
@@ -102,19 +143,40 @@ def check_orphans():
         t = f.read_text(encoding="utf-8")
         for m in re.finditer(r"assets/([^)\s]+)", t):
             referenced.add(m.group(1))
-    for a in ASSETS.iterdir():
+    # 递归遍历：assets/ 下的子目录（如 videos/）同样纳入孤儿检查
+    for a in sorted(ASSETS.rglob("*")):
         if not a.is_file():
             continue
-        if a.name not in referenced:
-            errors.append(f"孤儿资产（未被任何文档引用）: docs/assets/{a.name}")
+        rel = a.relative_to(ASSETS).as_posix()
+        if rel not in referenced:
+            errors.append(f"孤儿资产（未被任何文档引用）: docs/assets/{rel}")
 
 
 def check_gif_size():
     """契约硬限制：动画 GIF 单文件 ≤ 200KB"""
     for g in ASSETS.glob("*.gif"):
         size = g.stat().st_size
-        if size > 200 * 1024:
+        if size > GIF_LIMIT:
             errors.append(f"{g.name}: {size} bytes 超过 200KB 上限（契约视觉资产规范）")
+
+
+def check_video_assets():
+    """契约硬限制：教学视频存放 docs/assets/videos/，命名 video-*.mp4，单集 ≤ 3MB"""
+    vdir = ASSETS / "videos"
+    if not vdir.is_dir():
+        return
+    for v in sorted(vdir.iterdir()):
+        if not v.is_file():
+            continue
+        rel = f"docs/assets/videos/{v.name}"
+        if v.suffix.lower() != ".mp4":
+            errors.append(f"{rel}: 契约规定 videos/ 下只放 MP4 教学视频")
+            continue
+        if not v.name.startswith("video-"):
+            errors.append(f"{rel}: 文件名须以 video- 前缀开头（契约命名规范）")
+        size = v.stat().st_size
+        if size > VIDEO_LIMIT:
+            errors.append(f"{rel}: {size} bytes 超过 3MB 上限（契约视觉资产规范）")
 
 
 def check_example_structure():
@@ -168,12 +230,16 @@ def check_js_syntax():
 
 
 def check_fences_language():
-    """契约：代码块必须标注语言（开围栏 ```lang 非空），且所有围栏闭合"""
-    for f in md_files() + [ROOT / "README.md"]:
+    """契约：代码块必须标注语言（开围栏 ```lang 非空），且所有围栏闭合。
+
+    围栏识别允许最多 3 空格缩进（CommonMark）：契约把示例围栏写在列表项里，
+    锚定行首会漏掉它们，既漏报「未标注语言」也漏报「未闭合」。
+    """
+    for f in all_md_files():
         t = f.read_text(encoding="utf-8")
         in_fence = False
         for i, line in enumerate(t.splitlines(), 1):
-            m = re.match(r"^```(\S*)\s*$", line)
+            m = FENCE_LINE_RE.match(line)
             if not m:
                 continue
             if not in_fence:
@@ -268,6 +334,7 @@ def main():
     check_sequence()
     check_orphans()
     check_gif_size()
+    check_video_assets()
     check_example_structure()
     check_json()
     check_js_syntax()
