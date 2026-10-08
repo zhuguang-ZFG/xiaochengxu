@@ -4,6 +4,29 @@
 
 > 版本说明：`v1.0.0` 为未打标签的构建期快照（内容对应提交 `6a323fd`）；自 `v1.1.0` 起正式发布 GitHub Release。
 
+## [v1.4.0] - 2026-10-08
+
+### 修复（事实错误，均已对照官方文档核实）
+
+- **实战篇避坑 #6 与示例工程自相矛盾**：教程写「showModal 是回调式 API，用 Promise 包装再 await，否则 `confirm` 拿不到」，而示例工程 `pages/index/index.js` 正是 `await wx.showModal(...)`。官方文档：异步 API 不传 success/fail/complete 时直接返回 Promise（基础库 2.10.2 起），`wx.showModal` 页面明确标注「以 Promise 风格调用：支持」；官方 TypeScript 类型 `PromisifySuccessResult` 编码的就是这条规则。错的是教程不是代码——改为准确的版本条件与两种真正拿不到的情形。逐行一致校验抓不到这个：它只比代码文本，不比正文对代码的断言
+- **速查索引收录了不存在的接口 `wx.promisify`**（「官方」列是 `—`，本该是信号）：官方 API 索引页 504 个 `wx.*` 中没有它，三个可能的文档路径全部 404。真实的批量转换方案是官方 npm 包 `miniprogram-api-promise`（`promisifyAll`）。删除该行；Promise 规则移入「用法」一节，对表里每个 API 都适用 <!-- api-ignore -->
+- **网络篇把同一个虚构接口写成「微信提供的工具」**，还附带了无法核实的「`util.promisify` 在部分基础库可用」。改为官方原话：`wx.request`/`uploadFile`/`downloadFile`/`connectSocket` 本身有返回值，promisify 需开发者自行封装
+- **地图篇手工 `new Promise` 包装 `wx.showModal` 却只处理 success**：fail 触发时 Promise 永不 settle，`await` 挂死。同一段代码两行之上已经在 `await wx.getSetting()`，改为一致的原生 Promise 风格，fail 走外层 try/catch
+- `test_check_repo.py` / `test_assets_fresh.py` 的 UTF-8 兜底只切了 stdout，而 unittest 把用例名写到 **stderr**——v1.2.0 声称修掉的「用例名乱码」实际没修到那条流。两个流一起切
+
+### 新增
+
+- **API 真实性校验** `check_api_names()`：正文与示例工程源码里出现的每个一级 `wx.<name>` 必须在 `tools/data/wx-api-names.txt`（`--update-api-list` 抓自官方 API 索引页，504 个）里。这是第二次在库里发现虚构接口（上一次是 Skyline 篇的 worklet `animate()`），链接/语法类检查对此毫无感知。在真实仓库上跑：51 个不同名字，恰好只报出 `wx.promisify` 两处，零误报 <!-- api-ignore -->
+  - 名单随工具走而非随仓库走；缺失时显式失败而不是按空名单继续（否则全库真实 API 都被报成虚构）
+  - 刷新名单有下限保护：抽到的名字少于 300 个视为抓取失败，拒绝覆盖
+  - 只认小写开头（`wx.API 速查索引` 这类标题不误中）；`<!-- api-ignore -->` 行级豁免给反面例子用；明说只校验一级标识符，`wx.cloud.xxx` 只看到 `wx.cloud`
+- 契约新增「API 名必须真实存在」一节，并把 Promise 规则写进去——写「X 是回调式要自己包」之前先查这一条；CONTRIBUTING 自查清单同步
+
+### 新增（校验器自测）
+
+- `test_check_repo.py` 补 7 个用例（共 30）：虚构名必报、真实名与 `wx.cloud` 不报、标题不误报、`api-ignore` 豁免、示例工程源码拼错必报、名单缺失显式失败、抓取逻辑
+- `test_mutations.py` 补 4 项变异（共 16/16 捕获）：检查形同虚设、正则不限小写、示例工程源码不在范围、名单缺失时静默继续
+
 ## [v1.3.0] - 2026-10-08
 
 ### 新增

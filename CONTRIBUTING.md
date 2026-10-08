@@ -31,6 +31,8 @@
    - [ ] 前后篇的「上一篇/下一篇」交叉引用已更新
    - [ ] 视觉资产（如有）由 `tools/` 脚本生成且 ≤200KB，已在文中引用
    - [ ] [docs/00-学习路线/01-学习路径总览.md](docs/00-学习路线/01-学习路径总览.md) 阶段列表同步
+   - [ ] 文中每个 `wx.<name>` 都是官方真实 API——CI 对照 `tools/data/wx-api-names.txt`（抓自官方索引页）逐个核对，见[契约「API 名必须真实存在」](docs/_契约.md#api-名必须真实存在)。官方新增、名单里没有的：`python tools/check_repo.py --update-api-list` 刷新后连同提交；要写虚构名当反面例子的：行尾加 `<!-- api-ignore -->`
+   - [ ] 断言某 API「是回调式、要自己包 Promise」之前先查官方：基础库 2.10.2 起异步 API 不传回调即返回 Promise，只有 `wx.request`/`uploadFile`/`downloadFile`/`connectSocket` 例外
 4. 若改动示例工程：`node --check` 全部 JS 通过，且与实战篇代码保持一致——CI 会逐行比对（见[契约「实战篇与示例工程必须逐行一致」](docs/_契约.md#实战篇与示例工程必须逐行一致)）。只贴要点的代码块须在标题或上文标注「要点/节选」，否则按全文比对会报漂移
 5. 若新增/修改教学视频：`python tools/gen_videos.py` 重新生成，确认单集 ≤3MB、`video-*.mp4` 命名；引用必须用**引用块 + 链接**（`> 📺 配套视频 · 第 N 集：[…](../assets/videos/video-NN-slug.mp4)`），**不要用 `![]()` 内嵌**——GitHub 会过滤 `<video>` 标签，`![]()` 引用 mp4 会显示为坏图
 6. 若改了任何资产生成脚本（`render.py` / `gen_*.py`）：**必须重跑生成并连同资产一起提交**。CI 的 `assets` job 会清空 `docs/assets/` 重跑四个脚本，然后要求 `git status` 干净——漏提交、手工改过的资产都会红。本地自查：`python tools/check_assets_fresh.py`（要求工作区干净，会清空并重新生成 `docs/assets/`，可 `git checkout -- docs/assets` 还原）

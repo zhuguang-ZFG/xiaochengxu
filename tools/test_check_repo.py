@@ -15,12 +15,14 @@ import sys
 import tempfile
 import unittest
 
-# Windows 控制台默认 GBK，unittest 打印中文用例名会乱码（不影响断言，但本地没法读）
-if hasattr(sys.stdout, "reconfigure"):
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
+# Windows 控制台默认 GBK，unittest 打印中文用例名会乱码（不影响断言，但本地没法读）。
+# unittest 把用例名写到 stderr 而非 stdout，两个流都要切。
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import check_repo as chk  # noqa: E402
@@ -286,6 +288,69 @@ class CheckRepoTest(unittest.TestCase):
         errs = self.run_checks("check_links")
         self.assertTrue(any("不存在.md" in e for e in errs),
                         f"示例工程 README 的断链必须被报出，实际: {errs}")
+
+    # ---------- API 真实性（正文/示例代码里的 wx.<name> 必须真实存在） ----------
+
+    API_LIST = "# 夹具名单\n\nwx.showModal\nwx.request\n"
+
+    def api_fixture(self, files):
+        """迷你仓库 + 夹具名单。名单文件随工具走而非随仓库走，所以单独指过去；
+        不能依赖仓库里的真实名单——变异测试只把两个脚本拷进临时目录。"""
+        root = self.fixture(files)
+        lst = root / "tools" / "data" / "wx-api-names.txt"
+        lst.parent.mkdir(parents=True, exist_ok=True)
+        lst.write_text(self.API_LIST, encoding="utf-8")
+        self.addCleanup(setattr, chk, "API_LIST_FILE", chk.API_LIST_FILE)
+        chk.API_LIST_FILE = lst
+        return root
+
+    def test_虚构API要报(self):
+        """速查索引里真出现过：把 npm 包的能力写成了 `wx.` 下的接口。"""
+        self.api_fixture({"docs/01-入门/01-x.md": "用 `wx.promisify` 转 Promise\n"})
+        errs = self.run_checks("check_api_names")
+        self.assertTrue(any("wx.promisify" in e and "01-x.md:1" in e for e in errs),
+                        f"名单之外的 API 名必须报出（带行号），实际: {errs}")
+
+    def test_真实API不报_含云开发命名空间(self):
+        self.api_fixture({
+            "docs/01-入门/01-x.md": (
+                "```js\nconst { confirm } = await wx.showModal({ title: 'x' });\n"
+                "wx.cloud.callFunction({ name: 'todo' });\n```\n"
+                "官方：https://developers.weixin.qq.com/miniprogram/dev/api/ui/interaction/wx.showModal.html\n"
+            ),
+        })
+        errs = self.run_checks("check_api_names")
+        self.assertEqual(errs, [], f"名单内的 API（含 EXTRA 的 wx.cloud）不应报，实际: {errs}")
+
+    def test_标题里的wx_API不误报(self):
+        """`wx.API 速查索引` 是标题用语不是接口；官方 API 全部小写开头。"""
+        self.api_fixture({"docs/00-学习路线/02-x.md": "# wx.API 速查索引\n\n40+ 个 `wx.*` API\n"})
+        errs = self.run_checks("check_api_names")
+        self.assertEqual(errs, [], f"大写开头的非接口用语不应报，实际: {errs}")
+
+    def test_api_ignore标记豁免(self):
+        """CHANGELOG 记录「删掉了虚构 API」时必然要写出那个名字。"""
+        self.api_fixture({"CHANGELOG.md": "- 删除虚构的 `wx.promisify` <!-- api-ignore -->\n"})
+        errs = self.run_checks("check_api_names")
+        self.assertEqual(errs, [], f"带 api-ignore 标记的行应豁免，实际: {errs}")
+
+    def test_示例工程源码里的拼错API要报(self):
+        self.api_fixture({"examples/todo-miniprogram/pages/index/index.js": "wx.showModel({ title: 'x' });\n"})
+        errs = self.run_checks("check_api_names")
+        self.assertTrue(any("wx.showModel" in e and "index.js" in e for e in errs),
+                        f"示例工程源码里拼错的 API 必须报出，实际: {errs}")
+
+    def test_名单文件缺失要明确报错而非假通过(self):
+        self.api_fixture({"docs/01-入门/01-x.md": "wx.request\n"})
+        chk.API_LIST_FILE = chk.API_LIST_FILE.with_name("不存在.txt")
+        with self.assertRaises(SystemExit, msg="名单缺失必须显式失败，否则空名单会把一切放行或全报"):
+            chk.check_api_names()
+
+    def test_抽取官方名单(self):
+        """抓取逻辑：去重、排序、同样只认小写开头的一级标识符。"""
+        html = ('<a href="/api/ui/wx.showModal.html">wx.showModal</a> wx.API '
+                'wx.request wx.showModal wx.cloud.callFunction')
+        self.assertEqual(chk.extract_api_names(html), ["wx.cloud", "wx.request", "wx.showModal"])
 
     # ---------- strip_code 行为 ----------
 

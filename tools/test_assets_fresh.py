@@ -21,11 +21,13 @@ import sys
 import tempfile
 import unittest
 
-if hasattr(sys.stdout, "reconfigure"):
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
+# unittest 把用例名写到 stderr，与 stdout 一起切 UTF-8（同 test_check_repo.py）
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
 
 TOOLS = pathlib.Path(__file__).resolve().parent
 

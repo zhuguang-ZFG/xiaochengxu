@@ -10,8 +10,10 @@
 6. 视觉资产硬限制：GIF ≤200KB、教学视频 MP4 ≤3MB 且命名合规
 7. JSON 合法性：示例工程与配置文件的 json 可解析
 8. JS 语法：示例工程 js 可被 node 解析（python 侧仅做括号粗查，CI 用 node）
+9. API 真实性：正文与示例代码里的 `wx.<name>` 必须存在于官方 API 名单
 
 用法：python tools/check_repo.py
+      python tools/check_repo.py --update-api-list   # 刷新第 9 项的官方名单
 退出码：0 = 全部通过；1 = 存在问题
 """
 import json
@@ -421,6 +423,93 @@ def check_crossref_order():
                 errors.append(f"{rel}: 下一篇指向 {nxt.group(2)}，教学顺序应为 {order[idx+1][1]}")
 
 
+# ---------- API 真实性 ----------
+
+API_INDEX_URL = "https://developers.weixin.qq.com/miniprogram/dev/api/"
+# 名单随工具走而不随被扫描的仓库走：自测会把 ROOT 指到临时目录
+API_LIST_FILE = pathlib.Path(__file__).resolve().parent / "data" / "wx-api-names.txt"
+# 官方 API 索引页不含云开发命名空间（云开发文档是独立分支，导航不在这一页），手工补上。
+# 其他补充也写在这里并说明理由，不要手改生成的名单文件。
+EXTRA_API_NAMES = {"wx.cloud"}
+# 一级标识符：官方 API 全部以小写字母开头，`wx.API 速查索引` 这类标题不会误中
+API_NAME_RE = re.compile(r"\bwx\.[a-z][A-Za-z0-9_]*")
+# 行内含此标记则跳过：用于把虚构 API 当反面例子写出来的句子（CHANGELOG、避坑清单）
+API_IGNORE_MARK = "api-ignore"
+
+
+def extract_api_names(html):
+    """从官方 API 索引页抽取一级 `wx.<name>`（去重排序）"""
+    return sorted(set(API_NAME_RE.findall(html)))
+
+
+def update_api_list():
+    """抓取官方 API 索引页，重写名单文件（需要网络；平时不跑，名单随仓库提交）"""
+    import urllib.request, ssl
+    req = urllib.request.Request(API_INDEX_URL, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=30, context=ssl.create_default_context()) as r:
+        html = r.read().decode("utf-8", errors="replace")
+    names = extract_api_names(html)
+    # 页面改版或抓到错误页时只会抽出零星几个名字；宁可失败也不写出残缺名单，
+    # 否则下一次校验会把全库的真实 API 都报成虚构
+    if len(names) < 300:
+        raise SystemExit(f"只抽到 {len(names)} 个 API 名，疑似抓取失败，未写入 {API_LIST_FILE.name}")
+    header = (
+        "# 微信小程序官方 API 名单（一级 `wx.<name>` 标识符），供 check_repo.py 校验 API 真实性\n"
+        f"# 由 `python tools/check_repo.py --update-api-list` 抓取 {API_INDEX_URL} 生成，请勿手改\n"
+        "# 需要补充名单之外的名字（如云开发命名空间）改 check_repo.py 的 EXTRA_API_NAMES 并写明理由\n"
+        f"# 共 {len(names)} 个\n"
+    )
+    API_LIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+    # newline 固定 LF：write_text 默认跟平台走，Windows 上会写出 CRLF，同一份名单两个平台字节不同
+    API_LIST_FILE.write_text(header + "\n".join(names) + "\n", encoding="utf-8", newline="\n")
+    print(f"已写入 {API_LIST_FILE.relative_to(ROOT)}：{len(names)} 个 API")
+
+
+def load_api_names():
+    if not API_LIST_FILE.is_file():
+        raise SystemExit(f"缺少 API 名单 {API_LIST_FILE}，先跑 python tools/check_repo.py --update-api-list")
+    names = set()
+    for ln in API_LIST_FILE.read_text(encoding="utf-8").splitlines():
+        ln = ln.strip()
+        if ln and not ln.startswith("#"):
+            names.add(ln)
+    return names | EXTRA_API_NAMES
+
+
+def _api_scan_files():
+    """全部 Markdown + 示例工程源码（工程里的 API 名拼错同样是读者照抄的对象）"""
+    files = list(all_md_files())
+    ex = ROOT / "examples"
+    if ex.is_dir():
+        files += sorted(f for f in ex.rglob("*") if f.suffix in (".js", ".wxml"))
+    return files
+
+
+def check_api_names():
+    """正文与示例代码里出现的每个 `wx.<name>` 都必须是官方真实存在的 API。
+
+    教程里出现过虚构 API（Skyline 篇的 worklet `animate()`、速查索引里把
+    npm 包 miniprogram-api-promise 的能力写成了 `wx.` 下的接口），读者照着写
+    就是运行时报错，而链接/语法类检查对此毫无感知。名单来自官方 API 索引页
+    （`--update-api-list` 刷新），名单之外一律报错；确需把虚构名当反面例子
+    写出来的，在该行加 `<!-- api-ignore -->`。
+
+    只校验一级标识符：`wx.cloud.xxx` 只看到 `wx.cloud`。云开发 API 的官方
+    索引不在同一页，二级名单另抓的收益不抵维护成本，这里明说而不是假装覆盖。
+    """
+    known = load_api_names()
+    for f in _api_scan_files():
+        text = f.read_text(encoding="utf-8", errors="replace")
+        for i, ln in enumerate(text.splitlines(), 1):
+            if API_IGNORE_MARK in ln:
+                continue
+            for name in sorted(set(API_NAME_RE.findall(ln))):
+                if name not in known:
+                    errors.append(
+                        f"{f.relative_to(ROOT)}:{i}: `{name}` 不在官方 API 名单"
+                        "（确为新 API 则 --update-api-list 刷新；反面例子在行尾加 <!-- api-ignore -->）")
+
+
 def check_external_links():
     """外链 HTTP 状态校验（默认关闭：CI/第三方站点网络波动不应阻断校验；
     需要时用 --external 显式启用）"""
@@ -455,7 +544,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--external", action="store_true",
                         help="启用外链 HTTP 状态校验（默认关闭，CI 稳定优先）")
+    parser.add_argument("--update-api-list", action="store_true",
+                        help="抓取官方 API 索引页刷新 tools/data/wx-api-names.txt 后退出（需要网络）")
     args = parser.parse_args()
+    if args.update_api_list:
+        update_api_list()
+        return
     check_metadata()
     check_images()
     check_links()
@@ -469,6 +563,7 @@ def main():
     check_js_syntax()
     check_fences_language()
     check_crossref_order()
+    check_api_names()
     if args.external:
         check_external_links()
     if errors:

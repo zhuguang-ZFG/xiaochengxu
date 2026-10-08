@@ -16,6 +16,7 @@ updated: 2026-10-08
 
 - 按能力域找 API → 点「详解」直达本库文章，点「官方」看完整参数
 - 接口是否可用以基础库版本为准，官方文档每个 API 页顶部标注最低版本
+- 异步 API 不传 success/fail/complete 就直接返回 Promise（[基础库 2.10.2 起](https://developers.weixin.qq.com/miniprogram/dev/framework/app-service/api.html)），可 `await`；`wx.request`/`wx.uploadFile`/`wx.downloadFile`/`wx.connectSocket` 例外——它们本身返回任务对象，要自行封装（见[网络请求与数据](../03-进阶/03-网络请求与数据.md)）
 - `wx.cloud.*` 与 `cloud.*`（云函数端）是两套体系，见云开发篇
 
 ## 登录与身份
@@ -33,7 +34,6 @@ updated: 2026-10-08
 |---|---|---|---|
 | `wx.request` | 发起 HTTPS 请求（域名需在小程序后台配置） | [网络请求与数据](../03-进阶/03-网络请求与数据.md) | [文档](https://developers.weixin.qq.com/miniprogram/dev/api/network/request/wx.request.html) |
 | `wx.uploadFile` | 上传文件到业务服务器（配合 tempFilePath） | [媒体能力](../03-进阶/05-媒体能力.md) | [文档](https://developers.weixin.qq.com/miniprogram/dev/api/network/upload/wx.uploadFile.html) |
-| `wx.promisify` | 回调风格 API 转 Promise（部分场景替代） | [网络请求与数据](../03-进阶/03-网络请求与数据.md) | — |
 
 ## 数据缓存
 
@@ -56,7 +56,7 @@ updated: 2026-10-08
 | API | 作用 | 详解 | 官方 |
 |---|---|---|---|
 | `wx.showToast` | 轻提示（图标/纯文字，1.5s 默认） | [媒体能力](../03-进阶/05-媒体能力.md) | [文档](https://developers.weixin.qq.com/miniprogram/dev/api/ui/interaction/wx.showToast.html) |
-| `wx.showModal` | 模态对话框（确定/取消回调） | [授权与隐私](../03-进阶/07-授权与隐私.md) | [文档](https://developers.weixin.qq.com/miniprogram/dev/api/ui/interaction/wx.showModal.html) |
+| `wx.showModal` | 模态对话框（`res.confirm` 区分确定/取消，可 await） | [授权与隐私](../03-进阶/07-授权与隐私.md) | [文档](https://developers.weixin.qq.com/miniprogram/dev/api/ui/interaction/wx.showModal.html) |
 | `wx.previewImage` | 全屏预览图片（可多张左右滑动） | [媒体能力](../03-进阶/05-媒体能力.md) | [文档](https://developers.weixin.qq.com/miniprogram/dev/api/media/image/wx.previewImage.html) |
 | `wx.openDocument` | 打开本地文档（pdf/doc/xls 等） | [云存储](../04-云开发/04-云存储.md) | [文档](https://developers.weixin.qq.com/miniprogram/dev/api/file/wx.openDocument.html) |
 | `wx.stopPullDownRefresh` | 停止下拉刷新 loading | [页面生命周期与事件](../02-基础/04-页面生命周期与事件.md) | [文档](https://developers.weixin.qq.com/miniprogram/dev/api/ui/pull-down-refresh/wx.stopPullDownRefresh.html) |

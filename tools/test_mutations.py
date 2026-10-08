@@ -85,6 +85,30 @@ MUTATIONS = [
         'return sorted(DOCS.rglob("*.md")) + sorted(ROOT.glob("*.md")) + example_md_files()',
         'return sorted(DOCS.rglob("*.md")) + sorted(ROOT.glob("*.md"))',
     ),
+    (
+        "check_repo.py",
+        "API 名单检查形同虚设（名单之外的名字不报）",
+        "                if name not in known:",
+        "                if False:",
+    ),
+    (
+        "check_repo.py",
+        "API 正则不限小写开头（`wx.API 速查索引` 这类标题被误报）",
+        'API_NAME_RE = re.compile(r"\\bwx\\.[a-z][A-Za-z0-9_]*")',
+        'API_NAME_RE = re.compile(r"\\bwx\\.[A-Za-z][A-Za-z0-9_]*")',
+    ),
+    (
+        "check_repo.py",
+        "示例工程源码不在 API 名单检查范围（工程里拼错的 API 漏检）",
+        '        files += sorted(f for f in ex.rglob("*") if f.suffix in (".js", ".wxml"))',
+        '        pass',
+    ),
+    (
+        "check_repo.py",
+        "名单文件缺失时静默按空名单继续（真实 API 全部被报成虚构，而非说清「名单没了」）",
+        '        raise SystemExit(f"缺少 API 名单 {API_LIST_FILE}，先跑 python tools/check_repo.py --update-api-list")',
+        "        return set(EXTRA_API_NAMES)",
+    ),
     # ---- check_assets_fresh.py ----
     (
         "check_assets_fresh.py",
