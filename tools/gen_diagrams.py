@@ -158,7 +158,7 @@ def gen_languages():
     c.d.line([386 * S, 147 * S, 414 * S, 147 * S], fill=GRAY, width=2 * S)
     c.tc(400, 100, "setData ⇄ 事件", font(12), GRAY)
     langs = [("JavaScript", ["逻辑层主力", "ES6+ · 数据驱动"], BLUE), ("WXML", ["视图模板", "类 HTML + {{}}"], GREEN),
-             ("WXSS", ["样式语言", "CSS + rpx"], ORANGE), ("JSON", ["配置语言", "app.json 等"], PURPLE)]
+             ("WXSS", ["样式语言", "CSS + rpx"], PURPLE), ("JSON", ["配置语言", "app.json 等"], PURPLE)]
     x = 36
     for name, sub, col in langs:
         c.card((x, 228, x + 173, 400), border=col)
