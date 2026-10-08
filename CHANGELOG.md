@@ -10,9 +10,9 @@
   - 进阶新增《调试与排错》《微信支付》（云调用接入/回调幂等/退款）
   - 新增《wx.API 速查索引》：40+ API 按能力域速查矩阵
 - **视觉资产**：43 个（34 动画 GIF + 9 示意图 PNG），全部由 `tools/` 脚本程序化生成（2x 超采样 + 真补间），单文件 ≤200KB
-- **示例工程**：`examples/todo-miniprogram` 可运行完整工程（待办清单 + 云函数），代码与实战篇逐行对应
-- **CI**：`.github/workflows/check.yml`——链接/元数据/序号/孤儿资产/GIF 体积/代码块语言标注/交叉引用顺序/示例工程结构/JSON/JS 语法
-- **共建入口**：`.github/ISSUE_TEMPLATE`（纠错报告 / 新增文章两类模板）
+- **示例工程**：`examples/todo-miniprogram` 可运行完整工程（待办清单 + 云函数），代码与实战篇逐行对应；**云函数单元测试**（node:test + mock wx-server-sdk，零依赖，7 用例覆盖增删改查与 openid 权限隔离）
+- **CI**：`.github/workflows/check.yml`——链接/元数据/序号/孤儿资产/GIF 体积/代码块语言标注/交叉引用顺序/示例工程结构/JSON/JS 语法 + **云函数单元测试**
+- **共建入口**：`.github/ISSUE_TEMPLATE`（纠错报告 / 新增文章两类模板）、`CONTRIBUTING.md` 贡献指南、`CHANGELOG.md`、`.gitattributes`（LF 归一化）
 
 ### 校验强化
 

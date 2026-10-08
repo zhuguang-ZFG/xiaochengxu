@@ -37,6 +37,23 @@ todo-miniprogram/
 - 页面 `index.js`：setData 数据流、callFunction 封装、事件处理
 - 安全：所有写操作带 `openid` 条件，集合权限全关，双保险
 
+## 单元测试
+
+云函数 `todo` 带零依赖单元测试（node 内置 test runner，无需安装 npm 包）：
+
+```bash
+node --test examples/todo-miniprogram/tests/*.test.js
+```
+
+测试通过拦截 `require('wx-server-sdk')` 注入内存数据库 mock，验证 7 个行为：
+
+- `add`：合法标题写入 openid/title/done/createTime；空/超 100 字抛「标题不合法」
+- `list`：按 openid + done 过滤，createTime 倒序
+- `toggle` / `remove`：**写操作条件必须含 `openid`**（权限隔离——只能改/删自己的记录）
+- 未知 `action` 抛错
+
+测试不改业务代码，与教程代码逐行一致；CI 每次 push 自动运行。
+
 ## 修改提示
 
 - 换环境：只改 `app.js` 的 `env`
