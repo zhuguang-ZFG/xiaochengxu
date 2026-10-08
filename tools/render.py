@@ -11,6 +11,7 @@
 用法：python tools/gen_assets.py
 输出：docs/assets/*.gif  docs/assets/*.png
 """
+import functools
 import math
 import pathlib
 from PIL import Image, ImageDraw, ImageFont
@@ -35,16 +36,63 @@ NAV_BG = (247, 247, 247)
 S = 2                       # 超采样倍率
 SW, SH = 375 * S, 667 * S   # 物理画布
 
-FONT = r"C:\Windows\Fonts\msyh.ttc"
-FONT_B = r"C:\Windows\Fonts\msyhbd.ttc"
+# ---------- 中文字体解析（跨平台） ----------
+# 契约要求"改脚本重跑即可"复现资产，字体路径不能写死在单一平台。
+# 按平台候选顺序查找首个存在的中文字体；粗体缺失时退化为常规体。
+# 元素为 (路径, ttc 内字面索引)。
+FONT_CANDIDATES = {
+    "regular": [
+        (r"C:\Windows\Fonts\msyh.ttc", 0),                                  # 微软雅黑 Windows
+        (r"C:\Windows\Fonts\simhei.ttf", 0),                                # 黑体 Windows 兜底
+        ("/System/Library/Fonts/PingFang.ttc", 0),                          # 苹方 macOS
+        ("/System/Library/Fonts/Hiragino Sans GB.ttc", 0),                  # 冬青黑体 macOS
+        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 0),      # Noto Debian/Ubuntu
+        ("/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf", 0),
+        ("/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc", 0),    # Noto Fedora
+        ("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc", 0),                # 文泉驿正黑
+    ],
+    "bold": [
+        (r"C:\Windows\Fonts\msyhbd.ttc", 0),
+        ("/System/Library/Fonts/PingFang.ttc", 7),                          # 同一 ttc 内的粗体字面
+        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc", 0),
+        ("/usr/share/fonts/opentype/noto/NotoSansCJKsc-Bold.otf", 0),
+        ("/usr/share/fonts/google-noto-cjk/NotoSansCJK-Bold.ttc", 0),
+    ],
+}
+
+INSTALL_HINT = (
+    "未找到可用的中文字体。请安装任一字体后重试：\n"
+    "  Ubuntu/Debian: sudo apt install fonts-noto-cjk\n"
+    "  Fedora:        sudo dnf install google-noto-sans-cjk-fonts\n"
+    "  macOS/Windows: 系统自带（苹方 / 微软雅黑），若报错请检查字体文件是否被裁剪\n"
+    "或在 tools/render.py 的 FONT_CANDIDATES 中加入本机字体路径。"
+)
+
+
+@functools.lru_cache(maxsize=None)
+def font_file(weight="regular"):
+    """返回 (字体路径, ttc 索引)；粗体缺失时退化为常规体。"""
+    for path, index in FONT_CANDIDATES[weight]:
+        if pathlib.Path(path).exists():
+            return path, index
+    if weight == "bold":
+        return font_file("regular")
+    raise SystemExit(INSTALL_HINT)
+
+
+@functools.lru_cache(maxsize=None)
+def load_font(size, weight="regular"):
+    """按物理像素加载字体（带缓存：逐帧渲染时避免重复解析字体文件）。"""
+    path, index = font_file(weight)
+    return ImageFont.truetype(path, size, index=index)
 
 
 def font(size):
-    return ImageFont.truetype(FONT, size * S)
+    return load_font(size * S, "regular")
 
 
 def font_b(size):
-    return ImageFont.truetype(FONT_B, size * S)
+    return load_font(size * S, "bold")
 
 
 def new_screen():
