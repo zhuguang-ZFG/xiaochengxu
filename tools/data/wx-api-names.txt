@@ -1,7 +1,9 @@
 # 微信小程序官方 API 名单（一级 `wx.<name>` 标识符），供 check_repo.py 校验 API 真实性
-# 由 `python tools/check_repo.py --update-api-list` 抓取 https://developers.weixin.qq.com/miniprogram/dev/api/ 生成，请勿手改
-# 需要补充名单之外的名字（如云开发命名空间）改 check_repo.py 的 EXTRA_API_NAMES 并写明理由
-# 共 504 个
+# 由 `python tools/check_repo.py --update-api-list` 生成，请勿手改。来源取并集：
+#   官方 API 索引页 https://developers.weixin.qq.com/miniprogram/dev/api/（504 个）
+#   官方 typings interface Wx 成员 https://raw.githubusercontent.com/wechat-miniprogram/api-typings/master/types/wx/lib.wx.api.d.ts（499 个）
+# 两个来源都没有、但确实存在的名字改 check_repo.py 的 EXTRA_API_NAMES 并写明理由
+# 共 507 个
 wx.addCard
 wx.addFileToFavorites
 wx.addPaymentPassFinish
@@ -52,6 +54,7 @@ wx.clearStorageSync
 wx.closeBLEConnection
 wx.closeBluetoothAdapter
 wx.closeSocket
+wx.cloud
 wx.compressImage
 wx.compressVideo
 wx.connectSocket
@@ -179,6 +182,7 @@ wx.getVideoInfo
 wx.getWeRunData
 wx.getWifiList
 wx.getWindowInfo
+wx.getXrFrameSystem
 wx.hideHomeButton
 wx.hideKeyboard
 wx.hideLoading
@@ -404,6 +408,7 @@ wx.requestDeviceVoIP
 wx.requestFacialVerify
 wx.requestIdleCallback
 wx.requestMerchantTransfer
+wx.requestOrderPayment
 wx.requestPayment
 wx.requestPluginPayment
 wx.requestSubscribeDeviceMessage

@@ -10,7 +10,8 @@
 6. 视觉资产硬限制：GIF ≤200KB、教学视频 MP4 ≤3MB 且命名合规
 7. JSON 合法性：示例工程与配置文件的 json 可解析
 8. JS 语法：示例工程 js 可被 node 解析（python 侧仅做括号粗查，CI 用 node）
-9. API 真实性：正文与示例代码里的 `wx.<name>` 必须存在于官方 API 名单
+9. API 真实性：正文与示例代码里的 `wx.<name>` 必须存在于官方 API 名单；
+   Promise 断言：不能把支持 Promise 风格的接口说成回调式，也不能 `await` 不返回 Promise 的接口
 
 用法：python tools/check_repo.py
       python tools/check_repo.py --update-api-list   # 刷新第 9 项的官方名单
@@ -423,18 +424,28 @@ def check_crossref_order():
                 errors.append(f"{rel}: 下一篇指向 {nxt.group(2)}，教学顺序应为 {order[idx+1][1]}")
 
 
-# ---------- API 真实性 ----------
+# ---------- API 真实性 / Promise 断言 ----------
 
 API_INDEX_URL = "https://developers.weixin.qq.com/miniprogram/dev/api/"
+# 官方 TypeScript 声明（由官方文档生成）：既是第二个名称来源，也是「哪些接口不传回调即返回 Promise」的唯一机读来源
+TYPINGS_URL = "https://raw.githubusercontent.com/wechat-miniprogram/api-typings/master/types/wx/lib.wx.api.d.ts"
 # 名单随工具走而不随被扫描的仓库走：自测会把 ROOT 指到临时目录
-API_LIST_FILE = pathlib.Path(__file__).resolve().parent / "data" / "wx-api-names.txt"
-# 官方 API 索引页不含云开发命名空间（云开发文档是独立分支，导航不在这一页），手工补上。
-# 其他补充也写在这里并说明理由，不要手改生成的名单文件。
-EXTRA_API_NAMES = {"wx.cloud"}
+_DATA = pathlib.Path(__file__).resolve().parent / "data"
+API_LIST_FILE = _DATA / "wx-api-names.txt"        # 真实存在的一级 wx.<name>
+PROMISE_LIST_FILE = _DATA / "wx-api-promise.txt"  # 其中不传 success/fail/complete 即返回 Promise 的
+# 两个官方来源都没有、但确实存在的名字写在这里并说明理由；目前为空
+# （wx.cloud / wx.worklet 等命名空间来自 typings 的 interface Wx 成员）
+EXTRA_API_NAMES = set()
 # 一级标识符：官方 API 全部以小写字母开头，`wx.API 速查索引` 这类标题不会误中
 API_NAME_RE = re.compile(r"\bwx\.[a-z][A-Za-z0-9_]*")
-# 行内含此标记则跳过：用于把虚构 API 当反面例子写出来的句子（CHANGELOG、避坑清单）
+# 行内含此标记则跳过本节两项检查：用于把虚构 API / 错误断言当反面例子写出来的句子（CHANGELOG、契约）
 API_IGNORE_MARK = "api-ignore"
+# 对接口 Promise 能力的「平铺式否定」。故意不收「需自行封装 / 用 Promise 包装」：带版本条件的
+# 正确说法（「基础库低于 2.10.2 需自行用 Promise 包装」）也含这些词，收进来会把正确的话报成错的
+CALLBACK_CLAIM_RE = re.compile(r"回调式|回调风格|没有(?:原生)?\s*Promise|无(?:原生)?\s*Promise|不支持\s*Promise|不返回\s*Promise")
+# `await wx.xxx(`：要求一级名字后紧跟 `(`，所以 `await wx.cloud.callFunction(` 不在范围内
+# （云开发接口确实返回 Promise，但二级名字不校验，见 check_api_names 文档串）
+AWAIT_RE = re.compile(r"\bawait\s+(wx\.[a-z][A-Za-z0-9_]*)\s*\(")
 
 
 def extract_api_names(html):
@@ -442,38 +453,87 @@ def extract_api_names(html):
     return sorted(set(API_NAME_RE.findall(html)))
 
 
-def update_api_list():
-    """抓取官方 API 索引页，重写名单文件（需要网络；平时不跑，名单随仓库提交）"""
+def extract_promise_apis(dts):
+    """从官方 TypeScript 声明里抽取 `interface Wx` 的成员，以及其中返回 Promise 的方法。
+
+    返回 (members, promise)，都带 `wx.` 前缀、去重排序。判定依据是返回类型是否为
+    `PromisifySuccessResult<...>`——这个类型就是官方对「不含 success/fail/complete 时
+    返回 Promise」这条规则的编码；`wx.request` 等返回 RequestTask 的接口自然不在其中。
+    已用 28 个接口的文档页「以 Promise 风格调用：支持/不支持」标注交叉核对，全部一致。
+    """
+    t = re.sub(r"/\*\*.*?\*/", "", dts, flags=re.S)   # JSDoc 里的示例代码会干扰括号与缩进
+    i = t.find("    interface Wx {")
+    if i < 0:
+        return [], []
+    wx = t[i:t.find("\n    }", i)]
+    starts = [(m.start(), m.group(1)) for m in re.finditer(r"\n        ([a-z][A-Za-z0-9_]*)\s*[<(:]", wx)]
+    members, promise = set(), set()
+    for k, (pos, name) in enumerate(starts):
+        chunk = wx[pos:starts[k + 1][0] if k + 1 < len(starts) else len(wx)]
+        members.add("wx." + name)
+        rets = re.findall(r"\)\s*:\s*([^\n]+)", chunk)   # 最后一个 "): 类型" 才是方法返回类型
+        if rets and rets[-1].strip().startswith("PromisifySuccessResult"):
+            promise.add("wx." + name)
+    return sorted(members), sorted(promise)
+
+
+def _fetch(url):
     import urllib.request, ssl
-    req = urllib.request.Request(API_INDEX_URL, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=30, context=ssl.create_default_context()) as r:
-        html = r.read().decode("utf-8", errors="replace")
-    names = extract_api_names(html)
-    # 页面改版或抓到错误页时只会抽出零星几个名字；宁可失败也不写出残缺名单，
-    # 否则下一次校验会把全库的真实 API 都报成虚构
-    if len(names) < 300:
-        raise SystemExit(f"只抽到 {len(names)} 个 API 名，疑似抓取失败，未写入 {API_LIST_FILE.name}")
-    header = (
-        "# 微信小程序官方 API 名单（一级 `wx.<name>` 标识符），供 check_repo.py 校验 API 真实性\n"
-        f"# 由 `python tools/check_repo.py --update-api-list` 抓取 {API_INDEX_URL} 生成，请勿手改\n"
-        "# 需要补充名单之外的名字（如云开发命名空间）改 check_repo.py 的 EXTRA_API_NAMES 并写明理由\n"
-        f"# 共 {len(names)} 个\n"
-    )
-    API_LIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=60, context=ssl.create_default_context()) as r:
+        return r.read().decode("utf-8", errors="replace")
+
+
+def _write_list(path, header, names):
+    path.parent.mkdir(parents=True, exist_ok=True)
     # newline 固定 LF：write_text 默认跟平台走，Windows 上会写出 CRLF，同一份名单两个平台字节不同
-    API_LIST_FILE.write_text(header + "\n".join(names) + "\n", encoding="utf-8", newline="\n")
-    print(f"已写入 {API_LIST_FILE.relative_to(ROOT)}：{len(names)} 个 API")
+    path.write_text(header + "\n".join(names) + "\n", encoding="utf-8", newline="\n")
+    print(f"已写入 {path.relative_to(ROOT)}：{len(names)} 个")
 
 
-def load_api_names():
-    if not API_LIST_FILE.is_file():
-        raise SystemExit(f"缺少 API 名单 {API_LIST_FILE}，先跑 python tools/check_repo.py --update-api-list")
+def update_api_list():
+    """抓取官方 API 索引页 + 官方 typings，重写两份名单（需要网络；平时不跑，名单随仓库提交）"""
+    index_names = extract_api_names(_fetch(API_INDEX_URL))
+    members, promise = extract_promise_apis(_fetch(TYPINGS_URL))
+    # 页面改版/抓到错误页时只会抽出零星几个名字；宁可失败也不写出残缺名单，
+    # 否则下一次校验会把全库的真实 API 都报成虚构
+    if len(index_names) < 300 or len(members) < 300 or len(promise) < 100:
+        raise SystemExit(f"抽取结果可疑（索引页 {len(index_names)} / typings 成员 {len(members)} / "
+                         f"Promise {len(promise)}），疑似抓取失败，未写入")
+    # 两个来源互有遗漏（索引页缺 wx.requestOrderPayment、wx.cloud；typings 缺若干新接口），取并集
+    names = sorted(set(index_names) | set(members))
+    _write_list(API_LIST_FILE, (
+        "# 微信小程序官方 API 名单（一级 `wx.<name>` 标识符），供 check_repo.py 校验 API 真实性\n"
+        "# 由 `python tools/check_repo.py --update-api-list` 生成，请勿手改。来源取并集：\n"
+        f"#   官方 API 索引页 {API_INDEX_URL}（{len(index_names)} 个）\n"
+        f"#   官方 typings interface Wx 成员 {TYPINGS_URL}（{len(members)} 个）\n"
+        "# 两个来源都没有、但确实存在的名字改 check_repo.py 的 EXTRA_API_NAMES 并写明理由\n"
+        f"# 共 {len(names)} 个\n"), names)
+    _write_list(PROMISE_LIST_FILE, (
+        "# 不传 success/fail/complete 即返回 Promise 的接口（基础库 2.10.2 起），供 check_repo.py 校验 Promise 断言\n"
+        "# 由 `python tools/check_repo.py --update-api-list` 生成，请勿手改。来源：\n"
+        f"#   官方 typings 中返回 PromisifySuccessResult 的方法 {TYPINGS_URL}\n"
+        "# 不在此名单的真实接口要么是同步接口，要么本身返回任务对象（request/uploadFile/downloadFile/connectSocket）\n"
+        f"# 共 {len(promise)} 个\n"), promise)
+
+
+def _load_list(path):
+    if not path.is_file():
+        raise SystemExit(f"缺少名单 {path}，先跑 python tools/check_repo.py --update-api-list")
     names = set()
-    for ln in API_LIST_FILE.read_text(encoding="utf-8").splitlines():
+    for ln in path.read_text(encoding="utf-8").splitlines():
         ln = ln.strip()
         if ln and not ln.startswith("#"):
             names.add(ln)
-    return names | EXTRA_API_NAMES
+    return names
+
+
+def load_api_names():
+    return _load_list(API_LIST_FILE) | EXTRA_API_NAMES
+
+
+def load_promise_apis():
+    return _load_list(PROMISE_LIST_FILE)
 
 
 def _api_scan_files():
@@ -490,9 +550,9 @@ def check_api_names():
 
     教程里出现过虚构 API（Skyline 篇的 worklet `animate()`、速查索引里把
     npm 包 miniprogram-api-promise 的能力写成了 `wx.` 下的接口），读者照着写
-    就是运行时报错，而链接/语法类检查对此毫无感知。名单来自官方 API 索引页
-    （`--update-api-list` 刷新），名单之外一律报错；确需把虚构名当反面例子
-    写出来的，在该行加 `<!-- api-ignore -->`。
+    就是运行时报错，而链接/语法类检查对此毫无感知。名单来自官方 API 索引页与
+    官方 typings（`--update-api-list` 刷新），名单之外一律报错；确需把虚构名
+    当反面例子写出来的，在该行加 `<!-- api-ignore -->`。
 
     只校验一级标识符：`wx.cloud.xxx` 只看到 `wx.cloud`。云开发 API 的官方
     索引不在同一页，二级名单另抓的收益不抵维护成本，这里明说而不是假装覆盖。
@@ -508,6 +568,45 @@ def check_api_names():
                     errors.append(
                         f"{f.relative_to(ROOT)}:{i}: `{name}` 不在官方 API 名单"
                         "（确为新 API 则 --update-api-list 刷新；反面例子在行尾加 <!-- api-ignore -->）")
+
+
+def check_promise_claims():
+    """正文对接口 Promise 能力的断言，以及代码里的 `await wx.xxx(`，必须与官方一致。
+
+    实战篇曾写「showModal 是回调式 API，用 Promise 包装再 await，否则 confirm 拿不到」，
+    而示例工程正是 `await wx.showModal(...)`——逐行一致校验抓不到，因为它只比代码文本，
+    不比正文对代码的断言。这里把两种可机读的形态变成不变量：
+
+    1. 行内对某接口作「回调式 / 没有 Promise / 不支持 Promise」的平铺否定，而该接口在
+       Promise 名单里 → 报错。只认平铺否定，不认「需自行封装」这类词：带版本条件的正确
+       说法也会用到它们
+    2. `await wx.xxx(` 而 xxx 不在 Promise 名单里 → 报错：同步接口 await 了也拿不到
+       更多东西，request/uploadFile 这类返回任务对象的接口 await 到的是任务对象不是结果
+
+    反方向（说某个不返回 Promise 的接口「返回 Promise」）故意不查：最正确的那几句话
+    （「异步 API 返回 Promise，只有 wx.request 等例外」）恰好同一行同时含两者，按行查必误报。
+    """
+    known = load_api_names()
+    promise = load_promise_apis()
+    stray = promise - known
+    if stray:   # 两份名单必须同源刷新；手改或只刷了一份会在这里露馅
+        raise SystemExit(f"Promise 名单含名称名单之外的名字 {sorted(stray)[:3]}…，两份名单不同步，重新 --update-api-list")
+    for f in _api_scan_files():
+        text = f.read_text(encoding="utf-8", errors="replace")
+        for i, ln in enumerate(text.splitlines(), 1):
+            if API_IGNORE_MARK in ln:
+                continue
+            if CALLBACK_CLAIM_RE.search(ln):
+                for name in sorted(set(API_NAME_RE.findall(ln))):
+                    if name in promise:
+                        errors.append(
+                            f"{f.relative_to(ROOT)}:{i}: 说 `{name}` 是回调式/没有 Promise，但官方标注"
+                            "「以 Promise 风格调用：支持」（不传 success/fail/complete 即返回 Promise，基础库 2.10.2 起）")
+            for name in AWAIT_RE.findall(ln):
+                if name not in promise and name in known:
+                    errors.append(
+                        f"{f.relative_to(ROOT)}:{i}: `await {name}(...)` 拿不到结果——该接口不返回 Promise"
+                        "（同步接口，或 request/uploadFile 这类本身返回任务对象的接口）")
 
 
 def check_external_links():
@@ -545,7 +644,7 @@ def main():
     parser.add_argument("--external", action="store_true",
                         help="启用外链 HTTP 状态校验（默认关闭，CI 稳定优先）")
     parser.add_argument("--update-api-list", action="store_true",
-                        help="抓取官方 API 索引页刷新 tools/data/wx-api-names.txt 后退出（需要网络）")
+                        help="抓取官方 API 索引页与官方 typings，刷新 tools/data/ 下的两份名单后退出（需要网络）")
     args = parser.parse_args()
     if args.update_api_list:
         update_api_list()
@@ -564,6 +663,7 @@ def main():
     check_fences_language()
     check_crossref_order()
     check_api_names()
+    check_promise_claims()
     if args.external:
         check_external_links()
     if errors:

@@ -106,8 +106,32 @@ MUTATIONS = [
     (
         "check_repo.py",
         "名单文件缺失时静默按空名单继续（真实 API 全部被报成虚构，而非说清「名单没了」）",
-        '        raise SystemExit(f"缺少 API 名单 {API_LIST_FILE}，先跑 python tools/check_repo.py --update-api-list")',
-        "        return set(EXTRA_API_NAMES)",
+        '        raise SystemExit(f"缺少名单 {path}，先跑 python tools/check_repo.py --update-api-list")',
+        "        return set()",
+    ),
+    (
+        "check_repo.py",
+        "回调式断言检查形同虚设（把支持 Promise 的接口说成回调式不报）",
+        "                    if name in promise:",
+        "                    if False:",
+    ),
+    (
+        "check_repo.py",
+        "await 检查形同虚设（await 同步接口 / 任务对象接口不报）",
+        "                if name not in promise and name in known:",
+        "                if False:",
+    ),
+    (
+        "check_repo.py",
+        "把「包装」也当成否定断言（带版本条件的正确说法被误报）",
+        '不返回\\s*Promise")',
+        '不返回\\s*Promise|包装")',
+    ),
+    (
+        "check_repo.py",
+        "两份名单不同步检查失效（只刷了一份/手改了一份也放行）",
+        "    if stray:",
+        "    if False:",
     ),
     # ---- check_assets_fresh.py ----
     (

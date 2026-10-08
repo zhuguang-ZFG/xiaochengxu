@@ -291,17 +291,21 @@ class CheckRepoTest(unittest.TestCase):
 
     # ---------- API 真实性（正文/示例代码里的 wx.<name> 必须真实存在） ----------
 
-    API_LIST = "# 夹具名单\n\nwx.showModal\nwx.request\n"
+    API_LIST = "# 夹具名单\n\nwx.showModal\nwx.request\nwx.getStorageSync\nwx.cloud\n"
+    PROMISE_LIST = "# 夹具：不传回调即返回 Promise 的\nwx.showModal\n"
 
-    def api_fixture(self, files):
-        """迷你仓库 + 夹具名单。名单文件随工具走而非随仓库走，所以单独指过去；
+    def api_fixture(self, files, promise_list=None):
+        """迷你仓库 + 两份夹具名单。名单文件随工具走而非随仓库走，所以单独指过去；
         不能依赖仓库里的真实名单——变异测试只把两个脚本拷进临时目录。"""
         root = self.fixture(files)
-        lst = root / "tools" / "data" / "wx-api-names.txt"
-        lst.parent.mkdir(parents=True, exist_ok=True)
-        lst.write_text(self.API_LIST, encoding="utf-8")
-        self.addCleanup(setattr, chk, "API_LIST_FILE", chk.API_LIST_FILE)
-        chk.API_LIST_FILE = lst
+        data = root / "tools" / "data"
+        data.mkdir(parents=True, exist_ok=True)
+        (data / "wx-api-names.txt").write_text(self.API_LIST, encoding="utf-8")
+        (data / "wx-api-promise.txt").write_text(
+            self.PROMISE_LIST if promise_list is None else promise_list, encoding="utf-8")
+        for attr, name in (("API_LIST_FILE", "wx-api-names.txt"), ("PROMISE_LIST_FILE", "wx-api-promise.txt")):
+            self.addCleanup(setattr, chk, attr, getattr(chk, attr))
+            setattr(chk, attr, data / name)
         return root
 
     def test_虚构API要报(self):
@@ -320,7 +324,7 @@ class CheckRepoTest(unittest.TestCase):
             ),
         })
         errs = self.run_checks("check_api_names")
-        self.assertEqual(errs, [], f"名单内的 API（含 EXTRA 的 wx.cloud）不应报，实际: {errs}")
+        self.assertEqual(errs, [], f"名单内的 API（含 wx.cloud 命名空间）不应报，实际: {errs}")
 
     def test_标题里的wx_API不误报(self):
         """`wx.API 速查索引` 是标题用语不是接口；官方 API 全部小写开头。"""
@@ -351,6 +355,90 @@ class CheckRepoTest(unittest.TestCase):
         html = ('<a href="/api/ui/wx.showModal.html">wx.showModal</a> wx.API '
                 'wx.request wx.showModal wx.cloud.callFunction')
         self.assertEqual(chk.extract_api_names(html), ["wx.cloud", "wx.request", "wx.showModal"])
+
+    # ---------- Promise 断言（正文说某接口「回调式」/ 代码 await 某接口，必须与官方一致） ----------
+
+    def test_回调式断言命中支持Promise的接口要报(self):
+        """实战篇真出现过的原话形态。"""
+        self.api_fixture({"docs/06-实战/01-x.md":
+                          "6. **wx.showModal 用 async/await**：showModal 是回调式 API，用 Promise 包装再 await。\n"})
+        errs = self.run_checks("check_promise_claims")
+        self.assertTrue(any("wx.showModal" in e and "回调式" in e for e in errs),
+                        f"把支持 Promise 风格的接口说成回调式必须报出，实际: {errs}")
+
+    def test_带版本条件的正确说法不误报(self):
+        """修正后的避坑 #6 原文：含「自行用 Promise 包装」但有版本前提，是对的。
+        检查若把「包装/封装」也当否定断言，这句正确的话就会被报错。"""
+        self.api_fixture({"docs/06-实战/01-x.md": (
+            "6. **`await wx.showModal(...)` 拿不到 `confirm`**：异步 API 不传 success/fail/complete 时直接返回 Promise，"
+            "拿不到的两种情况：基础库低于 2.10.2（需自行用 Promise 包装），或传了回调又去 await。\n")})
+        errs = self.run_checks("check_promise_claims")
+        self.assertEqual(errs, [], f"带版本条件的正确说法不应报，实际: {errs}")
+
+    def test_对任务对象接口的回调式断言不报(self):
+        self.api_fixture({"docs/03-进阶/03-x.md": "`wx.request` 是回调式 API，没有原生 Promise 版本，本身返回 RequestTask。\n"})
+        errs = self.run_checks("check_promise_claims")
+        self.assertEqual(errs, [], f"对确实不返回 Promise 的接口说回调式是对的，实际: {errs}")
+
+    def test_await不返回Promise的接口要报(self):
+        self.api_fixture({"docs/03-进阶/03-x.md": "```js\nconst res = await wx.request({ url });\n```\n"})
+        errs = self.run_checks("check_promise_claims")
+        self.assertTrue(any("await wx.request" in e for e in errs),
+                        f"await 返回任务对象的接口必须报出，实际: {errs}")
+
+    def test_await同步接口要报(self):
+        self.api_fixture({"examples/todo-miniprogram/app.js": "const v = await wx.getStorageSync('k');\n"})
+        errs = self.run_checks("check_promise_claims")
+        self.assertTrue(any("await wx.getStorageSync" in e and "app.js" in e for e in errs),
+                        f"示例工程里 await 同步接口必须报出，实际: {errs}")
+
+    def test_await支持Promise的接口与二级云开发接口不报(self):
+        self.api_fixture({"docs/06-实战/01-x.md": (
+            "```js\nconst { confirm } = await wx.showModal({ title: 'x' });\n"
+            "const r = await wx.cloud.callFunction({ name: 'todo' });\n```\n")})
+        errs = self.run_checks("check_promise_claims")
+        self.assertEqual(errs, [], f"await 名单内接口 / 二级云开发接口不应报，实际: {errs}")
+
+    def test_await虚构接口不重复报(self):
+        """拼错的名字由 check_api_names 报「不存在」；这里再报「不返回 Promise」是误导。"""
+        self.api_fixture({"docs/06-实战/01-x.md": "```js\nawait wx.showModel({});\n```\n"})
+        errs = self.run_checks("check_promise_claims")
+        self.assertEqual(errs, [], f"不存在的接口不应由 Promise 检查再报一次，实际: {errs}")
+
+    def test_api_ignore同样豁免Promise断言(self):
+        self.api_fixture({"CHANGELOG.md": "- 教程曾写「`wx.showModal` 是回调式 API」 <!-- api-ignore -->\n"})
+        errs = self.run_checks("check_promise_claims")
+        self.assertEqual(errs, [], f"带 api-ignore 的引用原话应豁免，实际: {errs}")
+
+    def test_两份名单不同步要明确报错(self):
+        self.api_fixture({"docs/01-入门/01-x.md": "x\n"}, promise_list="wx.showModal\nwx.notInNames\n")
+        with self.assertRaises(SystemExit, msg="Promise 名单含名称名单之外的名字说明两份名单不同源，必须显式失败"):
+            chk.check_promise_claims()
+
+    def test_抽取Promise名单(self):
+        """typings 解析：剥 JSDoc（含示例代码）、按成员切块、看最后一个「): 类型」。"""
+        dts = (
+            "declare namespace WechatMiniprogram {\n"
+            "    interface Wx {\n"
+            "        /** [wx.showModal(Object object)](https://x/wx.showModal.html)\n"
+            "         *\n"
+            "wx.showModal({ success(res) { console.log(res) } })\n"
+            "         */\n"
+            "        showModal<T extends ShowModalOption = ShowModalOption>(\n"
+            "            option: T\n"
+            "        ): PromisifySuccessResult<T, ShowModalOption>\n"
+            "        request<\n"
+            "            T extends string | IAnyObject | ArrayBuffer = string\n"
+            "        >(option: RequestOption<T>): RequestTask\n"
+            "        getStorageSync<T = any>(key: string): T\n"
+            "        onError(callback: (res: Error) => void): void\n"
+            "        cloud: WxCloud\n"
+            "    }\n"
+            "}\n"
+        )
+        members, promise = chk.extract_promise_apis(dts)
+        self.assertEqual(members, ["wx.cloud", "wx.getStorageSync", "wx.onError", "wx.request", "wx.showModal"])
+        self.assertEqual(promise, ["wx.showModal"])
 
     # ---------- strip_code 行为 ----------
 

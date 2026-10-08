@@ -4,11 +4,33 @@
 
 > 版本说明：`v1.0.0` 为未打标签的构建期快照（内容对应提交 `6a323fd`）；自 `v1.1.0` 起正式发布 GitHub Release。
 
+## [v1.5.0] - 2026-10-08
+
+### 新增
+
+- **Promise 断言校验** `check_promise_claims()`：v1.4.0 修掉「实战篇把支持 Promise 风格的接口说成回调式」之后，这类错误仍只能靠人工审——逐行一致校验只比代码文本，比不了正文对代码的断言。现在把两种可机读的形态变成 CI 不变量：
+  - 行内对某接口作「回调式 / 没有 Promise / 不支持 Promise」的平铺否定，而该接口不传 success/fail/complete 即返回 Promise → 红
+  - `await wx.<name>(` 名单外的接口 → 红（同步接口 await 了拿不到更多东西；`wx.request`/`uploadFile`/`downloadFile`/`connectSocket` 本身返回任务对象，await 到的不是结果）
+  - 数据源是官方 typings 的 `PromisifySuccessResult` 返回类型——这就是官方对这条规则的编码，返回 RequestTask 的那几个接口自然不在其中。抽出的 194 个与 28 个接口文档页顶部的「以 Promise 风格调用」标注交叉核对，全部一致
+  - **精度取舍**（每一项都有变异测试守着）：否定断言只认平铺说法，故意不认「封装/包装」——「基础库低于 2.10.2 需自行用 Promise 包装」这种带版本条件的正确说法也含这些词，收进来会把对的报成错的。反方向（说名单外的接口「返回 Promise」）故意不查：最正确的那句话恰好同一行同时含规则与例外，按行查必误报
+- **API 名称名单改为两个官方来源取并集**（504 → 507）：官方索引页缺 `wx.requestOrderPayment`（文档页实测 200）与 `wx.cloud`，typings 缺若干新接口，两边互有遗漏。`EXTRA_API_NAMES` 因此清空——手工补充不再是必需的
+- 两份名单互相约束：Promise 名单里出现名称名单之外的名字即报错，堵住「只刷了一份」或手改名单
+
+### 变更
+
+- `<!-- api-ignore -->` 从「跳过名称检查」扩展为跳过本节两项检查（CHANGELOG 引用错误原话时需要）
+- 契约把标题改为「API 名必须真实存在，对 Promise 能力的断言必须与官方一致」，补上规则、精度取舍与局限说明；CONTRIBUTING 自查清单同步
+
+### 新增（校验器自测）
+
+- `test_check_repo.py` 补 10 个用例（共 40）：回调式断言必报、**带版本条件的正确说法不误报**、对任务对象接口的断言不报、`await` 任务对象与同步接口必报、`await` 名单内与二级云开发接口不报、虚构接口不重复报、`api-ignore` 豁免、两份名单不同步必报、typings 解析（含 JSDoc 里示例代码的干扰）
+- `test_mutations.py` 补 4 项变异（共 20/20 捕获）：回调式检查形同虚设、await 检查形同虚设、把「包装」也当否定断言（正确说法被误报）、两份名单不同步检查失效。同时修正上一轮「名单缺失静默继续」变异体的锚点——名单加载重构成 `_load_list()` 后它已锚不上，会被跳过并让捕获数对不上（这正是变异测试的设计意图：不静默通过）
+
 ## [v1.4.0] - 2026-10-08
 
 ### 修复（事实错误，均已对照官方文档核实）
 
-- **实战篇避坑 #6 与示例工程自相矛盾**：教程写「showModal 是回调式 API，用 Promise 包装再 await，否则 `confirm` 拿不到」，而示例工程 `pages/index/index.js` 正是 `await wx.showModal(...)`。官方文档：异步 API 不传 success/fail/complete 时直接返回 Promise（基础库 2.10.2 起），`wx.showModal` 页面明确标注「以 Promise 风格调用：支持」；官方 TypeScript 类型 `PromisifySuccessResult` 编码的就是这条规则。错的是教程不是代码——改为准确的版本条件与两种真正拿不到的情形。逐行一致校验抓不到这个：它只比代码文本，不比正文对代码的断言
+- **实战篇避坑 #6 与示例工程自相矛盾**：教程写「showModal 是回调式 API，用 Promise 包装再 await，否则 `confirm` 拿不到」，而示例工程 `pages/index/index.js` 正是 `await wx.showModal(...)`。官方文档：异步 API 不传 success/fail/complete 时直接返回 Promise（基础库 2.10.2 起），`wx.showModal` 页面明确标注「以 Promise 风格调用：支持」；官方 TypeScript 类型 `PromisifySuccessResult` 编码的就是这条规则。错的是教程不是代码——改为准确的版本条件与两种真正拿不到的情形。逐行一致校验抓不到这个：它只比代码文本，不比正文对代码的断言 <!-- api-ignore -->
 - **速查索引收录了不存在的接口 `wx.promisify`**（「官方」列是 `—`，本该是信号）：官方 API 索引页 504 个 `wx.*` 中没有它，三个可能的文档路径全部 404。真实的批量转换方案是官方 npm 包 `miniprogram-api-promise`（`promisifyAll`）。删除该行；Promise 规则移入「用法」一节，对表里每个 API 都适用 <!-- api-ignore -->
 - **网络篇把同一个虚构接口写成「微信提供的工具」**，还附带了无法核实的「`util.promisify` 在部分基础库可用」。改为官方原话：`wx.request`/`uploadFile`/`downloadFile`/`connectSocket` 本身有返回值，promisify 需开发者自行封装
 - **地图篇手工 `new Promise` 包装 `wx.showModal` 却只处理 success**：fail 触发时 Promise 永不 settle，`await` 挂死。同一段代码两行之上已经在 `await wx.getSetting()`，改为一致的原生 Promise 风格，fail 走外层 try/catch
