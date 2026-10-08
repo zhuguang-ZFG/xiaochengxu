@@ -319,11 +319,14 @@ def render_mp4(frames, name, fps=FPS):
         raise SystemExit("缺少 imageio-ffmpeg：pip install imageio-ffmpeg")
 
     out = VIDEO_DIR / f"{name}.mp4"
+    # -threads 1 不是为了速度，而是为了**可复现**：libx264 的帧级多线程会让
+    # 同一份输入在不同核数的机器上编出不同字节（实测 1/2/4/8 线程四个哈希全不同），
+    # 那样 CI 上「重新生成并与已提交文件比对」的检查会永远失败。代价约 +7 秒/集。
     cmd = [exe, "-y",
            "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
            "-framerate", str(fps), "-i", "pipe:0",
            "-c:v", "libx264", "-preset", "medium", "-crf", "27",
-           "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+           "-pix_fmt", "yuv420p", "-threads", "1", "-movflags", "+faststart",
            str(out)]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)

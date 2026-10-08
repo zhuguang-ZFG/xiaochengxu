@@ -15,9 +15,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: 安装依赖（PIL 供部分检查）
-        run: pip install pillow
-
       - name: 运行仓库一致性校验（链接/元数据/序号/孤儿资产/GIF与视频体积/代码块语言/交叉引用）
         run: python tools/check_repo.py
 
@@ -37,3 +34,21 @@ jobs:
 
       - name: 示例工程云函数单元测试
         run: node --test "examples/todo-miniprogram/tests/*.test.js"
+
+  assets:
+    # 必须跑在 windows 上：render.py 按平台选中文（Windows 微软雅黑 / macOS 苹方 /
+    # Linux Noto CJK），同一份脚本在 Linux 上渲染出的像素与已提交资产完全不同，
+    # 比对必然失败。这不是能靠改脚本绕开的差异，只能用同一字体环境。
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: 安装生成依赖（锁定版本——资产就是这套工具链生成的）
+        run: pip install pillow==12.3.0 imageio-ffmpeg==0.6.0
+
+      - name: 重跑生成脚本，确认已提交的资产就是脚本输出
+        run: python tools/check_assets_fresh.py
