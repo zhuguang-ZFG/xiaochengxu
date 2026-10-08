@@ -8,7 +8,7 @@
 |---|---|---|
 | 提纠错 | [纠错报告模板](.github/ISSUE_TEMPLATE/01-bug-report.md) | 发现事实错误、代码示例错误、失效链接、过期信息 |
 | 写文章 | [新增文章模板](.github/ISSUE_TEMPLATE/02-article-request.md) | 新增教程或扩展已有文章 |
-| 补视觉资产 | `tools/` 脚本 | 所有动画/示意图/教学视频程序化生成，改脚本重跑即可 |
+| 补视觉资产 | `tools/` 脚本 | 所有动画/示意图/教学视频程序化生成，改脚本重跑即可；CI 会重跑并逐字节比对，**手工改资产会被打回** |
 | 做工程 | PR | 示例工程、CI 校验、工具脚本 |
 
 ## 写作规范（必读）
@@ -33,7 +33,8 @@
    - [ ] [docs/00-学习路线/01-学习路径总览.md](docs/00-学习路线/01-学习路径总览.md) 阶段列表同步
 4. 若改动示例工程：`node --check` 全部 JS 通过，且与实战篇代码保持一致——CI 会逐行比对（见[契约「实战篇与示例工程必须逐行一致」](docs/_契约.md#实战篇与示例工程必须逐行一致)）。只贴要点的代码块须在标题或上文标注「要点/节选」，否则按全文比对会报漂移
 5. 若新增/修改教学视频：`python tools/gen_videos.py` 重新生成，确认单集 ≤3MB、`video-*.mp4` 命名；引用必须用**引用块 + 链接**（`> 📺 配套视频 · 第 N 集：[…](../assets/videos/video-NN-slug.mp4)`），**不要用 `![]()` 内嵌**——GitHub 会过滤 `<video>` 标签，`![]()` 引用 mp4 会显示为坏图
-6. 可选：`python tools/check_repo.py --external` 全量外链 HTTP 校验
+6. 若改了任何资产生成脚本（`render.py` / `gen_*.py`）：**必须重跑生成并连同资产一起提交**。CI 的 `assets` job 会清空 `docs/assets/` 重跑四个脚本，然后要求 `git status` 干净——漏提交、手工改过的资产都会红。本地自查：`python tools/check_assets_fresh.py`（要求工作区干净，会清空并重新生成 `docs/assets/`，可 `git checkout -- docs/assets` 还原）
+7. 可选：`python tools/check_repo.py --external` 全量外链 HTTP 校验
 
 ## 提交信息规范
 

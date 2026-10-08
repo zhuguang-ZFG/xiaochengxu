@@ -21,6 +21,9 @@ jobs:
       - name: 校验器自测（防止校验静默失效）
         run: python tools/test_check_repo.py
 
+      - name: 资产新鲜度检查的自测（守护「以 HEAD 为基准」这一属性）
+        run: python tools/test_assets_fresh.py
+
       - name: 变异测试（确认自测真的能抓到缺陷，而非碰巧全绿）
         run: python tools/test_mutations.py
 
