@@ -1,0 +1,16 @@
+{
+  "description": "商品列表示例工程（对应 docs/06-实战/03-商品列表实战.md）",
+  "miniprogramRoot": "./",
+  "compileType": "miniprogram",
+  "appid": "touristappid",
+  "projectname": "product-list-miniprogram",
+  "setting": {
+    "useCompilerModule": true,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "urlCheck": true
+  },
+  "libVersion": "3.0.0"
+}

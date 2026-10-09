@@ -1,0 +1,12 @@
+<view class="container">
+  <view class="card">
+    <view class="title">个人信息</view>
+    <view class="desc">昵称：{{user.name}}</view>
+    <view class="desc">等级：{{user.level}}</view>
+  </view>
+  <view class="card">
+    <view class="title">页面生命周期</view>
+    <view class="desc">本页已被加载 {{loadCount}} 次</view>
+    <view class="desc">onLoad → onShow → onReady</view>
+  </view>
+</view>

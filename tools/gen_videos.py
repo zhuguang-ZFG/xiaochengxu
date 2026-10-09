@@ -23,6 +23,8 @@ VIDEO_DIR = pathlib.Path(__file__).resolve().parent.parent / "docs" / "assets" /
 VIDEO_DIR.mkdir(parents=True, exist_ok=True)
 
 W, H = 720, 1280
+SS = 2
+RW, RH = W * SS, H * SS
 FPS = 24
 SIZE_LIMIT = 3 * 1024 * 1024   # 契约：单集 ≤ 3MB
 
@@ -30,32 +32,39 @@ GREEN = (7, 193, 96)
 BG = (18, 20, 26)
 GRAY = (150, 156, 168)
 WHITE = (245, 245, 245)
+ORANGE = (255, 165, 0)
+BLUE = (66, 133, 244)
+PURPLE = (156, 39, 176)
+RED = (255, 100, 100)
+CODE_BG = (30, 34, 42)
+CODE_KW = (7, 193, 96)
+CODE_STR = (255, 165, 0)
+CODE_CMT = (100, 108, 120)
 
 
 def f(size):
-    """常规体（视频按 1x 物理像素绘制，不走 render 的 2x 超采样）"""
-    return load_font(size, "regular")
+    """常规体（视频按 2x 超采样渲染，最终缩到 720x1280）"""
+    return load_font(size * SS, "regular")
 
 
 def fb(size):
-    return load_font(size, "bold")
+    return load_font(size * SS, "bold")
 
 
 def canvas(title, series="小程序开发之路 · 教学视频"):
-    img = Image.new("RGB", (W, H), BG)
+    img = Image.new("RGB", (RW, RH), BG)
     d = ImageDraw.Draw(img)
-    d.rectangle([0, 0, W, 60], fill=(12, 13, 17))
-    d.text((24, 14), series, font=f(20), fill=GRAY)
-    d.text((W - 24 - d.textlength(title, font=f(20)), 14), title, font=f(20), fill=GREEN)
-    d.rectangle([0, 60, W, 62], fill=(40, 44, 54))
+    d.rectangle([0, 0, RW, 60 * SS], fill=(12, 13, 17))
+    d.text((24 * SS, 14 * SS), series, font=f(20), fill=GRAY)
+    d.text((RW - 24 * SS - d.textlength(title, font=f(20)), 14 * SS), title, font=f(20), fill=GREEN)
+    d.rectangle([0, 60 * SS, RW, 62 * SS], fill=(40, 44, 54))
     return img, d
 
 
 def caption(img, d, text):
     """底部字幕区：常驻标题 + 当前要点"""
-    d.rectangle([0, 1120, W, H], fill=(12, 13, 17))
-    d.rectangle([0, 1120, W, 1122], fill=(40, 44, 54))
-    # 要点文字自动换行（每行最多 24 字）
+    d.rectangle([0, 1120 * SS, RW, RH], fill=(12, 13, 17))
+    d.rectangle([0, 1120 * SS, RW, 1122 * SS], fill=(40, 44, 54))
     lines = []
     for para in text.split("\n"):
         cur = ""
@@ -68,8 +77,8 @@ def caption(img, d, text):
             lines.append(cur)
     y0 = 1150
     for i, ln in enumerate(lines[:3]):
-        d.text((40, y0 + i * 42), ln, font=fb(30), fill=WHITE)
-    d.text((40, 1226), "▶ 学习路径 · 每集 1-2 分钟 · 代码可复现", font=f(18), fill=GRAY)
+        d.text((40 * SS, (y0 + i * 42) * SS), ln, font=fb(30), fill=WHITE)
+    d.text((40 * SS, 1226 * SS), "▶ 学习路径 · 每集 1-2 分钟 · 代码可复现", font=f(18), fill=GRAY)
 
 
 def subtitle_bar(img, d, t, points):
@@ -80,20 +89,73 @@ def subtitle_bar(img, d, t, points):
 
 
 def phone_frame(draw_fn):
-    """中部手机演示区：375x667 设计坐标 -> 480x854 区域（x 40-520, y 110-964）"""
-    img = Image.new("RGB", (480, 854), (24, 26, 32))
+    """中部手机演示区：375x667 设计坐标 -> 2x 超采样区域，含拟真手机框"""
+    pw, ph = 480 * SS, 854 * SS
+    img = Image.new("RGB", (pw, ph), (24, 26, 32))
     dd = ImageDraw.Draw(img)
-    draw_fn(dd, 1.28)  # 375*1.28=480
+    draw_fn(dd, 1.28 * SS)
     return img
 
 
 def paste_phone(canvas_img, phone_img):
-    canvas_img.paste(phone_img, (40, 110))
+    """将手机画面粘贴到画布，叠加拟真手机框（圆角 + 刘海 + 底部指示条 + 投影）"""
+    px, py = 40 * SS, 110 * SS
+    pw, ph = phone_img.size
+    r = 28 * SS
+    mask = Image.new("L", (pw, ph), 0)
+    md = ImageDraw.Draw(mask)
+    md.rounded_rectangle([0, 0, pw, ph], radius=r, fill=255)
+    frame_layer = Image.new("RGBA", (pw + 16 * SS, ph + 16 * SS), (0, 0, 0, 0))
+    fd = ImageDraw.Draw(frame_layer)
+    fd.rounded_rectangle([0, 0, pw + 16 * SS - 1, ph + 16 * SS - 1], radius=r + 4 * SS,
+                         outline=(60, 64, 74), width=3 * SS)
+    canvas_img.paste(phone_img, (px + 8 * SS, py + 8 * SS), mask)
+    canvas_img.paste(frame_layer, (px, py), frame_layer)
+    notch_w, notch_h = 120 * SS, 24 * SS
+    notch_x = px + 8 * SS + (pw - notch_w) // 2
+    notch_y = py + 8 * SS
+    nd = ImageDraw.Draw(canvas_img)
+    nd.rounded_rectangle([notch_x, notch_y, notch_x + notch_w, notch_y + notch_h],
+                         radius=notch_h // 2, fill=(12, 13, 17))
+    indicator_w = 100 * SS
+    indicator_x = px + 8 * SS + (pw - indicator_w) // 2
+    indicator_y = py + 8 * SS + ph - 16 * SS
+    nd.rounded_rectangle([indicator_x, indicator_y, indicator_x + indicator_w, indicator_y + 4 * SS],
+                         radius=2 * SS, fill=(80, 84, 94))
 
 
 def text_center(d, cx, y, s, font, fill):
     tw = d.textlength(s, font=font)
-    d.text((cx - tw / 2, y), s, font=font, fill=fill)
+    d.text((cx * SS - tw / 2, y * SS), s, font=font, fill=fill)
+
+
+def draw_code_block(d, x, y, lines, font_regular, font_bold):
+    """代码语法高亮块：关键字绿色、字符串橙色、注释灰色、标识符白色。"""
+    pad = 16 * SS
+    line_h = 32 * SS
+    max_w = max(d.textlength(ln, font=font_regular) for ln in lines) if lines else 0
+    bw, bh = max_w + pad * 2, len(lines) * line_h + pad * 2
+    d.rounded_rectangle([x * SS, y * SS, x * SS + bw, y * SS + bh],
+                        radius=12 * SS, fill=CODE_BG)
+    keywords = {"function", "return", "const", "let", "var", "if", "else", "for", "while",
+                "this", "new", "true", "false", "null", "import", "from", "export", "def",
+                "Page", "App", "Component", "wx", "cloud"}
+    for i, ln in enumerate(lines):
+        ly = y * SS + pad + i * line_h
+        if ln.strip().startswith("//") or ln.strip().startswith("#"):
+            d.text((x * SS + pad, ly), ln, font=font_regular, fill=CODE_CMT)
+        else:
+            tokens = ln.split()
+            cx = x * SS + pad
+            for tok in tokens:
+                clean = tok.strip("(),{}[];:'\"")
+                if clean in keywords:
+                    d.text((cx, ly), tok, font=font_regular, fill=CODE_KW)
+                elif tok.startswith(("'", '"')) or tok.endswith(("'", '"')):
+                    d.text((cx, ly), tok, font=font_regular, fill=CODE_STR)
+                else:
+                    d.text((cx, ly), tok, font=font_regular, fill=WHITE)
+                cx += d.textlength(tok + " ", font=font_regular)
 
 
 # ============ 第 1 集：学习路径导览 ============
@@ -309,8 +371,8 @@ def episode3():
 def render_mp4(frames, name, fps=FPS):
     """逐帧流式写入 ffmpeg stdin 合成 H.264。
 
-    不缓存帧列表：720x1280 RGB 单帧 2.7MB，75s×24fps 一次性持有会占用约 5GB 内存。
-    改为生成器 + rawvideo 管道后峰值内存仅数帧，且省去上千个 PNG 临时文件。
+    2x 超采样：帧以 RW×RH 渲染，此处 LANCZOS 缩到 W×H 消除文字锯齿。
+    不缓存帧列表：生成器 + rawvideo 管道，峰值内存仅数帧。
     """
     try:
         import imageio_ffmpeg
@@ -319,9 +381,6 @@ def render_mp4(frames, name, fps=FPS):
         raise SystemExit("缺少 imageio-ffmpeg：pip install imageio-ffmpeg")
 
     out = VIDEO_DIR / f"{name}.mp4"
-    # -threads 1 不是为了速度，而是为了**可复现**：libx264 的帧级多线程会让
-    # 同一份输入在不同核数的机器上编出不同字节（实测 1/2/4/8 线程四个哈希全不同），
-    # 那样 CI 上「重新生成并与已提交文件比对」的检查会永远失败。代价约 +7 秒/集。
     cmd = [exe, "-y",
            "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
            "-framerate", str(fps), "-i", "pipe:0",
@@ -333,10 +392,11 @@ def render_mp4(frames, name, fps=FPS):
     count = 0
     try:
         for frame in frames:
-            proc.stdin.write(frame.tobytes())
+            small = frame.resize((W, H), Image.LANCZOS)
+            proc.stdin.write(small.tobytes())
             count += 1
     except BrokenPipeError:
-        pass   # ffmpeg 已退出，错误详情从 stderr 读取
+        pass
     finally:
         try:
             proc.stdin.close()
@@ -354,9 +414,590 @@ def render_mp4(frames, name, fps=FPS):
             f"请提高 -crf 或缩短时长")
 
 
+# ============ 第 4 集：WXML 数据绑定 ============
+def episode4():
+    title = "第 4 集"
+    n = int(75 * FPS)
+    captions = ["WXML：小程序的视图层模板语言",
+                "数据绑定：{{}} 把 JS data 渲染到页面",
+                "列表渲染：wx:for 遍历数组生成列表",
+                "条件渲染：wx:if 控制组件的显示隐藏",
+                "wx:key：列表 diff 的锚点，避免重渲染错乱",
+                "事件绑定：bindtap/catchtap 响应用户操作",
+                "数据流：用户操作 → 事件回调 → setData → 视图更新",
+                "核心原则：视图只认 setData，直接改 data 不生效",
+                "下一集：《自定义组件》——封装可复用的 UI 单元"]
+
+    def scene_binding(dd, s, k):
+        items = [
+            ("{{message}}", "把 JS 的 data.message 渲染到视图"),
+            ("{{count + 1}}", "支持简单表达式运算"),
+            ("{{flag ? '显示' : '隐藏'}}", "三元表达式"),
+        ]
+        for idx, (code, desc) in enumerate(items[:k + 1]):
+            y = 200 + idx * 180
+            dd.rounded_rectangle([30 * s, y * s, 345 * s, (y + 140) * s], radius=12, fill=(38, 42, 52))
+            dd.text((50 * s, (y + 20) * s), code, font=fb(22), fill=GREEN)
+            dd.text((50 * s, (y + 70) * s), desc, font=f(19), fill=GRAY)
+
+    def scene_list(dd, s, k):
+        if k == 0:
+            dd.text((50 * s, 200 * s), "wx:for=\"{{items}}\"", font=fb(22), fill=GREEN)
+            dd.text((50 * s, 260 * s), "遍历数组，每项生成一个组件", font=f(19), fill=GRAY)
+            for idx in range(3):
+                dd.rounded_rectangle([50 * s, (320 + idx * 80) * s, 320 * s, (380 + idx * 80) * s],
+                                     radius=8, fill=(50, 54, 66))
+                dd.text((70 * s, (335 + idx * 80) * s), f"Item {{item_{idx}}}", font=f(18), fill=WHITE)
+        elif k == 1:
+            dd.text((50 * s, 200 * s), "wx:key=\"id\"", font=fb(22), fill=GREEN)
+            dd.text((50 * s, 260 * s), "给每个列表项一个唯一标识", font=f(19), fill=GRAY)
+            dd.text((50 * s, 320 * s), "diff 算法靠它识别哪些项变了", font=f(19), fill=WHITE)
+            dd.text((50 * s, 380 * s), "不写 wx:key → Console 报警告", font=f(19), fill=(255, 100, 100))
+        else:
+            dd.text((50 * s, 200 * s), "wx:if vs hidden", font=fb(22), fill=GREEN)
+            dd.text((50 * s, 260 * s), "wx:if：销毁/重建组件", font=f(19), fill=WHITE)
+            dd.text((50 * s, 320 * s), "hidden：只改 display 样式", font=f(19), fill=WHITE)
+            dd.text((50 * s, 400 * s), "频繁切换 → hidden", font=f(19), fill=GREEN)
+            dd.text((50 * s, 460 * s), "很少变化 → wx:if", font=f(19), fill=GREEN)
+
+    for i in range(n):
+        t = i / FPS
+        img, d = canvas(title)
+        if t < 6:
+            text_center(d, W / 2, 430, "WXML 数据绑定", fb(54), WHITE)
+            text_center(d, W / 2, 540, "{{}} · wx:for · wx:if · 事件绑定", f(26), GREEN)
+            caption(img, d, captions[0])
+        elif t < 28:
+            k = int((t - 6) / 7.0)
+            p = phone_frame(lambda dd, s: scene_binding(dd, s, min(k, 2)))
+            paste_phone(img, p)
+            subtitle_bar(img, d, (t - 6) / 22, captions[1:4])
+        elif t < 52:
+            k = int((t - 28) / 7.5)
+            p = phone_frame(lambda dd, s: scene_list(dd, s, min(k, 2)))
+            paste_phone(img, p)
+            subtitle_bar(img, d, (t - 28) / 24, captions[4:7])
+        elif t < 64:
+            text_center(d, W / 2, 400, "数据流闭环", fb(42), WHITE)
+            text_center(d, W / 2, 500, "用户操作 → 事件 → setData → 视图", f(24), GREEN)
+            text_center(d, W / 2, 580, "视图只认 setData", f(24), (255, 100, 100))
+            caption(img, d, captions[7])
+        else:
+            text_center(d, W / 2, 460, "下一集：《自定义组件》", fb(42), GREEN)
+            text_center(d, W / 2, 560, "封装可复用的 UI 单元", f(24), GRAY)
+            caption(img, d, captions[8])
+        yield img
+
+
+# ============ 第 5 集：自定义组件 ============
+def episode5():
+    title = "第 5 集"
+    n = int(90 * FPS)
+    captions = ["为什么要拆组件？复用、解耦、可维护",
+                "Component 构造器：properties / data / methods",
+                "父传子：properties 声明接收的数据",
+                "子传父：triggerEvent 抛出自定义事件",
+                "组件通信全景：properties + triggerEvent + selectComponent",
+                "样式隔离：默认隔离 / 启用外部样式类",
+                "slot 插槽：在组件内放置父级的内容",
+                "最佳实践：组件粒度适中、职责单一",
+                "下一集：《云开发入门》——Serverless 后端能力"]
+
+    def scene_component(dd, s, k):
+        if k == 0:
+            dd.text((50 * s, 200 * s), "Component({", font=fb(22), fill=GREEN)
+            dd.text((50 * s, 250 * s), "  properties: { title: String },", font=f(18), fill=WHITE)
+            dd.text((50 * s, 290 * s), "  data: { count: 0 },", font=f(18), fill=WHITE)
+            dd.text((50 * s, 330 * s), "  methods: { onTap() { ... } }", font=f(18), fill=WHITE)
+            dd.text((50 * s, 370 * s), "})", font=fb(22), fill=GREEN)
+        elif k == 1:
+            dd.text((50 * s, 180 * s), "父 → 子", font=fb(24), fill=GREEN)
+            dd.rounded_rectangle([50 * s, 230 * s, 320 * s, 310 * s], radius=10, fill=(50, 54, 66))
+            dd.text((70 * s, 250 * s), "properties: { item: Object }", font=f(18), fill=WHITE)
+            dd.text((50 * s, 350 * s), "子 → 父", font=fb(24), fill=GREEN)
+            dd.rounded_rectangle([50 * s, 400 * s, 320 * s, 480 * s], radius=10, fill=(50, 54, 66))
+            dd.text((70 * s, 420 * s), "this.triggerEvent('change', {id})", font=f(18), fill=WHITE)
+        else:
+            dd.text((50 * s, 180 * s), "slot 插槽", font=fb(24), fill=GREEN)
+            dd.rounded_rectangle([50 * s, 230 * s, 320 * s, 350 * s], radius=10, fill=(50, 54, 66))
+            dd.text((70 * s, 250 * s), "组件模板：", font=f(18), fill=GRAY)
+            dd.text((70 * s, 290 * s), "<slot></slot>", font=f(20), fill=WHITE)
+            dd.text((50 * s, 390 * s), "父级使用：", font=f(18), fill=GRAY)
+            dd.text((70 * s, 430 * s), "<my-card>自定义内容</my-card>", font=f(18), fill=WHITE)
+
+    for i in range(n):
+        t = i / FPS
+        img, d = canvas(title)
+        if t < 6:
+            text_center(d, W / 2, 430, "自定义组件", fb(54), WHITE)
+            text_center(d, W / 2, 540, "Component · 通信 · 样式隔离 · slot", f(26), GREEN)
+            caption(img, d, captions[0])
+        elif t < 36:
+            k = int((t - 6) / 9.5)
+            p = phone_frame(lambda dd, s: scene_component(dd, s, min(k, 2)))
+            paste_phone(img, p)
+            subtitle_bar(img, d, (t - 6) / 30, captions[1:4])
+        elif t < 60:
+            text_center(d, W / 2, 380, "组件通信全景", fb(42), WHITE)
+            text_center(d, W / 2, 480, "properties ↓  triggerEvent ↑", f(28), GREEN)
+            text_center(d, W / 2, 560, "selectComponent → 跨层级", f(22), GRAY)
+            caption(img, d, captions[4])
+        elif t < 76:
+            text_center(d, W / 2, 400, "样式隔离", fb(42), WHITE)
+            text_center(d, W / 2, 500, "默认：组件内外互不影响", f(24), GRAY)
+            text_center(d, W / 2, 580, "externalClasses 按需开放", f(24), GREEN)
+            caption(img, d, captions[6])
+        else:
+            text_center(d, W / 2, 460, "下一集：《云开发入门》", fb(42), GREEN)
+            text_center(d, W / 2, 560, "Serverless 后端能力全景", f(24), GRAY)
+            caption(img, d, captions[8])
+        yield img
+
+
+# ============ 第 6 集：云开发入门 ============
+def episode6():
+    title = "第 6 集"
+    n = int(75 * FPS)
+    captions = ["云开发 = Serverless 后端，免运维",
+                "四大能力：云函数 · 云数据库 · 云存储 · 云托管",
+                "统一身份：cloud.getWXContext() 免鉴权拿 openid",
+                "云函数：后端逻辑，Node.js 运行环境",
+                "云数据库：JSON 文档型，按集合组织",
+                "云存储：上传文件，获取临时链接",
+                "安全原则：前端不可信，敏感逻辑走云函数",
+                "免费额度学习够用，按调用计费",
+                "下一集：跟随实战项目完整上线"]
+
+    def scene_cloud(dd, s, k):
+        caps = [("云函数", "后端逻辑", GREEN), ("云数据库", "JSON 文档", (255, 165, 0)),
+                ("云存储", "文件管理", (66, 133, 244)), ("云托管", "容器服务", (156, 39, 176))]
+        for idx, (name, desc, col) in enumerate(caps[:k + 1]):
+            x = 40 + (idx % 2) * 155
+            y = 220 + (idx // 2) * 180
+            dd.rounded_rectangle([x * s, y * s, (x + 140) * s, (y + 130) * s], radius=12, fill=(38, 42, 52))
+            dd.rounded_rectangle([x * s, y * s, (x + 140) * s, (y + 40) * s], radius=12, fill=col)
+            dd.text(((x + 15) * s, (y + 8) * s), name, font=fb(20), fill=WHITE)
+            dd.text(((x + 15) * s, (y + 60) * s), desc, font=f(18), fill=GRAY)
+
+    for i in range(n):
+        t = i / FPS
+        img, d = canvas(title)
+        if t < 6:
+            text_center(d, W / 2, 430, "云开发入门", fb(54), WHITE)
+            text_center(d, W / 2, 540, "Serverless · 免运维 · 按调用计费", f(26), GREEN)
+            caption(img, d, captions[0])
+        elif t < 30:
+            k = int((t - 6) / 5.5)
+            p = phone_frame(lambda dd, s: scene_cloud(dd, s, min(k, 3)))
+            paste_phone(img, p)
+            subtitle_bar(img, d, (t - 6) / 24, captions[1:5])
+        elif t < 50:
+            text_center(d, W / 2, 380, "统一身份体系", fb(42), WHITE)
+            text_center(d, W / 2, 480, "cloud.getWXContext()", f(28), GREEN)
+            text_center(d, W / 2, 560, "免鉴权拿 openid", f(24), GRAY)
+            caption(img, d, captions[5])
+        elif t < 64:
+            text_center(d, W / 2, 400, "安全原则", fb(42), WHITE)
+            text_center(d, W / 2, 500, "前端不可信", f(28), (255, 100, 100))
+            text_center(d, W / 2, 580, "敏感逻辑一律走云函数", f(24), GREEN)
+            caption(img, d, captions[6])
+        else:
+            text_center(d, W / 2, 460, "跟随实战项目完整上线", fb(42), GREEN)
+            text_center(d, W / 2, 560, "从零做一个可上线的待办清单", f(24), GRAY)
+            caption(img, d, captions[8])
+        yield img
+
+
+# ============ 第 7 集：性能优化 ============
+def episode7():
+    title = "第 7 集"
+    n = int(75 * FPS)
+    captions = ["性能瓶颈：setData 跨线程通信是核心开销",
+                "军规一：只传差异，不传全量",
+                "军规二：拆分大对象为小组件",
+                "军规三：避免高频事件里频繁 setData",
+                "军规四：wx:key 帮助列表精确 diff",
+                "军规五：长列表按需渲染（可视区域 ± 缓冲）",
+                "军规六：setUpdatePerformanceListener 测量",
+                "分包加载：主包 ≤2M，总 ≤30M",
+                "性能优化不是猜，是测量后精准打击"]
+
+    def scene_perf(dd, s, k):
+        rules = [
+            ("路径写法", "setData({'list[0].done': true})", GREEN),
+            ("拆组件", "Shadow 树规模 ∝ diff 成本", (255, 165, 0)),
+            ("防抖", "scroll/touch → debounce 300ms", (66, 133, 244)),
+            ("wx:key", "精确 diff，避免全量重渲染", GREEN),
+        ]
+        for idx, (title_text, desc, col) in enumerate(rules[:k + 1]):
+            y = 180 + idx * 140
+            dd.rounded_rectangle([30 * s, y * s, 345 * s, (y + 110) * s], radius=10, fill=(38, 42, 52))
+            dd.rounded_rectangle([30 * s, y * s, 345 * s, (y + 36) * s], radius=10, fill=col)
+            dd.text((45 * s, (y + 6) * s), title_text, font=fb(20), fill=WHITE)
+            dd.text((45 * s, (y + 55) * s), desc, font=f(17), fill=GRAY)
+
+    for i in range(n):
+        t = i / FPS
+        img, d = canvas(title)
+        if t < 6:
+            text_center(d, W / 2, 430, "性能优化", fb(54), WHITE)
+            text_center(d, W / 2, 540, "setData 军规 · 分包 · 测量驱动", f(26), GREEN)
+            caption(img, d, captions[0])
+        elif t < 36:
+            k = int((t - 6) / 7.0)
+            p = phone_frame(lambda dd, s: scene_perf(dd, s, min(k, 3)))
+            paste_phone(img, p)
+            subtitle_bar(img, d, (t - 6) / 30, captions[1:5])
+        elif t < 55:
+            text_center(d, W / 2, 380, "分包加载", fb(42), WHITE)
+            text_center(d, W / 2, 480, "主包 ≤ 2MB", f(28), (255, 100, 100))
+            text_center(d, W / 2, 560, "总包 ≤ 30MB", f(28), GREEN)
+            caption(img, d, captions[7])
+        elif t < 65:
+            text_center(d, W / 2, 400, "测量而非猜测", fb(42), WHITE)
+            text_center(d, W / 2, 500, "setUpdatePerformanceListener", f(24), GREEN)
+            text_center(d, W / 2, 580, "量化每次 setData 的耗时", f(22), GRAY)
+            caption(img, d, captions[8])
+        else:
+            text_center(d, W / 2, 460, "下一集：《微信支付》", fb(42), GREEN)
+            text_center(d, W / 2, 560, "云调用接入，安全又简单", f(24), GRAY)
+            caption(img, d, captions[8])
+        yield img
+
+
+# ============ 第 8 集：微信支付 ============
+def episode8():
+    title = "第 8 集"
+    n = int(75 * FPS)
+    captions = ["微信支付：云开发云调用接入，免自建服务端",
+                "前置条件：企业主体 + 商户号 + 关联小程序",
+                "云调用：cloud.cloudPay 统一下单",
+                "前端：wx.requestPayment 拉起支付",
+                "回调处理：幂等校验，防重复发货",
+                "退款：cloudPay.refund，原路退回",
+                "安全：签名校验在云函数，前端不碰密钥",
+                "测试：沙箱环境验证全流程",
+                "支付是商业闭环的核心能力"]
+
+    def scene_pay(dd, s, k):
+        steps = [
+            ("1. 下单", "cloudPay.unifiedOrder()", GREEN),
+            ("2. 支付", "wx.requestPayment()", (255, 165, 0)),
+            ("3. 回调", "幂等校验 + 发货", (66, 133, 244)),
+            ("4. 退款", "cloudPay.refund()", (156, 39, 176)),
+        ]
+        for idx, (title_text, desc, col) in enumerate(steps[:k + 1]):
+            y = 180 + idx * 130
+            dd.rounded_rectangle([30 * s, y * s, 345 * s, (y + 100) * s], radius=10, fill=(38, 42, 52))
+            dd.rounded_rectangle([30 * s, y * s, 120 * s, (y + 36) * s], radius=10, fill=col)
+            dd.text((40 * s, (y + 6) * s), title_text, font=fb(18), fill=WHITE)
+            dd.text((45 * s, (y + 55) * s), desc, font=f(17), fill=GRAY)
+
+    for i in range(n):
+        t = i / FPS
+        img, d = canvas(title)
+        if t < 6:
+            text_center(d, W / 2, 430, "微信支付", fb(54), WHITE)
+            text_center(d, W / 2, 540, "云调用 · requestPayment · 幂等回调", f(26), GREEN)
+            caption(img, d, captions[0])
+        elif t < 30:
+            k = int((t - 6) / 5.5)
+            p = phone_frame(lambda dd, s: scene_pay(dd, s, min(k, 3)))
+            paste_phone(img, p)
+            subtitle_bar(img, d, (t - 6) / 24, captions[1:5])
+        elif t < 50:
+            text_center(d, W / 2, 380, "安全原则", fb(42), WHITE)
+            text_center(d, W / 2, 480, "签名校验在云函数", f(28), (255, 100, 100))
+            text_center(d, W / 2, 560, "前端不碰商户密钥", f(24), GREEN)
+            caption(img, d, captions[6])
+        elif t < 64:
+            text_center(d, W / 2, 400, "回调幂等", fb(42), WHITE)
+            text_center(d, W / 2, 500, "同一笔支付可能多次通知", f(24), GRAY)
+            text_center(d, W / 2, 580, "用订单号去重，防重复发货", f(24), GREEN)
+            caption(img, d, captions[7])
+        else:
+            text_center(d, W / 2, 460, "下一集：《上线发布》", fb(42), GREEN)
+            text_center(d, W / 2, 560, "体验版 → 审核 → 发布", f(24), GRAY)
+            caption(img, d, captions[8])
+        yield img
+
+
+# ============ 第 9 集：上线发布 ============
+def episode9():
+    title = "第 9 集"
+    n = int(75 * FPS)
+    captions = ["上线流程：上传 → 体验版 → 审核 → 发布",
+                "上传代码：开发者工具 → 上传（填版本号 + 备注）",
+                "体验版：指定体验成员扫码测试",
+                "提交审核：选类目 + 填审核材料",
+                "审核周期：通常 1-7 个工作日",
+                "发布：全量发布 or 灰度发布",
+                "版本回退：发现严重 bug 可即时回退上一版",
+                "更新机制：getUpdateManager 提示用户更新",
+                "上线不是终点，持续运营才是开始"]
+
+    def scene_release(dd, s, k):
+        stages = [
+            ("上传", "填版本号+备注", GREEN),
+            ("体验版", "成员扫码测试", (255, 165, 0)),
+            ("审核", "1-7 工作日", (66, 133, 244)),
+            ("发布", "全量 or 灰度", (156, 39, 176)),
+        ]
+        for idx, (name, desc, col) in enumerate(stages[:k + 1]):
+            x = 60 + idx * 75
+            y_base = 350
+            dd.rounded_rectangle([x * s, y_base * s, (x + 60) * s, (y_base + 60) * s], radius=30, fill=col)
+            text_center(dd, (x + 30) * s, (y_base + 15) * s, name, fb(18), WHITE)
+            dd.text(((x - 5) * s, (y_base + 80) * s), desc, font=f(14), fill=GRAY)
+            if idx < k:
+                dd.text(((x + 60) * s, (y_base + 20) * s), "→", font=fb(24), fill=GRAY)
+
+    for i in range(n):
+        t = i / FPS
+        img, d = canvas(title)
+        if t < 6:
+            text_center(d, W / 2, 430, "上线发布", fb(54), WHITE)
+            text_center(d, W / 2, 540, "上传 · 体验版 · 审核 · 发布 · 回退", f(26), GREEN)
+            caption(img, d, captions[0])
+        elif t < 36:
+            k = int((t - 6) / 7.0)
+            p = phone_frame(lambda dd, s: scene_release(dd, s, min(k, 3)))
+            paste_phone(img, p)
+            subtitle_bar(img, d, (t - 6) / 30, captions[1:5])
+        elif t < 55:
+            text_center(d, W / 2, 380, "版本回退", fb(42), WHITE)
+            text_center(d, W / 2, 480, "MP 后台 → 版本管理", f(26), GREEN)
+            text_center(d, W / 2, 560, "即时回退，无需审核", f(24), GRAY)
+            caption(img, d, captions[6])
+        elif t < 65:
+            text_center(d, W / 2, 400, "更新机制", fb(42), WHITE)
+            text_center(d, W / 2, 500, "getUpdateManager()", f(26), GREEN)
+            text_center(d, W / 2, 580, "检测到新版本 → 提示用户更新", f(22), GRAY)
+            caption(img, d, captions[7])
+        else:
+            text_center(d, W / 2, 460, "下一集：《实战项目导览》", fb(42), GREEN)
+            text_center(d, W / 2, 560, "三个完整项目串联全部知识", f(24), GRAY)
+            caption(img, d, captions[8])
+        yield img
+
+
+# ============ 第 10 集：实战项目导览 ============
+def episode10():
+    title = "第 10 集"
+    n = int(90 * FPS)
+    captions = ["三个实战项目，串联本库全部核心知识",
+                "待办清单：云开发全栈（云函数 + 云数据库 + 权限隔离）",
+                "多页面导航：tabBar + 四种跳转 API + 生命周期",
+                "商品列表：wx:for/wx:key + scroll-view + 搜索",
+                "每个项目都有完整代码 + 架构决策复盘",
+                "踩坑回顾：真实开发中遇到的问题与解决",
+                "导入开发者工具即可运行",
+                "代码与教程逐行一致，CI 自动校验",
+                "从零做一个可上线的小程序，你准备好了吗"]
+
+    def scene_projects(dd, s, k):
+        projects = [
+            ("待办清单", "云开发全栈", "★★★★☆", GREEN),
+            ("多页面导航", "TabBar + 跳转", "★★☆☆☆", (255, 165, 0)),
+            ("商品列表", "列表 + 搜索", "★★★☆☆", (66, 133, 244)),
+        ]
+        for idx, (name, desc, stars, col) in enumerate(projects[:k + 1]):
+            y = 190 + idx * 160
+            dd.rounded_rectangle([30 * s, y * s, 345 * s, (y + 130) * s], radius=12, fill=(38, 42, 52))
+            dd.rounded_rectangle([30 * s, y * s, 345 * s, (y + 42) * s], radius=12, fill=col)
+            dd.text((45 * s, (y + 8) * s), name, font=fb(22), fill=WHITE)
+            dd.text((45 * s, (y + 60) * s), desc, font=f(19), fill=GRAY)
+            dd.text((45 * s, (y + 95) * s), stars, font=f(18), fill=(255, 200, 0))
+
+    for i in range(n):
+        t = i / FPS
+        img, d = canvas(title)
+        if t < 6:
+            text_center(d, W / 2, 430, "实战项目导览", fb(54), WHITE)
+            text_center(d, W / 2, 540, "三个完整项目 · 串联全部知识", f(26), GREEN)
+            caption(img, d, captions[0])
+        elif t < 36:
+            k = int((t - 6) / 9.5)
+            p = phone_frame(lambda dd, s: scene_projects(dd, s, min(k, 2)))
+            paste_phone(img, p)
+            subtitle_bar(img, d, (t - 6) / 30, captions[1:4])
+        elif t < 58:
+            text_center(d, W / 2, 380, "代码与教程一致", fb(42), WHITE)
+            text_center(d, W / 2, 480, "逐行比对 · CI 自动校验", f(26), GREEN)
+            text_center(d, W / 2, 560, "架构决策复盘 + 踩坑回顾", f(24), GRAY)
+            caption(img, d, captions[4])
+        elif t < 74:
+            text_center(d, W / 2, 400, "导入即运行", fb(42), WHITE)
+            text_center(d, W / 2, 500, "examples/ 目录下三个工程", f(24), GREEN)
+            text_center(d, W / 2, 580, "开发者工具 → 导入项目", f(24), GRAY)
+            caption(img, d, captions[6])
+        else:
+            text_center(d, W / 2, 420, "你准备好了吗？", fb(48), GREEN)
+            text_center(d, W / 2, 540, "从零做一个可上线的小程序", f(26), WHITE)
+            caption(img, d, captions[8])
+        yield img
+
+
+def episode11():
+    title = "第 11 集"
+    n = int(75 * FPS)
+    captions = ["云函数：在云端运行 Node.js 代码",
+                "无需自建服务器，微信托管按量付费",
+                "小程序端 wx.cloud.callFunction 调用",
+                "云函数内 cloud.database() 操作数据库",
+                "权限隔离：云函数可绕过前端权限限制",
+                "冷启动优化：初始化逻辑放函数外层",
+                "本地调试：右键云函数目录 → 本地调试"]
+
+    def scene_cloud_func(dd, s):
+        dd.rounded_rectangle([20 * s, 180 * s, 355 * s, 340 * s], radius=12, fill=(38, 42, 52))
+        dd.text((35 * s, 195 * s), "cloudfunctions/", font=fb(18), fill=GREEN)
+        dd.text((35 * s, 230 * s), "  todo/", font=f(16), fill=WHITE)
+        dd.text((50 * s, 260 * s), "index.js", font=f(15), fill=GRAY)
+        dd.text((50 * s, 290 * s), "package.json", font=f(15), fill=GRAY)
+        dd.rounded_rectangle([20 * s, 360 * s, 355 * s, 480 * s], radius=12, fill=(38, 42, 52))
+        dd.text((35 * s, 375 * s), "调用链路", font=fb(16), fill=GREEN)
+        for i, step in enumerate(["小程序 → callFunction", "云函数 → database()", "返回结果 → setData"]):
+            dd.text((50 * s, (405 + i * 28) * s), step, font=f(14), fill=GRAY)
+
+    for i in range(n):
+        t = i / FPS
+        img, d = canvas(title)
+        if t < 6:
+            text_center(d, W / 2, 430, "云函数", fb(54), WHITE)
+            text_center(d, W / 2, 540, "云端运行 · 无需服务器", f(26), GREEN)
+            caption(img, d, captions[0])
+        elif t < 30:
+            p = phone_frame(lambda dd, s: scene_cloud_func(dd, s))
+            paste_phone(img, p)
+            subtitle_bar(img, d, (t - 6) / 24, captions[1:4])
+        elif t < 52:
+            text_center(d, W / 2, 380, "权限隔离", fb(42), WHITE)
+            text_center(d, W / 2, 480, "云函数可绕过前端权限", f(26), GREEN)
+            text_center(d, W / 2, 560, "数据库权限设为「仅云函数可读写」", f(22), GRAY)
+            caption(img, d, captions[4])
+        else:
+            text_center(d, W / 2, 400, "调试与优化", fb(42), WHITE)
+            text_center(d, W / 2, 500, "右键 → 本地调试", f(26), GREEN)
+            text_center(d, W / 2, 580, "初始化放外层减少冷启动", f(24), GRAY)
+            caption(img, d, captions[6])
+        yield img
+
+
+def episode12():
+    title = "第 12 集"
+    n = int(75 * FPS)
+    captions = ["授权与隐私：小程序的数据安全模型",
+                "scope 机制：每个能力对应一个授权开关",
+                "wx.authorize 首次弹窗 → wx.getSetting 查询",
+                "用户拒绝后需引导去设置页手动开启",
+                "隐私指引：收集用户信息前必须声明用途",
+                "MP 后台 → 设置 → 服务内容声明",
+                "合规是上线的前提，不可忽视"]
+
+    def scene_auth(dd, s):
+        dd.rounded_rectangle([20 * s, 180 * s, 355 * s, 500 * s], radius=12, fill=(38, 42, 52))
+        dd.text((35 * s, 195 * s), "scope 授权模型", font=fb(18), fill=GREEN)
+        scopes = [
+            ("scope.userInfo", "用户信息"),
+            ("scope.location", "精确位置"),
+            ("scope.camera", "摄像头"),
+            ("scope.record", "录音"),
+            ("scope.writePhotosAlbum", "保存到相册"),
+        ]
+        for i, (scope, desc) in enumerate(scopes):
+            y = 235 + i * 48
+            dd.text((40 * s, y * s), scope, font=f(13), fill=WHITE)
+            dd.text((250 * s, y * s), desc, font=f(13), fill=GRAY)
+            col = GREEN if i < 2 else (100, 100, 110)
+            dd.ellipse([320 * s, (y + 2) * s, 340 * s, (y + 18) * s], fill=col)
+
+    for i in range(n):
+        t = i / FPS
+        img, d = canvas(title)
+        if t < 6:
+            text_center(d, W / 2, 430, "授权与隐私", fb(54), WHITE)
+            text_center(d, W / 2, 540, "scope 模型 · 隐私指引", f(26), GREEN)
+            caption(img, d, captions[0])
+        elif t < 30:
+            p = phone_frame(lambda dd, s: scene_auth(dd, s))
+            paste_phone(img, p)
+            subtitle_bar(img, d, (t - 6) / 24, captions[1:4])
+        elif t < 52:
+            text_center(d, W / 2, 380, "隐私指引", fb(42), WHITE)
+            text_center(d, W / 2, 480, "收集信息前声明用途", f(26), GREEN)
+            text_center(d, W / 2, 560, "MP 后台 → 服务内容声明", f(22), GRAY)
+            caption(img, d, captions[4])
+        else:
+            text_center(d, W / 2, 420, "合规是上线前提", fb(42), GREEN)
+            text_center(d, W / 2, 540, "审核会检查隐私合规", f(26), WHITE)
+            caption(img, d, captions[6])
+        yield img
+
+
+def episode13():
+    title = "第 13 集"
+    n = int(75 * FPS)
+    captions = ["调试与排错：定位问题的系统方法",
+                "开发者工具：Console / Network / AppData",
+                "真机调试：实时看日志，要求同 WiFi",
+                "vConsole：真机上的调试面板",
+                "常见坑：模拟器正常但真机异常",
+                "线上监控：MP 后台 → 运维中心",
+                "排错是进阶必备技能，越早练越好"]
+
+    def scene_debug(dd, s):
+        dd.rounded_rectangle([20 * s, 180 * s, 355 * s, 520 * s], radius=12, fill=(38, 42, 52))
+        dd.text((35 * s, 195 * s), "调试面板", font=fb(18), fill=GREEN)
+        panels = [
+            ("Console", "日志 · 错误 · warn", GREEN),
+            ("Network", "请求 · 响应 · 耗时", (66, 133, 244)),
+            ("AppData", "data 实时查看 · 编辑", (255, 165, 0)),
+            ("Audits", "性能分析 · 评分", (150, 100, 200)),
+        ]
+        for i, (name, desc, col) in enumerate(panels):
+            y = 240 + i * 65
+            dd.rounded_rectangle([35 * s, y * s, 340 * s, (y + 50) * s], radius=8, fill=(50, 54, 64))
+            dd.text((50 * s, (y + 8) * s), name, font=fb(16), fill=col)
+            dd.text((50 * s, (y + 30) * s), desc, font=f(13), fill=GRAY)
+
+    for i in range(n):
+        t = i / FPS
+        img, d = canvas(title)
+        if t < 6:
+            text_center(d, W / 2, 430, "调试与排错", fb(54), WHITE)
+            text_center(d, W / 2, 540, "定位问题的系统方法", f(26), GREEN)
+            caption(img, d, captions[0])
+        elif t < 30:
+            p = phone_frame(lambda dd, s: scene_debug(dd, s))
+            paste_phone(img, p)
+            subtitle_bar(img, d, (t - 6) / 24, captions[1:4])
+        elif t < 52:
+            text_center(d, W / 2, 380, "真机 ≠ 模拟器", fb(42), WHITE)
+            text_center(d, W / 2, 480, "渲染环境不同", f(26), GREEN)
+            text_center(d, W / 2, 560, "fixed 定位 · canvas · 音频差异", f(22), GRAY)
+            caption(img, d, captions[4])
+        else:
+            text_center(d, W / 2, 400, "线上监控", fb(42), WHITE)
+            text_center(d, W / 2, 500, "MP 后台 → 运维中心", f(26), GREEN)
+            text_center(d, W / 2, 580, "错误日志 · 性能数据 · 用户反馈", f(22), GRAY)
+            caption(img, d, captions[6])
+        yield img
+
+
 EPISODES = [("video-01-roadmap", episode1),
             ("video-02-intro", episode2),
-            ("video-03-env", episode3)]
+            ("video-03-env", episode3),
+            ("video-04-wxml", episode4),
+            ("video-05-component", episode5),
+            ("video-06-cloud", episode6),
+            ("video-07-perf", episode7),
+            ("video-08-payment", episode8),
+            ("video-09-release", episode9),
+            ("video-10-practice", episode10),
+            ("video-11-cloudfunc", episode11),
+            ("video-12-auth", episode12),
+            ("video-13-debug", episode13)]
 
 
 if __name__ == "__main__":

@@ -1,0 +1,15 @@
+<view class="container">
+  <view class="card" wx:if="{{product}}">
+    <view class="product-name">{{product.name}}</view>
+    <view class="product-price">¥{{product.price}}</view>
+    <view class="product-tag" wx:if="{{product.tag}}">标签：{{product.tag}}</view>
+  </view>
+
+  <view class="card">
+    <view class="title">技术要点</view>
+    <view class="desc">· wx:for + wx:key 高效列表渲染</view>
+    <view class="desc">· scroll-view 滚动加载更多</view>
+    <view class="desc">· 搜索过滤：data 驱动视图更新</view>
+    <view class="desc">· dataset 传参：data-id → e.currentTarget.dataset.id</view>
+  </view>
+</view>

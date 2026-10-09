@@ -1,0 +1,2 @@
+page { background: #f5f5f5; font-family: -apple-system, sans-serif; }
+.container { padding: 20rpx 30rpx; }

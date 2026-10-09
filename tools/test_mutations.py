@@ -63,9 +63,9 @@ MUTATIONS = [
     ),
     (
         "check_repo.py",
-        "按文件名全局匹配（未引用示例工程的文章也被误判漂移）",
-        'if "todo-miniprogram" not in text:',
-        'if False:',
+        "未引用示例工程的文章也参与比对（按文件名全局匹配的老毛病复发）",
+        "            if pname not in text:\n                continue",
+        "            if False:\n                continue",
     ),
     (
         "check_repo.py",
@@ -160,9 +160,15 @@ def main():
     originals = {name: (TOOLS / name).read_text(encoding="utf-8") for name in TARGETS}
 
     caught = 0
+    stale = 0
     for target, label, fixed, broken in MUTATIONS:
         if fixed not in originals[target]:
-            print(f"  跳过（锚点未命中）: {label}")
+            # 锚点命中不了：不是「无害跳过」，而是这个修复已经不在代码里，
+            # 自测也因此从未验证过它。必须显式计入失败，否则会像 2026-10-09
+            # 的一幕：重构把 guard 从 `"todo-miniprogram" not in text` 换成
+            # `pname not in text`，锚点悄悄失配，caught 19/20 直接让 CI 变红。
+            stale += 1
+            print(f"  ❌ 锚点未命中（该项修复未被验证）: {label}")
             continue
         with tempfile.TemporaryDirectory() as td:
             td = pathlib.Path(td)
@@ -177,7 +183,8 @@ def main():
             caught += red
             print(f"  {'✅ 变红（自测能抓到）' if red else '❌ 仍绿（自测抓不到！）'}  {label}")
 
-    print(f"\n{caught}/{len(MUTATIONS)} 项变异被自测捕获")
+    print(f"\n{caught}/{len(MUTATIONS)} 项变异被自测捕获"
+          + (f"，{stale} 项锚点未命中（等于未验证）" if stale else ""))
     intact = all((TOOLS / n).read_text(encoding="utf-8") == s for n, s in originals.items())
     print(f"仓库内被变异的脚本均未被改动: {intact}")
     return 0 if caught == len(MUTATIONS) and intact else 1

@@ -29,13 +29,50 @@ class C:
         self.d.rounded_rectangle([v * S for v in box], radius=r * S, fill=fill, outline=outline, width=w * S)
 
     def card(self, box, r=14, border=None, fill=WHITE):
-        for i in range(2, 0, -1):
+        for i in range(3, 0, -1):
             layer = Image.new("RGBA", self.img.size, (0, 0, 0, 0))
             ld = ImageDraw.Draw(layer)
             ld.rounded_rectangle([(box[0]-i*2)*S, (box[1]-i*2)*S, (box[2]+i*2)*S, (box[3]+i*2)*S],
-                                 radius=r*S+i*2, fill=(0, 0, 0, 20))
+                                 radius=r*S+i*2, fill=(0, 0, 0, 35))
             self.img.paste(layer, (0, 0), layer)
         self.rr(box, r, fill=fill, outline=border, w=2 if border else 1)
+
+    def card_title(self, box, r=14, color=GREEN, title_text="", body_text=""):
+        self.card(box, r, border=color)
+        self.rr((box[0], box[1], box[2], box[1] + 36), r, fill=color)
+        self.d.rounded_rectangle([(box[0])*S, (box[1]+20)*S, (box[2])*S, (box[1]+36)*S], fill=color)
+        self.t(box[0] + 14, box[1] + 8, title_text, font_b(14), WHITE)
+        if body_text:
+            self.t(box[0] + 14, box[1] + 46, body_text, font(12), DARK)
+
+    def icon_cloud(self, cx, cy, size, color):
+        s = S
+        self.d.ellipse([(cx-size)*s, (cy-size*0.4)*s, (cx+size*0.6)*s, (cy+size*0.4)*s], fill=color)
+        self.d.ellipse([(cx-size*0.3)*s, (cy-size*0.7)*s, (cx+size)*s, (cy+size*0.3)*s], fill=color)
+        self.d.rectangle([(cx-size*0.6)*s, (cy)*s, (cx+size*0.6)*s, (cy+size*0.4)*s], fill=color)
+
+    def icon_database(self, cx, cy, size, color):
+        s = S
+        self.d.ellipse([(cx-size)*s, (cy-size*0.6)*s, (cx+size)*s, (cy+size*0.2)*s], fill=color)
+        self.d.rectangle([(cx-size)*s, (cy-size*0.2)*s, (cx+size)*s, (cy+size*0.4)*s], fill=color)
+        self.d.ellipse([(cx-size)*s, (cy+size*0.1)*s, (cx+size)*s, (cy+size*0.6)*s], fill=color)
+
+    def icon_code(self, cx, cy, size, color):
+        s = S
+        self.d.line([(cx-size*0.6)*s, (cy)*s, (cx-size*0.2)*s, (cy-size*0.5)*s], fill=color, width=3*s)
+        self.d.line([(cx-size*0.6)*s, (cy)*s, (cx-size*0.2)*s, (cy+size*0.5)*s], fill=color, width=3*s)
+        self.d.line([(cx+size*0.6)*s, (cy)*s, (cx+size*0.2)*s, (cy-size*0.5)*s], fill=color, width=3*s)
+        self.d.line([(cx+size*0.6)*s, (cy)*s, (cx+size*0.2)*s, (cy+size*0.5)*s], fill=color, width=3*s)
+
+    def arrow(self, start, end, color, width=2):
+        s = S
+        self.d.line([start[0]*s, start[1]*s, end[0]*s, end[1]*s], fill=color, width=width*s)
+        import math
+        angle = math.atan2(end[1]-start[1], end[0]-start[0])
+        sz = 10
+        p1 = (end[0] - sz*math.cos(angle - 0.4), end[1] - sz*math.sin(angle - 0.4))
+        p2 = (end[0] - sz*math.cos(angle + 0.4), end[1] - sz*math.sin(angle + 0.4))
+        self.d.polygon([tuple(v*s for v in end), tuple(v*s for v in p1), tuple(v*s for v in p2)], fill=color)
 
     def tw(self, s, f):
         return self.d.textlength(s, font=f) / S
@@ -171,6 +208,425 @@ def gen_languages():
     c.save("diagram-languages.png")
 
 
+# ============ diagram-knowledge-graph ============
+def gen_knowledge_graph():
+    """全局概念关系图：29 篇文章为节点，5 个阶段分组着色，前置关系为有向边。"""
+    c = C(900, 700); title(c, "知识图谱：29 篇文章的概念关系")
+
+    stages = [
+        ("① 认知", BLUE, [(60, 110, "认识小程序"), (60, 170, "技术栈")]),
+        ("② 准备", GREEN, [(210, 110, "环境准备"), (210, 170, "项目结构")]),
+        ("③ 基础", ORANGE, [(360, 90, "WXML"), (360, 140, "WXSS"), (360, 190, "JS 逻辑层"), (360, 240, "生命周期")]),
+        ("④ 进阶", PURPLE, [(510, 70, "内置组件"), (510, 115, "自定义组件"), (510, 160, "网络请求"),
+                            (510, 205, "性能优化"), (510, 250, "媒体能力"), (510, 295, "地图定位"),
+                            (660, 70, "授权隐私"), (660, 115, "分享订阅"), (660, 160, "Skyline"),
+                            (660, 205, "组件库"), (660, 250, "调试排错"), (660, 295, "微信支付")]),
+        ("⑤ 实战", RED, [(790, 90, "云开发入门"), (790, 140, "云函数"), (790, 190, "云数据库"),
+                        (790, 240, "云存储"), (790, 310, "待办实战"), (790, 360, "上线发布"), (790, 410, "资源工具")]),
+    ]
+
+    node_positions = {}
+    for stage_name, col, nodes in stages:
+        for x, y, name in nodes:
+            w = max(100, c.tw(name, font(12)) + 20)
+            c.card((x, y, x + w, y + 32), r=8, border=col)
+            c.t(x + 10, y + 8, name, font(12), DARK)
+            node_positions[name] = (x + w / 2, y + 16, col)
+
+    edges = [
+        ("认识小程序", "技术栈"), ("认识小程序", "环境准备"), ("技术栈", "环境准备"),
+        ("环境准备", "项目结构"), ("项目结构", "WXML"), ("项目结构", "WXSS"), ("项目结构", "JS 逻辑层"),
+        ("WXML", "生命周期"), ("WXSS", "生命周期"), ("JS 逻辑层", "生命周期"),
+        ("生命周期", "内置组件"), ("生命周期", "自定义组件"), ("生命周期", "网络请求"),
+        ("内置组件", "性能优化"), ("自定义组件", "性能优化"), ("网络请求", "性能优化"),
+        ("生命周期", "媒体能力"), ("生命周期", "地图定位"), ("生命周期", "授权隐私"),
+        ("授权隐私", "分享订阅"), ("授权隐私", "Skyline"),
+        ("内置组件", "组件库"), ("自定义组件", "组件库"),
+        ("性能优化", "调试排错"), ("网络请求", "调试排错"),
+        ("媒体能力", "微信支付"), ("网络请求", "微信支付"),
+        ("JS 逻辑层", "云开发入门"), ("网络请求", "云开发入门"),
+        ("云开发入门", "云函数"), ("云开发入门", "云数据库"), ("云开发入门", "云存储"),
+        ("云函数", "待办实战"), ("云数据库", "待办实战"), ("云存储", "待办实战"),
+        ("待办实战", "上线发布"), ("上线发布", "资源工具"),
+    ]
+
+    for src, dst in edges:
+        if src in node_positions and dst in node_positions:
+            sx, sy, _ = node_positions[src]
+            dx, dy, _ = node_positions[dst]
+            c.d.line([sx * S, sy * S, dx * S, dy * S], fill=(200, 200, 210), width=1 * S)
+
+    c.t(60, 480, "阶段分组：", font_b(14), DARK)
+    legend = [("① 认知", BLUE), ("② 准备", GREEN), ("③ 基础", ORANGE), ("④ 进阶", PURPLE), ("⑤ 实战与发布", RED)]
+    lx = 170
+    for name, col in legend:
+        c.d.ellipse([lx * S, 484 * S, (lx + 14) * S, 498 * S], fill=col)
+        c.t(lx + 20, 480, name, font(13), DARK)
+        lx += c.tw(name, font(13)) + 40
+    c.t(60, 520, "箭头表示前置关系：左边的文章是右边文章的前置知识。按从左到右的顺序学习。", font(13), GRAY)
+    c.t(60, 550, "配套：[PROGRESS.md] 跟踪学习进度 · [FAQ] 高频问答 · 每篇随堂测验自测", font(13), GRAY)
+    c.save("diagram-knowledge-graph.png")
+
+
+# ============ diagram-setdata-mechanism ============
+def gen_setdata_mechanism():
+    """setData 跨线程通信流程：逻辑层 → 序列化 → 渲染层 → diff → 更新视图。"""
+    c = C(800, 520); title(c, "setData 跨线程通信机制")
+
+    boxes = [
+        (40, 100, 200, 200, "逻辑层 (JS)", BLUE, "Page.data"),
+        (280, 100, 440, 200, "序列化", ORANGE, "JSON diff"),
+        (520, 100, 760, 200, "渲染层 (WebView)", GREEN, "WXML 模板"),
+    ]
+    for x1, y1, x2, y2, name, col, sub in boxes:
+        c.card((x1, y1, x2, y2), border=col)
+        c.tc((x1 + x2) / 2, y1 + 20, name, font_b(16), col)
+        c.tc((x1 + x2) / 2, y1 + 58, sub, font(13), DARK)
+
+    c.d.line([200 * S, 150 * S, 280 * S, 150 * S], fill=GRAY, width=2 * S)
+    c.d.polygon([(280 * S, 145 * S), (280 * S, 155 * S), (290 * S, 150 * S)], fill=GRAY)
+    c.tc(240, 120, "① setData", font(12), BLUE)
+
+    c.d.line([440 * S, 150 * S, 520 * S, 150 * S], fill=GRAY, width=2 * S)
+    c.d.polygon([(520 * S, 145 * S), (520 * S, 155 * S), (530 * S, 150 * S)], fill=GRAY)
+    c.tc(480, 120, "② diff 数据", font(12), ORANGE)
+
+    c.d.line([640 * S, 200 * S, 640 * S, 260 * S], fill=GRAY, width=2 * S)
+    c.d.polygon([(635 * S, 260 * S), (645 * S, 260 * S), (640 * S, 270 * S)], fill=GRAY)
+
+    c.card((440, 270, 760, 360), border=PURPLE)
+    c.tc(600, 285, "③ Virtual DOM diff", font_b(14), PURPLE)
+    c.tc(600, 320, "Shadow Tree 对比变化", font(13), DARK)
+    c.tc(600, 345, "最小化 DOM 操作", font(13), GRAY)
+
+    c.card((40, 270, 360, 360), border=RED)
+    c.tc(200, 285, "事件回调", font_b(14), RED)
+    c.tc(200, 320, "用户交互 → bindtap 等", font(13), DARK)
+    c.tc(200, 345, "事件冒泡回逻辑层", font(13), GRAY)
+
+    c.d.line([200 * S, 270 * S, 120 * S, 200 * S], fill=GRAY, width=2 * S)
+    c.d.polygon([(115 * S, 200 * S), (125 * S, 200 * S), (120 * S, 190 * S)], fill=GRAY)
+    c.tc(130, 230, "④ 事件", font(12), RED)
+
+    c.t(40, 390, "关键约束：", font_b(14), DARK)
+    c.t(40, 418, "· setData 传输的是 JSON 序列化后的 diff，不是全量数据 → 数据越大越慢", font(13), DARK)
+    c.t(40, 444, "· 逻辑层与渲染层运行在不同线程，通过 Native 桥接通信 → 有延迟", font(13), DARK)
+    c.t(40, 470, "· 优化方向：减小 setData 数据量、合并调用、用 WXS 处理高频变化", font(13), RED)
+    c.save("diagram-setdata-mechanism.png")
+
+
+# ============ diagram-component-comm ============
+def gen_component_comm():
+    """自定义组件通信流：properties 下行、triggerEvent 上行、selectComponent 跨级。"""
+    c = C(800, 520); title(c, "自定义组件通信机制")
+
+    c.card((250, 90, 550, 180), border=BLUE)
+    c.tc(400, 105, "父组件", font_b(18), BLUE)
+    c.tc(400, 140, "data: { message: 'Hello' }", font(13), DARK)
+    c.tc(400, 165, '<child msg="{{message}}" />', font(12), GRAY)
+
+    c.card((250, 300, 550, 390), border=GREEN)
+    c.tc(400, 315, "子组件", font_b(18), GREEN)
+    c.tc(400, 350, "properties: { msg: String }", font(13), DARK)
+    c.tc(400, 375, 'this.triggerEvent("change", val)', font(12), GRAY)
+
+    c.d.line([400 * S, 180 * S, 400 * S, 300 * S], fill=BLUE, width=2 * S)
+    c.d.polygon([(395 * S, 300 * S), (405 * S, 300 * S), (400 * S, 310 * S)], fill=BLUE)
+    c.t(410, 220, "properties 下行", font_b(13), BLUE)
+    c.t(410, 244, "父 → 子：数据传递", font(12), DARK)
+
+    c.d.line([340 * S, 300 * S, 340 * S, 180 * S], fill=ORANGE, width=2 * S)
+    c.d.polygon([(335 * S, 180 * S), (345 * S, 180 * S), (340 * S, 170 * S)], fill=ORANGE)
+    c.t(200, 220, "triggerEvent 上行", font_b(13), ORANGE)
+    c.t(200, 244, "子 → 父：事件通知", font(12), DARK)
+
+    c.card((40, 420, 360, 490), border=PURPLE)
+    c.t(60, 435, "跨级通信", font_b(14), PURPLE)
+    c.t(60, 462, "selectComponent / EventChannel", font(12), DARK)
+
+    c.card((440, 420, 760, 490), border=RED)
+    c.t(460, 435, "避免", font_b(14), RED)
+    c.t(460, 462, "子组件直接修改 properties 的值", font(12), DARK)
+    c.save("diagram-component-comm.png")
+
+
+# ============ diagram-request-lifecycle ============
+def gen_request_lifecycle():
+    """网络请求生命周期：发起 → 等待 → 响应 → 本地缓存 → 视图更新。"""
+    c = C(800, 520); title(c, "网络请求生命周期")
+
+    steps = [
+        (30, 110, "发起请求", "wx.request({url})", BLUE),
+        (180, 110, "网络层", "DNS → TCP → TLS", ORANGE),
+        (350, 110, "服务器处理", "业务逻辑 + 响应", GREEN),
+        (520, 110, "响应返回", "JSON 数据", BLUE),
+        (670, 110, "setData", "更新视图", PURPLE),
+    ]
+    for x, y, name, sub, col in steps:
+        c.card((x, y, x + 120, y + 80), border=col)
+        c.tc(x + 60, y + 14, name, font_b(13), col)
+        c.tc(x + 60, y + 46, sub, font(11), DARK)
+
+    for i in range(len(steps) - 1):
+        x1 = steps[i][0] + 120
+        x2 = steps[i + 1][0]
+        c.d.line([x1 * S, 150 * S, x2 * S, 150 * S], fill=GRAY, width=2 * S)
+        c.d.polygon([(x2 * S, 145 * S), (x2 * S, 155 * S), ((x2 + 8) * S, 150 * S)], fill=GRAY)
+
+    c.card((30, 240, 380, 370), border=ORANGE)
+    c.t(50, 255, "本地缓存策略", font_b(16), ORANGE)
+    c.t(50, 288, "wx.setStorageSync(key, data)", font(13), DARK)
+    c.t(50, 314, "· 容量上限 10MB", font(12), GRAY)
+    c.t(50, 338, "· 适合缓存用户信息、列表数据", font(12), GRAY)
+    c.t(50, 358, "· 过期策略需自行实现", font(12), RED)
+
+    c.card((420, 240, 770, 370), border=GREEN)
+    c.t(440, 255, "请求优化模式", font_b(16), GREEN)
+    c.t(440, 288, "先展示缓存 → 再请求刷新", font(13), DARK)
+    c.t(440, 314, "· 首屏秒开（缓存兜底）", font(12), GRAY)
+    c.t(440, 338, "· 下拉刷新触发新请求", font(12), GRAY)
+    c.t(440, 358, "· 请求失败不阻塞体验", font(12), GRAY)
+
+    c.t(30, 400, "错误处理：", font_b(14), RED)
+    c.t(30, 428, "· fail 回调处理网络异常 · statusCode !== 200 处理业务异常 · 超时设置 timeout", font(13), DARK)
+    c.t(30, 456, "· 并发请求用 Promise.all · 串行依赖用 async/await", font(13), DARK)
+    c.save("diagram-request-lifecycle.png")
+
+
+# ============ diagram-cloud-callchain ============
+def gen_cloud_callchain():
+    """云调用链路：客户端 → 云函数 → 云数据库/存储 → 响应。"""
+    c = C(800, 520); title(c, "云开发调用链路")
+
+    c.card((30, 100, 200, 200), border=BLUE)
+    c.tc(115, 115, "小程序端", font_b(16), BLUE)
+    c.tc(115, 150, "wx.cloud", font(13), DARK)
+    c.tc(115, 175, ".callFunction()", font(12), GRAY)
+
+    c.card((280, 100, 450, 200), border=GREEN)
+    c.tc(365, 115, "云函数", font_b(16), GREEN)
+    c.tc(365, 150, "Node.js 运行环境", font(13), DARK)
+    c.tc(365, 175, "免鉴权 · 自动日志", font(12), GRAY)
+
+    c.card((530, 80, 770, 160), border=ORANGE)
+    c.tc(650, 95, "云数据库", font_b(14), ORANGE)
+    c.tc(650, 128, "JSON 文档型 · 权限控制", font(12), DARK)
+
+    c.card((530, 180, 770, 260), border=PURPLE)
+    c.tc(650, 195, "云存储", font_b(14), PURPLE)
+    c.tc(650, 228, "图片/文件 · CDN 加速", font(12), DARK)
+
+    c.d.line([200 * S, 150 * S, 280 * S, 150 * S], fill=GRAY, width=2 * S)
+    c.d.polygon([(280 * S, 145 * S), (280 * S, 155 * S), (290 * S, 150 * S)], fill=GRAY)
+
+    c.d.line([450 * S, 130 * S, 530 * S, 120 * S], fill=GRAY, width=2 * S)
+    c.d.line([450 * S, 170 * S, 530 * S, 220 * S], fill=GRAY, width=2 * S)
+
+    c.d.line([280 * S, 160 * S, 200 * S, 160 * S], fill=GREEN, width=2 * S)
+    c.d.polygon([(200 * S, 155 * S), (200 * S, 165 * S), (190 * S, 160 * S)], fill=GREEN)
+    c.tc(240, 175, "返回结果", font(12), GREEN)
+
+    c.card((30, 290, 770, 400), border=RED)
+    c.t(50, 305, "安全模型", font_b(16), RED)
+    c.t(50, 338, "· 客户端不能直接操作数据库（除非权限设为「所有用户可读写」）", font(13), DARK)
+    c.t(50, 362, "· 云函数内 cloud.getWXContext() 拿到的 openid 是微信服务端签发的，不可伪造", font(13), DARK)
+    c.t(50, 386, "· 敏感逻辑（支付/权限判断/数据聚合）一律放云函数", font(13), RED)
+
+    c.t(30, 425, "调用计费：云函数按调用次数 + 执行时间计费；数据库按读/写次数 + 存储计费", font(13), GRAY)
+    c.t(30, 452, "免费额度：每月 50 万次云函数调用 + 2GB 数据库存储 · 学习阶段足够", font(13), GRAY)
+    c.save("diagram-cloud-callchain.png")
+
+
+# ============ diagram-shadow-tree ============
+def gen_shadow_tree():
+    """Shadow Tree diff 机制：组件隔离 + 最小化 DOM 更新。"""
+    c = C(800, 520); title(c, "Shadow Tree 与 diff 机制")
+
+    c.card((30, 90, 370, 250), border=BLUE)
+    c.t(50, 105, "渲染层 Shadow Tree", font_b(16), BLUE)
+    c.t(50, 140, "page", font_b(13), DARK)
+    c.t(70, 168, "custom-header", font(13), GREEN)
+    c.t(90, 196, "#shadow-root", font(12), GRAY)
+    c.t(110, 220, "<view>标题</view>", font(12), DARK)
+    c.t(70, 240, "custom-list", font(13), GREEN)
+
+    c.card((430, 90, 770, 250), border=ORANGE)
+    c.t(450, 105, "diff 过程", font_b(16), ORANGE)
+    c.t(450, 140, "① setData 产生新 VTree", font(13), DARK)
+    c.t(450, 168, "② 与旧 VTree 逐节点对比", font(13), DARK)
+    c.t(450, 196, "③ 找出最小变更集", font(13), DARK)
+    c.t(450, 224, "④ 只更新变化的 DOM 节点", font(13), RED)
+
+    c.card((30, 280, 770, 400), border=PURPLE)
+    c.t(50, 295, "组件隔离的意义", font_b(16), PURPLE)
+    c.t(50, 328, "· 每个自定义组件有独立的 Shadow Tree → 样式不泄漏、不冲突", font(13), DARK)
+    c.t(50, 352, "· diff 范围限定在变更的组件子树内 → 避免全页重算", font(13), DARK)
+    c.t(50, 376, "· 组件化越彻底，diff 粒度越细，性能越好", font(13), DARK)
+
+    c.t(30, 425, "性能优化要点：", font_b(14), RED)
+    c.t(30, 452, "· 减少 setData 频率与数据量 · 长列表用 recycle-view 或分页", font(13), DARK)
+    c.t(30, 476, "· 图片懒加载 lazy-load · 避免频繁操作 DOM（用数据驱动代替）", font(13), DARK)
+    c.save("diagram-shadow-tree.png")
+
+
+def gen_api_capability_map():
+    c = C(800, 520)
+    c.t(30, 20, "wx.API 能力全景图", font_b(22), DARK)
+    c.t(30, 52, "按能力域分类 · 每域标注核心 API 数量 · 详见 API 速查索引", font(13), GRAY)
+
+    domains = [
+        ("登录与身份", 4, GREEN, "login / checkSession / getUserProfile"),
+        ("网络请求", 3, BLUE, "request / uploadFile / downloadFile"),
+        ("数据缓存", 3, ORANGE, "setStorage / getStorage / clearStorage"),
+        ("媒体能力", 5, PURPLE, "chooseImage / chooseMedia / createCameraContext"),
+        ("位置与地图", 3, GREEN, "getLocation / openLocation / createMapContext"),
+        ("设备能力", 4, BLUE, "getSystemInfo / scanCode / vibrateShort"),
+        ("授权与隐私", 3, ORANGE, "authorize / getSetting / openSetting"),
+        ("分享与订阅", 3, PURPLE, "shareAppMessage / requestSubscribeMessage"),
+        ("支付", 2, GREEN, "requestPayment / 云调用统一订单"),
+        ("云开发", 6, BLUE, "cloud.init / callFunction / database / uploadFile"),
+    ]
+
+    cols = 2
+    card_w, card_h = 360, 72
+    x_start = [30, 410]
+    y_start = 85
+
+    for i, (name, count, color, apis) in enumerate(domains):
+        col = i % cols
+        row = i // cols
+        x = x_start[col]
+        y = y_start + row * (card_h + 12)
+        c.card((x, y, x + card_w, y + card_h), border=color)
+        c.rr((x + 12, y + 12, x + 52, y + 42), 8, fill=color)
+        c.tc(x + 32, y + 18, str(count), font_b(16), WHITE)
+        c.t(x + 62, y + 14, name, font_b(14), DARK)
+        c.t(x + 62, y + 40, apis, font(11), GRAY)
+
+    c.t(30, 480, "共 10 大能力域 · 36+ 核心 API · 以基础库版本为准", font(13), GRAY)
+    c.save("diagram-api-capability-map.png")
+
+
+# ============ diagram-component-mechanism ============
+def gen_component_mechanism():
+    """组件行为设计原理：input 受控、swiper 绝对定位、scroll-view 固定高度、image 默认尺寸。"""
+    c = C(800, 600); title(c, "组件行为的设计原理")
+
+    c.card((30, 90, 380, 250), border=BLUE)
+    c.t(50, 105, "input 为什么是受控组件", font_b(15), BLUE)
+    c.t(50, 138, "渲染层拥有 DOM，逻辑层拥有 data", font(13), DARK)
+    c.t(50, 164, "value 是从逻辑层推到渲染层的「建议值」", font(13), DARK)
+    c.t(50, 190, "bindinput 里不 setData → 两层状态分叉", font(13), RED)
+    c.t(50, 216, "→ 光标位置错乱、输入丢失", font(13), RED)
+
+    c.card((420, 90, 770, 250), border=GREEN)
+    c.t(440, 105, "swiper 为什么不能 auto-height", font_b(15), GREEN)
+    c.t(440, 138, "swiper-item 用 position: absolute", font(13), DARK)
+    c.t(440, 164, "脱离文档流 → 父容器没有内在高度", font(13), DARK)
+    c.t(440, 190, "增量渲染模型：不等所有 slide 测量完", font(13), DARK)
+    c.t(440, 216, "→ 必须给 swiper 设置固定高度", font(13), RED)
+
+    c.card((30, 280, 380, 440), border=ORANGE)
+    c.t(50, 295, "scroll-view 为什么必须固定高度", font_b(15), ORANGE)
+    c.t(50, 328, "滚动范围 = scrollHeight - clientHeight", font(13), DARK)
+    c.t(50, 354, "没有显式高度时：", font(13), DARK)
+    c.t(50, 380, "clientHeight = scrollHeight → 无法滚动", font(13), RED)
+    c.t(50, 406, "→ 必须给 scroll-view 设置固定高度", font(13), RED)
+
+    c.card((420, 280, 770, 440), border=PURPLE)
+    c.t(440, 295, "image 默认 320×240 的原因", font_b(15), PURPLE)
+    c.t(440, 328, "向后兼容早期版本", font(13), DARK)
+    c.t(440, 354, "图片加载前占位 → 防止布局偏移(CLS)", font(13), DARK)
+    c.t(440, 380, "→ 实际开发中用 mode 属性控制尺寸", font(13), DARK)
+    c.t(440, 406, "→ 推荐 mode=\"widthFix\" 或 mode=\"aspectFill\"", font(13), GREEN)
+
+    c.card((30, 470, 770, 570), border=RED)
+    c.t(50, 485, "设计原则", font_b(16), RED)
+    c.t(50, 518, "· 组件行为由底层渲染模型决定，不是随意设计", font(13), DARK)
+    c.t(50, 544, "· 理解「为什么」比记住「怎么用」更重要 → 遇到类似问题能自己推理", font(13), DARK)
+    c.save("diagram-component-mechanism.png")
+
+
+# ============ diagram-serverless-mechanism ============
+def gen_serverless_mechanism():
+    """Serverless 架构原理：身份注入、环境隔离、冷启动、量化额度。"""
+    c = C(800, 620); title(c, "Serverless 架构原理")
+
+    c.card((30, 90, 770, 230), border=BLUE)
+    c.t(50, 105, "身份注入：为什么云函数天然拿到用户身份", font_b(15), BLUE)
+    c.t(50, 138, "① 小程序调用 wx.cloud.callFunction()", font(13), DARK)
+    c.t(50, 162, "② 微信客户端附加 access token", font(13), DARK)
+    c.t(50, 186, "③ CloudBase 向微信认证服务验证 token → 注入 openid/unionid 到 context.WX_CONTEXT", font(13), DARK)
+    c.t(50, 210, "→ cloud.getWXContext() 不需要换码，身份由微信客户端 SDK 担保", font(13), GREEN)
+
+    c.card((30, 250, 380, 390), border=GREEN)
+    c.t(50, 265, "环境隔离", font_b(15), GREEN)
+    c.t(50, 298, "每个环境 = 独立 CloudBase 项目", font(13), DARK)
+    c.t(50, 322, "· 数据库集合按环境隔离", font(13), DARK)
+    c.t(50, 346, "· 云函数部署按环境隔离", font(13), DARK)
+    c.t(50, 370, "· 存储桶按环境隔离", font(13), DARK)
+
+    c.card((420, 250, 770, 390), border=ORANGE)
+    c.t(440, 265, "冷启动机制", font_b(15), ORANGE)
+    c.t(440, 298, "运行在临时容器中", font(13), DARK)
+    c.t(440, 322, "无请求 → 容器回收", font(13), DARK)
+    c.t(440, 346, "下次请求 → 容器创建 + 依赖加载", font(13), DARK)
+    c.t(440, 370, "exports.main 外的代码只在冷启动执行", font(13), RED)
+
+    c.card((30, 410, 770, 530), border=PURPLE)
+    c.t(50, 425, "量化：免费额度", font_b(15), PURPLE)
+    c.t(50, 458, "· 云函数：50 万次调用/月 · 数据库：2GB 存储 + 2GB/月流量", font(13), DARK)
+    c.t(50, 482, "· 云存储：5GB 存储 + 5GB/月流量", font(13), DARK)
+    c.t(50, 506, "→ 学习阶段完全够用；生产环境按量计费，成本可控", font(13), GREEN)
+
+    c.t(30, 555, "安全边界：前端权限不可信，敏感逻辑一律走云函数", font_b(14), RED)
+    c.t(30, 585, "冷启动优化：复用容器内变量、减少依赖包体积、预置并发", font(13), GRAY)
+    c.save("diagram-serverless-mechanism.png")
+
+
+# ============ diagram-wxkey-diff ============
+def gen_wxkey_diff():
+    """wx:key 的 diff 锚点原理：有 key vs 无 key vs *this 的对比。"""
+    c = C(800, 580); title(c, "wx:key 的 diff 锚点原理")
+
+    c.card((30, 90, 380, 310), border=GREEN)
+    c.t(50, 105, "有 wx:key（正确）", font_b(15), GREEN)
+    c.t(50, 138, "旧数组：[A:id1, B:id2, C:id3]", font(13), DARK)
+    c.t(50, 162, "新数组：[A:id1, X:id4, B:id2, C:id3]", font(13), DARK)
+    c.t(50, 192, "框架用 key 值做身份标识：", font_b(13), BLUE)
+    c.t(50, 218, "· id1 → 复用（未变）", font(13), DARK)
+    c.t(50, 242, "· id4 → 新增（插入）", font(13), GREEN)
+    c.t(50, 266, "· id2, id3 → 复用（未变）", font(13), DARK)
+    c.t(50, 290, "→ 只渲染 1 个新项，最小化 DOM 操作", font(13), GREEN)
+
+    c.card((420, 90, 770, 310), border=RED)
+    c.t(440, 105, "无 wx:key（错误）", font_b(15), RED)
+    c.t(440, 138, "旧数组：[A, B, C]", font(13), DARK)
+    c.t(440, 162, "新数组：[A, X, B, C]", font(13), DARK)
+    c.t(440, 192, "退化为 index 对比：", font_b(13), BLUE)
+    c.t(440, 218, "· index 0 → 复用（A=A）", font(13), DARK)
+    c.t(440, 242, "· index 1 → 更新（B→X）", font(13), RED)
+    c.t(440, 266, "· index 2 → 更新（C→B）", font(13), RED)
+    c.t(440, 290, "→ 3 项全部重渲染，性能浪费", font(13), RED)
+
+    c.card((30, 340, 770, 480), border=ORANGE)
+    c.t(50, 355, "wx:key=\"*this\" 的适用场景", font_b(15), ORANGE)
+    c.t(50, 388, "· *this 用值本身做 key", font(13), DARK)
+    c.t(50, 412, "· 基本类型（字符串/数字）→ 可用，值相等即复用", font(13), DARK)
+    c.t(50, 436, "· 对象类型 → 按引用比较，通常失败 → 不推荐", font(13), RED)
+    c.t(50, 460, "→ 推荐用唯一标识字段（如 id）作为 wx:key", font(13), GREEN)
+
+    c.card((30, 500, 770, 555), border=PURPLE)
+    c.t(50, 515, "本质", font_b(14), PURPLE)
+    c.t(200, 515, "wx:key 不是「最佳实践」而是「性能必需」—— 没有它，列表更新退化为全量重渲染", font(13), DARK)
+    c.save("diagram-wxkey-diff.png")
+
+
 if __name__ == "__main__":
     gen_compare(); gen_cloud(); gen_resources(); gen_path(); gen_components(); gen_languages()
+    gen_knowledge_graph()
+    gen_setdata_mechanism(); gen_component_comm(); gen_request_lifecycle()
+    gen_cloud_callchain(); gen_shadow_tree()
+    gen_api_capability_map()
+    gen_component_mechanism(); gen_serverless_mechanism(); gen_wxkey_diff()
     print("概念图生成完成")

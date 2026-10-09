@@ -24,6 +24,10 @@ flowchart LR
     G --> H[上线发布<br/>体验版·审核·发布]
 ```
 
+**概念关系全景图**（29 篇文章的前置关系与知识依赖）：
+
+![知识图谱：29 篇文章的概念关系](docs/assets/diagram-knowledge-graph.png)
+
 | 阶段 | 文章 | 说明 |
 |---|---|---|
 | 认知 | [认识小程序](docs/01-入门/01-认识小程序.md) | 小程序是什么，与 H5/原生 App 的差别 |
@@ -51,13 +55,16 @@ flowchart LR
 | 云开发 | [云数据库](docs/04-云开发/03-云数据库.md) | 集合文档、权限、增删改查 |
 | 云开发 | [云存储](docs/04-云开发/04-云存储.md) | 上传下载、临时链接、配额与安全 |
 | 发布 | [上线发布](docs/05-发布/01-上线发布.md) | 体验版、审核、发布与回退 |
-| 实战 | [实战项目](docs/06-实战/01-待办清单实战.md) | 完整端到端案例 |
+| 实战 | [实战项目：待办清单](docs/06-实战/01-待办清单实战.md) | 完整端到端案例 |
+| 实战 | [实战项目：多页面导航](docs/06-实战/02-多页面导航实战.md) | tabBar、页面跳转、数据传递 |
+| 实战 | [实战项目：商品列表](docs/06-实战/03-商品列表实战.md) | 搜索、列表渲染、scroll-view |
 | 资源 | [资源与工具](docs/07-资源/01-资源与工具.md) | 官方文档、社区、常用工具 |
 
 ## 如何阅读
 
-- **零基础起步**：按上表从上往下读，每篇末尾的「验证」小节做完再进入下一篇。
+- **零基础起步**：按上表从上往下读，每篇末尾的「随堂测验」和「验证」小节做完再进入下一篇。用 [PROGRESS.md](PROGRESS.md) 跟踪你的学习进度。
 - **查速查**：直接看对应分类文章；`内置组件`、`WXSS` 等篇章按速查风格组织；找 API 先看 [API 速查索引](docs/00-学习路线/02-API速查索引.md)。
+- **常见问题**：学习过程中遇到问题先看 [FAQ](docs/00-学习路线/03-FAQ.md)，覆盖各阶段高频问题。
 - **进阶目标**：读完「进阶」十一篇 + 「云开发」四篇后，跟随实战项目做一遍完整上线。
 
 ## 项目结构
@@ -65,19 +72,23 @@ flowchart LR
 ```text
 .
 ├── README.md               # 总览：学习路径 + 文章索引 + 仓库规模
+├── PROGRESS.md             # 学习进度追踪（读者本地勾选）
+├── CONTRIBUTORS.md         # 贡献者墙
 ├── CHANGELOG.md            # 版本历史（Keep a Changelog 风格）
 ├── CONTRIBUTING.md         # 贡献指南（写作规范 + 提 PR 自查清单）
 ├── LICENSE
 ├── .github/
-│   ├── ISSUE_TEMPLATE/     # 纠错报告 / 新增文章模板
+│   ├── ISSUE_TEMPLATE/     # 纠错报告 / 新增文章 / 问题讨论模板
 │   └── workflows/check.yml # CI：仓库一致性校验
 ├── docs/                   # 知识库正文
-│   ├── 00-学习路线/         # 学习路径总览 + API 速查索引
-│   ├── 01-入门/ … 07-资源/  # 教学链 27 篇（教学顺序见 README 表格）
+│   ├── 00-学习路线/         # 学习路径总览 + API 速查索引 + FAQ
+│   ├── 01-入门/ … 07-资源/  # 教学链 29 篇（教学顺序见 README 表格）
 │   ├── _契约.md            # 写作契约（元数据/结构/视觉资产/深度要求）
-│   └── assets/             # 43 个视觉资产 + videos/ 教学视频（脚本生成，勿手改）
+│   └── assets/             # 视觉资产 + videos/ 教学视频（脚本生成，勿手改）
 ├── examples/
-│   └── todo-miniprogram/   # 可运行示例工程（对应实战篇）
+│   ├── todo-miniprogram/        # 待办清单（云开发实战）
+│   ├── navigation-miniprogram/  # 多页面导航（tabBar + 跳转）
+│   └── product-list-miniprogram/ # 商品列表（搜索 + 列表渲染）
 └── tools/                  # 资产生成（render/gen_animations/gen_statics/gen_diagrams/gen_videos）
                             # 校验：check_repo.py + check_assets_fresh.py + 三者各自的自测
                             # data/wx-api-names.txt、wx-api-promise.txt：官方 API 名单（校验真实性/Promise 断言用，脚本抓取）
@@ -94,6 +105,12 @@ flowchart LR
 
 写作规范、元数据格式与命名规则见 [docs/_契约.md](docs/_契约.md)；完整贡献流程与提 PR 自查清单见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
+## 社区
+
+- **问题与讨论**：在 [Issues](https://github.com/zhuguang-ZFG/xiaochengxu/issues) 提问或参与讨论（提问前先看 [FAQ](docs/00-学习路线/03-FAQ.md)）
+- **贡献者墙**：[CONTRIBUTORS.md](CONTRIBUTORS.md)
+- **学习进度**：用 [PROGRESS.md](PROGRESS.md) 跟踪你的学习进度（本地勾选，不上传）
+
 ## 内容范围
 
 - ✅ 微信小程序**原生开发**（WXML/WXSS/JS + 微信开发者工具）
@@ -108,16 +125,22 @@ flowchart LR
 
 | 指标 | 数值 |
 |---|---|
-| 教程文章 | 29 篇（学习路线 2 篇 + 入门/基础/进阶/云开发/发布/实战/资源 27 篇教学链） |
-| 视觉资产 | 43 个（34 动画 GIF + 9 示意图 PNG），全部可脚本复现，CI 逐字节比对 |
-| 教学视频 | 3 集（`docs/assets/videos/`，720×1280 竖屏 MP4，含字幕帧，由脚本生成） |
-| 示例工程 | `examples/todo-miniprogram`（可运行，对应实战篇） |
-| 自动校验 | 链接/元数据/序号/孤儿资产/GIF 与视频体积/代码块语言/交叉引用顺序/示例工程结构/实战篇与示例工程逐行一致/**API 真实性 + Promise 断言**（每个 `wx.*` 对照官方名单），见 CI（外链 HTTP 校验为本地可选：`python tools/check_repo.py --external`） |
+| 教程文章 | 32 篇（学习路线 3 篇含 FAQ + 入门/基础/进阶/云开发/发布/实战/资源 29 篇教学链） |
+| 随堂测验 | 29 组（每篇教学文章 3~5 道场景选择题，`<details>` 折叠答案） |
+| 视觉资产 | 57 个（38 动画 GIF + 19 示意图 PNG），全部可脚本复现，CI 逐字节比对 |
+| 教学视频 | 13 集（`docs/assets/videos/`，720×1280 竖屏 MP4，含字幕帧，由脚本生成） |
+| 示例工程 | `examples/todo-miniprogram`、`examples/navigation-miniprogram`、`examples/product-list-miniprogram`（可运行，对应实战篇） |
+| 学习体验 | [PROGRESS.md](PROGRESS.md) 进度追踪 + [FAQ](docs/00-学习路线/03-FAQ.md) 高频问答 + 知识图谱 |
+| 自动校验 | 链接/元数据/序号/孤儿资产/GIF 与视频体积/代码块语言/交叉引用顺序/示例工程结构/实战篇与示例工程逐行一致/**API 真实性 + Promise 断言**/**随堂测验格式 + checkbox 校验**/**进度同步**/**知识图谱引用**/**FAQ 格式**/**架构决策表列名**/**踩坑回顾表列名**/**延伸阅读官方链接**/**深度段落标题校验**，见 CI（外链 HTTP 校验为本地可选：`python tools/check_repo.py --external`） |
 | 资产复现校验 | `tools/check_assets_fresh.py` 清空 `docs/assets/` 重跑四个生成脚本，要求与 HEAD 逐字节一致（CI 在 windows-latest 上跑，1m50s） |
 
 ## 示例工程
 
-[examples/todo-miniprogram](examples/todo-miniprogram/) 是可运行的完整工程（待办清单，对应[实战篇](docs/06-实战/01-待办清单实战.md)）：导入微信开发者工具 + 开通云开发即可跑通，代码与教程逐行对应。
+三个可运行的完整工程，导入微信开发者工具即可跑通，代码与教程逐行对应：
+
+- [examples/todo-miniprogram](examples/todo-miniprogram/)：待办清单（对应[实战项目：待办清单](docs/06-实战/01-待办清单实战.md)），需开通云开发
+- [examples/navigation-miniprogram](examples/navigation-miniprogram/)：多页面导航（对应[实战项目：多页面导航](docs/06-实战/02-多页面导航实战.md)），纯前端
+- [examples/product-list-miniprogram](examples/product-list-miniprogram/)：商品列表（对应[实战项目：商品列表](docs/06-实战/03-商品列表实战.md)），纯前端
 
 ## 质量保障
 
@@ -129,13 +152,23 @@ flowchart LR
 
 ## 教学视频
 
-`docs/assets/videos/` 下有 3 集竖屏教学视频（720×1280、24fps、H.264，单集 ≤ 300KB），由 `python tools/gen_videos.py` 程序化生成——含字幕帧，不需要录音或录屏：
+`docs/assets/videos/` 下有 13 集竖屏教学视频（720×1280、24fps、H.264，单集 ≤ 300KB），由 `python tools/gen_videos.py` 程序化生成——含字幕帧，不需要录音或录屏：
 
 | 集 | 主题 | 时长 | 对应文章 |
 |---|---|---|---|
 | 第 1 集 | 学习路径导览 | 60 秒 | [学习路径总览](docs/00-学习路线/01-学习路径总览.md) |
 | 第 2 集 | 认识小程序 | 75 秒 | [认识小程序](docs/01-入门/01-认识小程序.md) |
 | 第 3 集 | 环境准备 | 75 秒 | [环境准备](docs/01-入门/02-环境准备.md) |
+| 第 4 集 | WXML 数据绑定 | 75 秒 | [WXML 数据绑定与渲染](docs/02-基础/01-WXML数据绑定与渲染.md) |
+| 第 5 集 | 自定义组件 | 90 秒 | [自定义组件](docs/03-进阶/02-自定义组件.md) |
+| 第 6 集 | 云开发入门 | 75 秒 | [云开发入门](docs/04-云开发/01-云开发入门.md) |
+| 第 7 集 | 性能优化 | 75 秒 | [性能优化](docs/03-进阶/04-性能优化.md) |
+| 第 8 集 | 微信支付 | 75 秒 | [微信支付](docs/03-进阶/12-微信支付.md) |
+| 第 9 集 | 上线发布 | 75 秒 | [上线发布](docs/05-发布/01-上线发布.md) |
+| 第 10 集 | 实战项目导览 | 90 秒 | [待办清单实战](docs/06-实战/01-待办清单实战.md) |
+| 第 11 集 | 云函数 | 75 秒 | [云函数](docs/04-云开发/02-云函数.md) |
+| 第 12 集 | 授权与隐私 | 75 秒 | [授权与隐私](docs/03-进阶/07-授权与隐私.md) |
+| 第 13 集 | 调试与排错 | 75 秒 | [调试与排错](docs/03-进阶/11-调试与排错.md) |
 
 GitHub 渲染仓库 Markdown 时会过滤 `<video>` 标签，因此文章内以**引用块 + 链接**形式给出，点击后由 GitHub 内置播放器播放（见 [docs/_契约.md](docs/_契约.md) 的「视觉资产规范」）。
 

@@ -1,0 +1,15 @@
+<view class="container">
+  <view class="card">
+    <view class="title">欢迎，{{userName}}</view>
+    <view class="desc">这是一个三 Tab 导航示例，演示页面跳转与数据传递。</view>
+  </view>
+
+  <view class="card">
+    <view class="title">导航方式</view>
+    <view class="desc">· wx.switchTab：跳转 tabBar 页</view>
+    <view class="desc">· wx.navigateTo：压栈跳转（可返回）</view>
+    <view class="desc">· wx.redirectTo：替换当前页（不可返回）</view>
+  </view>
+
+  <button type="primary" bindtap="goDetail">查看详情（传参）</button>
+</view>

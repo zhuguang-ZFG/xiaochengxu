@@ -69,6 +69,12 @@ FONT_CANDIDATES = {
         ("/usr/share/fonts/opentype/noto/NotoSansCJKsc-Bold.otf", 0),
         ("/usr/share/fonts/google-noto-cjk/NotoSansCJK-Bold.ttc", 0),
     ],
+    "mono": [
+        (r"C:\Windows\Fonts\consola.ttc", 0),                               # Consolas Windows
+        ("/System/Library/Fonts/Menlo.ttc", 0),                             # Menlo macOS
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 0),         # DejaVu Linux
+        ("/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf", 0),
+    ],
 }
 
 INSTALL_HINT = (
@@ -82,11 +88,12 @@ INSTALL_HINT = (
 
 @functools.lru_cache(maxsize=None)
 def font_file(weight="regular"):
-    """返回 (字体路径, ttc 索引)；粗体缺失时退化为常规体。"""
-    for path, index in FONT_CANDIDATES[weight]:
+    """返回 (字体路径, ttc 索引)；粗体/等宽缺失时退化为常规体。"""
+    candidates = FONT_CANDIDATES.get(weight, FONT_CANDIDATES["regular"])
+    for path, index in candidates:
         if pathlib.Path(path).exists():
             return path, index
-    if weight == "bold":
+    if weight != "regular":
         return font_file("regular")
     raise SystemExit(INSTALL_HINT)
 
@@ -104,6 +111,10 @@ def font(size):
 
 def font_b(size):
     return load_font(size * S, "bold")
+
+
+def font_mono(size):
+    return load_font(size * S, "mono")
 
 
 def new_screen():
@@ -302,5 +313,37 @@ def ease_out(t):
     return 1 - (1 - t) ** 3
 
 
+def ease_spring(t):
+    """弹性缓动：超调后回弹 settling。"""
+    import math
+    return 1 - math.cos(t * math.pi * 1.5) * math.exp(-t * 5)
+
+
+def ease_bounce(t):
+    """弹跳缓动：模拟球落地效果。"""
+    if t < 1 / 2.75:
+        return 7.5625 * t * t
+    elif t < 2 / 2.75:
+        t -= 1.5 / 2.75
+        return 7.5625 * t * t + 0.75
+    elif t < 2.5 / 2.75:
+        t -= 2.25 / 2.75
+        return 7.5625 * t * t + 0.9375
+    else:
+        t -= 2.625 / 2.75
+        return 7.5625 * t * t + 0.984375
+
+
 def lerp(a, b, t):
     return a + (b - a) * t
+
+
+def bezier_line(draw, start, control, end, fill, width, steps=20):
+    """二次贝塞尔曲线（用折线近似）。"""
+    points = []
+    for i in range(steps + 1):
+        t = i / steps
+        x = (1 - t) ** 2 * start[0] + 2 * (1 - t) * t * control[0] + t ** 2 * end[0]
+        y = (1 - t) ** 2 * start[1] + 2 * (1 - t) * t * control[1] + t ** 2 * end[1]
+        points.append((x, y))
+    draw.line(points, fill=fill, width=width)

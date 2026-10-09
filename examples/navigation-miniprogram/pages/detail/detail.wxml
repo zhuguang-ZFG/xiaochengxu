@@ -1,0 +1,14 @@
+<view class="container">
+  <view class="card">
+    <view class="title">{{title}}</view>
+    <view class="desc">页面 ID：{{id}}</view>
+    <view class="desc">来源：{{from}}</view>
+  </view>
+  <view class="card">
+    <view class="title">页面传参方式</view>
+    <view class="desc">1. URL 参数：/pages/detail/detail?id=1</view>
+    <view class="desc">2. globalData：getApp().globalData</view>
+    <view class="desc">3. 事件通道：eventChannel.emit / on</view>
+  </view>
+  <button bindtap="goBack">返回上一页</button>
+</view>

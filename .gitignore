@@ -6,6 +6,7 @@ Thumbs.db
 # 编辑器
 .idea/
 .vscode/
+.qoder/
 *.swp
 
 # Python / 图像生成临时文件

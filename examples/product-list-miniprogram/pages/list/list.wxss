@@ -1,0 +1,8 @@
+.search-bar { background: #fff; border-radius: 12rpx; padding: 16rpx 24rpx; margin-bottom: 20rpx; }
+.search-bar input { font-size: 28rpx; }
+.product-list { height: calc(100vh - 200rpx); }
+.product-card { background: #fff; border-radius: 16rpx; padding: 30rpx; margin-bottom: 16rpx; display: flex; align-items: center; }
+.product-name { flex: 1; font-size: 30rpx; color: #333; }
+.product-price { font-size: 32rpx; color: #e64340; font-weight: bold; margin-right: 16rpx; }
+.product-tag { font-size: 22rpx; color: #07c160; border: 1rpx solid #07c160; border-radius: 8rpx; padding: 4rpx 12rpx; }
+.loading, .empty { text-align: center; padding: 40rpx; color: #999; font-size: 28rpx; }

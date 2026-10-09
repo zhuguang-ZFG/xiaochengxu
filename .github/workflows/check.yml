@@ -35,8 +35,11 @@ jobs:
           done
           echo "JS 语法全部通过"
 
-      - name: 示例工程云函数单元测试
-        run: node --test "examples/todo-miniprogram/tests/*.test.js"
+      - name: 示例工程单元测试
+        run: |
+          node --test "examples/todo-miniprogram/tests/*.test.js"
+          node --test "examples/navigation-miniprogram/tests/*.test.js"
+          node --test "examples/product-list-miniprogram/tests/*.test.js"
 
   assets:
     # 必须跑在 windows 上：render.py 按平台选中文（Windows 微软雅黑 / macOS 苹方 /

@@ -146,6 +146,56 @@ const capsule = wx.getMenuButtonBoundingClientRect();  // 胶囊按钮位置
 5. **以为 Skyline 自动解决所有性能**：worklet 动画快，但逻辑层 setData 成本不变；大页面该拆组件还拆组件。
 6. **适配只看 iPhone**：安卓全面屏手势条、不同厂商状态栏高度都要真机验证。
 
+## 随堂测验
+
+**Q1**: Skyline 渲染引擎的 worklet 动画比 WebView 下的 setData 动画快很多，核心机制原因是什么？
+- [ ] A. Skyline 使用了更快的 JavaScript 引擎
+- [ ] B. worklet 动画的每一帧直接在渲染线程本地计算，不需要经过逻辑层和跨线程通信桥
+- [ ] C. Skyline 自动压缩了动画数据
+- [ ] D. worklet 动画跳过了渲染步骤直接输出到屏幕
+
+<details><summary>答案</summary>
+
+**B**. WebView 下动画需要「逻辑层 → 序列化 → 跨线程通信 → 视图层」全链路（60fps = 每秒 60 次），worklet 动画直接在渲染线程本地执行，0 次跨线程通信。
+
+</details>
+
+**Q2**: 一个小程序包含一个 `web-view` 组件嵌 H5 页面和一个商品列表页，想要使用 Skyline 提升列表页流畅度，应该怎么做？
+- [ ] A. 全部页面切到 Skyline，web-view 在 Skyline 下也能正常工作
+- [ ] B. 使用混合架构：全局 `renderer: "skyline"`，web-view 所在页面单独设置 `"renderer": "webview"` 回退
+- [ ] C. 只能在 WebView 和 Skyline 之间二选一，不能混用
+- [ ] D. 把 web-view 改成 rich-text 组件就能全部切 Skyline
+
+<details><summary>答案</summary>
+
+**B**. Skyline 不等于 WebView 的超集，web-view 在 Skyline 下受限；推荐混合架构——核心体验页跑 Skyline、功能复杂页（含 web-view）回退 WebView。
+
+</details>
+
+**Q3**: 底部操作栏在 iPhone X 上被 Home 横条遮挡，以下哪种写法是正确的适配方案？
+- [ ] A. `.footer { padding-bottom: 34px; }` 写死 iPhone X 的横条高度
+- [ ] B. `.footer { padding-bottom: env(safe-area-inset-bottom); }` 使用系统注入的安全区域环境变量
+- [ ] C. `.footer { display: none; }` 在 iPhone X 上隐藏底部栏
+- [ ] D. `.footer { margin-bottom: 0; }` 去掉所有底部间距
+
+<details><summary>答案</summary>
+
+**B**. 不同机型 inset 值不同（0/34/44...），写死像素值会让无横条机型空一块；用 `env(safe-area-inset-bottom)` 让系统按设备给值，自适应所有机型。
+
+</details>
+
+**Q4**: 使用自定义导航栏（`navigationStyle: "custom"`）时，如何确定导航栏的高度以避免被刘海和胶囊按钮遮挡？
+- [ ] A. 固定设为 44px，所有机型通用
+- [ ] B. 通过 `wx.getWindowInfo()` 获取 statusBarHeight，再结合 `wx.getMenuButtonBoundingClientRect()` 获取胶囊按钮位置，计算总高度
+- [ ] C. 不需要处理，系统会自动避开刘海区域
+- [ ] D. 通过 CSS 的 `env(safe-area-inset-top)` 直接设置导航栏高度
+
+<details><summary>答案</summary>
+
+**B**. 自定义导航时顶部内容裸露在刘海下，需要用 `statusBarHeight + 胶囊高度 + 间距` 计算导航栏高度；默认导航栏由系统渲染会自动避开刘海，无需处理。
+
+</details>
+
 ## 验证
 
 - [ ] 在项目里加 `renderer: "skyline"`，把列表页跑 Skyline、含 web-view 的页回退 WebView，真机对比流畅度与功能完整性

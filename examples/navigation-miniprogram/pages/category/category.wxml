@@ -1,0 +1,8 @@
+<view class="container">
+  <view class="card">
+    <view class="title">分类列表</view>
+    <view class="item" wx:for="{{categories}}" wx:key="id" bindtap="onTap" data-id="{{item.id}}">
+      {{item.name}}
+    </view>
+  </view>
+</view>

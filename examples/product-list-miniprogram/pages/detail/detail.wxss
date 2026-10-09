@@ -1,0 +1,6 @@
+.card { background: #fff; border-radius: 16rpx; padding: 30rpx; margin-bottom: 20rpx; }
+.product-name { font-size: 36rpx; font-weight: bold; color: #333; margin-bottom: 16rpx; }
+.product-price { font-size: 40rpx; color: #e64340; font-weight: bold; margin-bottom: 16rpx; }
+.product-tag { font-size: 24rpx; color: #07c160; margin-bottom: 12rpx; }
+.title { font-size: 32rpx; font-weight: bold; color: #333; margin-bottom: 16rpx; }
+.desc { font-size: 28rpx; color: #666; line-height: 1.8; }

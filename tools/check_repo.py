@@ -12,6 +12,10 @@
 8. JS 语法：示例工程 js 可被 node 解析（python 侧仅做括号粗查，CI 用 node）
 9. API 真实性：正文与示例代码里的 `wx.<name>` 必须存在于官方 API 名单；
    Promise 断言：不能把支持 Promise 风格的接口说成回调式，也不能 `await` 不返回 Promise 的接口
+10. 随堂测验：每篇教学文章有 3~6 道场景选择题，答案用 <details> 折叠
+11. 进度同步：PROGRESS.md 文章列表与 README 教学顺序表一致
+12. 知识图谱：在 README 和学习路径总览中被引用
+13. FAQ 格式：FAQ 文档有正确元数据和 Q&A 结构
 
 用法：python tools/check_repo.py
       python tools/check_repo.py --update-api-list   # 刷新第 9 项的官方名单
@@ -225,11 +229,24 @@ def _norm_code(text):
     return out
 
 
-def _example_files():
-    ex = ROOT / "examples" / "todo-miniprogram"
+def _all_example_projects():
+    """扫描 examples/ 下所有子目录，返回 {项目名: {相对路径: 文件对象}} 的字典"""
+    ex = ROOT / "examples"
     if not ex.is_dir():
         return {}
-    return {f.relative_to(ex).as_posix(): f for f in ex.rglob("*") if f.is_file()}
+    result = {}
+    for d in sorted(ex.iterdir()):
+        if d.is_dir():
+            files = {f.relative_to(d).as_posix(): f for f in d.rglob("*") if f.is_file()}
+            if files:
+                result[d.name] = files
+    return result
+
+
+def _example_files():
+    """向后兼容：返回第一个示例工程（todo-miniprogram）的文件字典"""
+    projects = _all_example_projects()
+    return projects.get("todo-miniprogram", {})
 
 
 def check_example_sync():
@@ -243,103 +260,115 @@ def check_example_sync():
     `app.json`、`index.js` 等同名代码块，但那是各自独立的教学示例
     （如 `我的小程序`、`pages/detail/detail`），与示例工程无关，按文件名
     全局匹配会把它们全部误判为漂移。判定依据是文档正文是否提到工程目录名。
-    """
-    files = _example_files()
-    if not files:
-        return
-    by_name = {}
-    for rel in files:
-        by_name.setdefault(rel.rsplit("/", 1)[-1], []).append(rel)
 
-    # 只检查引用了示例工程的文档：实战篇 + 工程自身 README
-    scope = [DOCS / "06-实战", ROOT / "examples" / "todo-miniprogram"]
+    支持多个示例工程：遍历 examples/ 下所有子目录，每个工程独立匹配引用它的文档。
+    """
+    projects = _all_example_projects()
+    if not projects:
+        return
+
+    # 为每个工程建立文件名索引
+    project_indexes = {}
+    for pname, files in projects.items():
+        by_name = {}
+        for rel in files:
+            by_name.setdefault(rel.rsplit("/", 1)[-1], []).append(rel)
+        project_indexes[pname] = (files, by_name)
+
+    # 扫描所有可能引用示例工程的文档
     candidates = []
-    for base in scope:
-        if base.is_dir():
-            candidates.extend(sorted(base.rglob("*.md")))
+    if (DOCS / "06-实战").is_dir():
+        candidates.extend(sorted((DOCS / "06-实战").rglob("*.md")))
+    ex = ROOT / "examples"
+    if ex.is_dir():
+        for d in ex.iterdir():
+            if d.is_dir():
+                candidates.extend(sorted(d.rglob("*.md")))
 
     for art in candidates:
         text = art.read_text(encoding="utf-8")
-        if "todo-miniprogram" not in text:
-            continue
-        lines = text.splitlines()
         try:
             rel_art = art.relative_to(ROOT)
         except ValueError:
             rel_art = art
 
-        in_fence = False
-        lang = ""
-        buf = []
-        start = 0
-        section = ""
-        for i, ln in enumerate(lines):
-            if not in_fence:
-                h = re.match(r"^##\s+(.*)$", ln)
-                if h:
-                    section = h.group(1)
-            m = FENCE_LINE_RE.match(ln)
-            if m and not in_fence:
-                in_fence, lang, buf, start = True, m.group(1), [], i
+        # 检查该文章引用了哪些示例工程
+        for pname, (files, by_name) in project_indexes.items():
+            if pname not in text:
                 continue
-            if ln.strip() == "```" and in_fence:
-                in_fence = False
-                if lang not in SOURCE_LANGS:   # 目录树、命令行等非源码块
+            lines = text.splitlines()
+            in_fence = False
+            lang = ""
+            buf = []
+            start = 0
+            section = ""
+            for i, ln in enumerate(lines):
+                if not in_fence:
+                    h = re.match(r"^##\s+(.*)$", ln)
+                    if h:
+                        section = h.group(1)
+                m = FENCE_LINE_RE.match(ln)
+                if m and not in_fence:
+                    in_fence, lang, buf, start = True, m.group(1), [], i
                     continue
-                ctx = "\n".join(lines[max(0, start - 8):start])
-                toks = FILE_TOKEN_RE.findall(ctx)
-                if not toks:
+                if ln.strip() == "```" and in_fence:
+                    in_fence = False
+                    if lang not in SOURCE_LANGS:
+                        continue
+                    ctx = "\n".join(lines[max(0, start - 8):start])
+                    toks = FILE_TOKEN_RE.findall(ctx)
+                    if not toks:
+                        continue
+                    token = toks[-1]
+                    cands = [token] if token in files else by_name.get(token, [])
+                    if not cands:
+                        continue
+                    if len(cands) > 1:
+                        want_cloud = ("云函数" in section) or ("cloud" in section.lower())
+                        cands = [c for c in cands if ("cloudfunctions/" in c) == want_cloud] or cands
+                    target = cands[0]
+                    if EXCERPT_MARK_RE.search(ctx):
+                        continue
+                    disk = files[target].read_text(encoding="utf-8")
+                    if _norm_code("\n".join(buf)) != _norm_code(disk):
+                        errors.append(
+                            f"{rel_art}:{start + 1}: 内联代码块与工程文件不一致 -> "
+                            f"examples/{pname}/{target}（该块未标注「要点/节选」）")
                     continue
-                token = toks[-1]
-                cands = [token] if token in files else by_name.get(token, [])
-                if not cands:
-                    continue
-                if len(cands) > 1:       # index.js 同时命中云函数与页面，按章节消歧
-                    want_cloud = ("云函数" in section) or ("cloud" in section.lower())
-                    cands = [c for c in cands if ("cloudfunctions/" in c) == want_cloud] or cands
-                target = cands[0]
-                if EXCERPT_MARK_RE.search(ctx):   # 明确标注为节选，不与全文比对
-                    continue
-                disk = files[target].read_text(encoding="utf-8")
-                if _norm_code("\n".join(buf)) != _norm_code(disk):
-                    errors.append(
-                        f"{rel_art}:{start + 1}: 内联代码块与工程文件不一致 -> "
-                        f"examples/todo-miniprogram/{target}（该块未标注「要点/节选」）")
-                continue
-            if in_fence:
-                buf.append(ln)
+                if in_fence:
+                    buf.append(ln)
 
 
 def check_example_structure():
-    """示例工程结构一致性：app.json 页面/云函数与磁盘文件对应"""
-    ex = ROOT / "examples" / "todo-miniprogram"
-    if not ex.exists():
-        return
-    app = ex / "app.json"
-    try:
-        cfg = json.loads(app.read_text(encoding="utf-8"))
-    except Exception as e:
-        errors.append(f"examples/todo-miniprogram/app.json 非法: {e}")
-        return
-    for p in cfg.get("pages", []):
-        if not (ex / f"{p}.wxml").exists():
-            errors.append(f"示例工程 app.json 页面无对应文件: {p}")
-    # tabBar 图标（若有）
-    tab = cfg.get("tabBar", {}).get("list", [])
-    for item in tab:
-        for key in ("iconPath", "selectedIconPath"):
-            ic = item.get(key)
-            if ic and not (ex / ic.lstrip("/")).exists():
-                errors.append(f"示例工程 tabBar 图标缺失: {ic}")
-    # 云函数目录
-    cf_root = cfg.get("cloudfunctionRoot", "").strip("/")
-    if cf_root:
-        cdir = ex / cf_root
-        if not cdir.is_dir():
-            errors.append(f"示例工程 cloudfunctionRoot 目录缺失: {cf_root}")
-        for fn in cdir.iterdir():
-            if fn.is_dir() and not (fn / "index.js").exists():
-                errors.append(f"示例工程云函数缺 index.js: {fn.name}")
+    """示例工程结构一致性：每个 examples/ 子工程的 app.json 页面/云函数与磁盘文件对应"""
+    projects = _all_example_projects()
+    for pname, files in projects.items():
+        ex = ROOT / "examples" / pname
+        app = ex / "app.json"
+        if not app.exists():
+            continue
+        try:
+            cfg = json.loads(app.read_text(encoding="utf-8"))
+        except Exception as e:
+            errors.append(f"examples/{pname}/app.json 非法: {e}")
+            continue
+        for p in cfg.get("pages", []):
+            if not (ex / f"{p}.wxml").exists():
+                errors.append(f"示例工程 {pname} app.json 页面无对应文件: {p}")
+        tab = cfg.get("tabBar", {}).get("list", [])
+        for item in tab:
+            for key in ("iconPath", "selectedIconPath"):
+                ic = item.get(key)
+                if ic and not (ex / ic.lstrip("/")).exists():
+                    errors.append(f"示例工程 {pname} tabBar 图标缺失: {ic}")
+        cf_root = cfg.get("cloudfunctionRoot", "").strip("/")
+        if cf_root:
+            cdir = ex / cf_root
+            if not cdir.is_dir():
+                errors.append(f"示例工程 {pname} cloudfunctionRoot 目录缺失: {cf_root}")
+            for fn in cdir.iterdir():
+                if fn.is_dir() and not (fn / "index.js").exists():
+                    errors.append(f"示例工程 {pname} 云函数缺 index.js: {fn.name}")
 
 
 def check_json():
@@ -609,6 +638,257 @@ def check_promise_claims():
                         "（同步接口，或 request/uploadFile 这类本身返回任务对象的接口）")
 
 
+# ---------- 学习体验层校验 ----------
+
+# 教学文章目录（需要随堂测验的），排除元文章目录
+_TEACHING_DIRS = ["01-入门", "02-基础", "03-进阶", "04-云开发", "05-发布", "06-实战", "07-资源"]
+QUIZ_QUESTION_RE = re.compile(r"^\*\*Q\d+\*\*\s*[：:]", re.M)
+
+
+def check_quiz_format():
+    """契约：每篇教学文章（01-入门 至 07-资源）必须有「## 随堂测验」段落。
+
+    3~6 道场景选择题，每题有 <details> 折叠答案。00-学习路线 下的元文章
+    （学习路径总览、API 速查索引、FAQ）不要求。
+    """
+    for d in _TEACHING_DIRS:
+        dirpath = DOCS / d
+        if not dirpath.is_dir():
+            continue
+        for f in sorted(dirpath.glob("*.md")):
+            text = f.read_text(encoding="utf-8")
+            rel = f.relative_to(ROOT)
+            if "## 随堂测验" not in text:
+                errors.append(f"{rel}: 缺「## 随堂测验」段落（契约要求教学文章必须有 3~6 道随堂测验）")
+                continue
+            # 检查位置：在「常见错误」之后、「验证」之前
+            sections = re.findall(r"^## (.+)$", text, re.M)
+            try:
+                quiz_idx = sections.index("随堂测验")
+            except ValueError:
+                errors.append(f"{rel}: 「随堂测验」不在二级标题中")
+                continue
+            # 前面应有「常见错误」（不要求紧邻，中间可以有其他段落）
+            has_pitfall = any("常见错误" in s or "避坑" in s for s in sections[:quiz_idx])
+            if not has_pitfall:
+                errors.append(f"{rel}: 「随堂测验」应在「常见错误 / 避坑」之后")
+            # 后面应有「验证」
+            if quiz_idx + 1 < len(sections) and "验证" not in sections[quiz_idx + 1]:
+                errors.append(f"{rel}: 「随堂测验」应在「验证」之前")
+            # 计数题目
+            questions = QUIZ_QUESTION_RE.findall(text)
+            n = len(questions)
+            if n < 3:
+                errors.append(f"{rel}: 随堂测验只有 {n} 题，契约要求 3~6 题")
+            elif n > 6:
+                errors.append(f"{rel}: 随堂测验有 {n} 题，契约要求 3~6 题")
+            # 每题应有 <details> 答案块
+            details_count = text.count("<details>")
+            if details_count < n:
+                errors.append(f"{rel}: 随堂测验有 {n} 题但只有 {details_count} 个 <details> 答案块")
+            # 选项必须用 checkbox 格式：- [ ] A.
+            quiz_section = text.split("## 随堂测验")[-1].split("## ")[0] if "## 随堂测验" in text else ""
+            option_lines = [l for l in quiz_section.splitlines() if re.match(r"^\s*- \[.\]", l)]
+            bad_checkbox = [l.strip() for l in quiz_section.splitlines()
+                            if re.match(r"^\s*- [A-D]\.", l.strip())]
+            if bad_checkbox:
+                errors.append(f"{rel}: 随堂测验选项须用 checkbox 格式「- [ ] A.」，发现 {len(bad_checkbox)} 行用旧格式「- A.」")
+            # 每题应有 4 个选项（A/B/C/D）
+            for qm in QUIZ_QUESTION_RE.finditer(quiz_section):
+                q_start = qm.end()
+                next_q = QUIZ_QUESTION_RE.search(quiz_section, q_start)
+                q_block = quiz_section[q_start:next_q.start() if next_q else len(quiz_section)]
+                opts = re.findall(r"^\s*- \[.\]\s*([A-D])\.", q_block, re.M)
+                if len(opts) < 4:
+                    errors.append(f"{rel}: 随堂测验每题须有 4 个选项（A/B/C/D），发现只有 {len(opts)} 个")
+                    break  # 只报一次
+
+
+def check_progress_sync():
+    """PROGRESS.md 的文章列表必须与 README 教学顺序表一致。
+
+    PROGRESS.md 是读者的学习进度追踪器，如果文章列表与 README 不同步，
+    读者会漏掉文章或看到不存在的链接。
+    """
+    progress = ROOT / "PROGRESS.md"
+    if not progress.exists():
+        errors.append("PROGRESS.md 不存在（契约要求仓库根目录有学习进度追踪文件）")
+        return
+    # 从 README 提取教学顺序中的文章路径（只匹配 docs/ 开头的路径）
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme_paths = set()
+    in_teaching_table = False
+    for line in readme.splitlines():
+        if line.startswith("| 阶段 |"):
+            in_teaching_table = True
+            continue
+        if in_teaching_table:
+            if not line.startswith("|"):
+                in_teaching_table = False  # 表格结束
+                continue
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            m = re.search(r"\[([^\]]+)\]\((docs/[^)]+)\)", cells[1]) if len(cells) >= 2 else None
+            if m and "---" not in cells[0]:
+                readme_paths.add(m.group(2))
+    # 从 PROGRESS.md 提取文章路径
+    ptext = progress.read_text(encoding="utf-8")
+    progress_paths = set()
+    for m in re.finditer(r"\[[^\]]+\]\((docs/[^)]+)\)", ptext):
+        progress_paths.add(m.group(1))
+    # 比对
+    missing = readme_paths - progress_paths
+    extra = progress_paths - readme_paths
+    if missing:
+        errors.append(f"PROGRESS.md 缺少 README 中的文章: {sorted(missing)[:3]}…")
+    if extra:
+        errors.append(f"PROGRESS.md 包含 README 中不存在的文章: {sorted(extra)[:3]}…")
+
+
+def check_knowledge_graph_refs():
+    """知识图谱必须在 README 和学习路径总览中被引用。
+
+    diagram-knowledge-graph.png 是全局概念关系图，如果只在角落引用，
+    读者很难发现它的存在。
+    """
+    graph_name = "diagram-knowledge-graph.png"
+    # 检查资产是否存在
+    if not (ASSETS / graph_name).exists():
+        return  # 资产还未生成时不报错，等 gen_diagrams.py 生成
+    # 检查 README 引用
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    if graph_name not in readme:
+        errors.append(f"README.md 未引用知识图谱 {graph_name}（契约要求在学习路径段落引用）")
+    # 检查学习路径总览引用
+    path_overview = DOCS / "00-学习路线" / "01-学习路径总览.md"
+    if path_overview.exists():
+        ptext = path_overview.read_text(encoding="utf-8")
+        if graph_name not in ptext:
+            errors.append(f"学习路径总览未引用知识图谱 {graph_name}（契约要求引用）")
+
+
+def check_faq_format():
+    """FAQ 文档（docs/00-学习路线/03-FAQ.md）必须有正确元数据和 Q&A 结构。
+
+    FAQ 是学习者高频问题的汇总，如果格式不对或内容太少就失去了价值。
+    """
+    faq = DOCS / "00-学习路线" / "03-FAQ.md"
+    if not faq.exists():
+        return  # FAQ 还未创建时不报错
+    text = faq.read_text(encoding="utf-8")
+    # 检查 YAML 元数据
+    m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+    if not m:
+        errors.append("FAQ 文档缺 YAML frontmatter")
+    else:
+        yaml = m.group(1)
+        if not re.search(r"^category: 学习路线", yaml, re.M):
+            errors.append("FAQ 文档 category 应为「学习路线」")
+    # 检查 Q&A 结构
+    if "**Q**" not in text and "**Q1**" not in text:
+        errors.append("FAQ 文档未包含 Q&A 内容（应有 **Q** 或 **Q1** 格式的问题）")
+    # 检查有 <details> 折叠
+    if "<details>" not in text:
+        errors.append("FAQ 文档的答案未使用 <details> 折叠")
+
+
+def check_architecture_table():
+    """契约：实战篇架构决策复盘表列名必须是「决策 | 选它 | 放弃什么 | 什么情况会推翻」。
+
+    重点是权衡与可推翻条件，不是好处罗列。列名不对说明没认真做决策分析。
+    """
+    shizhan_dir = DOCS / "06-实战"
+    if not shizhan_dir.is_dir():
+        return
+    expected = ["决策", "选它", "放弃什么", "什么情况会推翻"]
+    for f in sorted(shizhan_dir.glob("*.md")):
+        text = f.read_text(encoding="utf-8")
+        rel = f.relative_to(ROOT)
+        if "架构决策复盘" not in text and "架构决策" not in text:
+            errors.append(f"{rel}: 缺「架构决策复盘」段落（契约要求实战篇必须有）")
+            continue
+        # 找表格行
+        for line in text.splitlines():
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            if cells and cells[0] == "决策":
+                if cells != expected:
+                    errors.append(f"{rel}: 架构决策表列名须为「{' | '.join(expected)}」，实际为「{' | '.join(cells)}」")
+                break
+
+
+def check_pitfall_table():
+    """契约：实战篇踩坑回顾表列名必须是「症状 | 原因 | 修复」。
+
+    先写用户看到的现象，再写根因，最后写修复方式。
+    """
+    shizhan_dir = DOCS / "06-实战"
+    if not shizhan_dir.is_dir():
+        return
+    expected = ["症状", "原因", "修复"]
+    for f in sorted(shizhan_dir.glob("*.md")):
+        text = f.read_text(encoding="utf-8")
+        rel = f.relative_to(ROOT)
+        if "踩坑回顾" not in text and "踩坑" not in text:
+            errors.append(f"{rel}: 缺「踩坑回顾」段落（契约要求实战篇必须有 ≥3 条踩）")
+            continue
+        for line in text.splitlines():
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            if cells and cells[0] in ("症状", "问题"):
+                if cells != expected:
+                    errors.append(f"{rel}: 踩坑回顾表列名须为「{' | '.join(expected)}」，实际为「{' | '.join(cells)}」")
+                break
+
+
+def check_extended_reading():
+    """契约：每篇教学文章的「延伸阅读」必须包含至少一个官方文档链接。
+
+    延伸阅读是读者深入学习的入口，如果没有官方文档链接就失去了「链接官方」的契约要求。
+    """
+    for d in _TEACHING_DIRS:
+        dirpath = DOCS / d
+        if not dirpath.is_dir():
+            continue
+        for f in sorted(dirpath.glob("*.md")):
+            text = f.read_text(encoding="utf-8")
+            rel = f.relative_to(ROOT)
+            if "## 延伸阅读" not in text:
+                errors.append(f"{rel}: 缺「延伸阅读」段落（契约要求教学文章必须有）")
+                continue
+            ext_section = text.split("## 延伸阅读")[-1]
+            if "developers.weixin.qq.com" not in ext_section:
+                errors.append(f"{rel}: 延伸阅读缺少官方文档链接（契约要求至少一个 developers.weixin.qq.com 链接）")
+
+
+def check_depth_sections():
+    """契约：每篇教学文章必须包含至少一个深度段落标题（原理/为什么/机制/边界/量化）。
+
+    深度要求是契约核心——防止文章停留在 API 用法罗列。例外：00-学习路线 和 07-资源。
+    排除样板标题（如「为什么读这篇」），防止深度校验形同虚设。
+    """
+    depth_markers = ["原理", "为什么", "机制", "内部", "本质", "边界", "量化", "设计原因"]
+    boilerplate = {"为什么读这篇"}
+    exempt_dirs = {"00-学习路线", "07-资源"}
+    for d in _TEACHING_DIRS:
+        if d in exempt_dirs:
+            continue
+        dirpath = DOCS / d
+        if not dirpath.is_dir():
+            continue
+        for f in sorted(dirpath.glob("*.md")):
+            text = f.read_text(encoding="utf-8")
+            rel = f.relative_to(ROOT)
+            headings = re.findall(r'^#{1,4}\s+.*$', text, re.MULTILINE)
+            has_depth = False
+            for h in headings:
+                heading_text = re.sub(r'^#+\s+', '', h).strip()
+                if heading_text in boilerplate:
+                    continue
+                if any(m in heading_text for m in depth_markers):
+                    has_depth = True
+                    break
+            if not has_depth:
+                errors.append(f"{rel}: 缺深度段落标题（契约要求至少含「原理/为什么/机制/边界/量化」之一）")
+
+
 def check_external_links():
     """外链 HTTP 状态校验（默认关闭：CI/第三方站点网络波动不应阻断校验；
     需要时用 --external 显式启用）"""
@@ -664,6 +944,14 @@ def main():
     check_crossref_order()
     check_api_names()
     check_promise_claims()
+    check_quiz_format()
+    check_progress_sync()
+    check_knowledge_graph_refs()
+    check_faq_format()
+    check_architecture_table()
+    check_pitfall_table()
+    check_extended_reading()
+    check_depth_sections()
     if args.external:
         check_external_links()
     if errors:

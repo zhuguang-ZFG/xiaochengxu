@@ -454,6 +454,252 @@ class CheckRepoTest(unittest.TestCase):
             self.assertNotIn(gone, out, f"{gone} 应被剥离")
         self.assertIn("./real.md", out, "代码块外的链接必须保留")
 
+    # ---------- 随堂测验校验 ----------
+
+    def test_quiz_format_通过(self):
+        self.fixture({
+            "docs/01-入门/01-test.md": (
+                "---\ntitle: t\ndescription: d\ncategory: 入门\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n"
+                "# Test\n## 为什么读这篇\nx\n## 正文\nx\n## 常见错误 / 避坑\n1. a\n2. b\n"
+                "## 随堂测验\n\n**Q1**: 问题？\n- [ ] A. a\n- [ ] B. b\n- [ ] C. c\n- [ ] D. d\n\n<details><summary>答案</summary>\n\n**B**. 解释\n\n</details>\n\n"
+                "**Q2**: 问题2？\n- [ ] A. a\n- [ ] B. b\n- [ ] C. c\n- [ ] D. d\n\n<details><summary>答案</summary>\n\n**A**. 解释\n\n</details>\n\n"
+                "**Q3**: 问题3？\n- [ ] A. a\n- [ ] B. b\n- [ ] C. c\n- [ ] D. d\n\n<details><summary>答案</summary>\n\n**B**. 解释\n\n</details>\n\n"
+                "## 验证\n- [ ] x\n## 延伸阅读\n- x\n"
+            ),
+        })
+        chk.check_quiz_format()
+        self.assertEqual(chk.errors, [])
+
+    def test_quiz_format_缺失(self):
+        self.fixture({
+            "docs/01-入门/01-test.md": (
+                "---\ntitle: t\ndescription: d\ncategory: 入门\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n"
+                "# Test\n## 为什么读这篇\nx\n## 正文\nx\n## 常见错误 / 避坑\n1. a\n2. b\n## 验证\n- [ ] x\n"
+            ),
+        })
+        chk.check_quiz_format()
+        self.assertTrue(any("随堂测验" in e for e in chk.errors))
+
+    def test_quiz_format_题目太少(self):
+        self.fixture({
+            "docs/01-入门/01-test.md": (
+                "---\ntitle: t\ndescription: d\ncategory: 入门\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n"
+                "# Test\n## 常见错误 / 避坑\n1. a\n2. b\n"
+                "## 随堂测验\n\n**Q1**: 问题？\n- [ ] A. a\n\n<details><summary>答案</summary>\n\n**A**. 解释\n\n</details>\n\n"
+                "## 验证\n- [ ] x\n"
+            ),
+        })
+        chk.check_quiz_format()
+        self.assertTrue(any("只有 1 题" in e for e in chk.errors))
+
+    def test_quiz_format_元文章豁免(self):
+        self.fixture({
+            "docs/00-学习路线/01-test.md": (
+                "---\ntitle: t\ndescription: d\ncategory: 学习路线\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n"
+                "# Test\n## 正文\nx\n## 验证\n- [ ] x\n"
+            ),
+        })
+        chk.check_quiz_format()
+        self.assertEqual(chk.errors, [])
+
+    # ---------- PROGRESS.md 同步校验 ----------
+
+    def test_progress_sync_通过(self):
+        self.fixture({
+            "README.md": "| 阶段 | 文章 |\n|---|---|\n| 认知 | [认识小程序](docs/01-入门/01-test.md) |\n",
+            "PROGRESS.md": "- [ ] [认识小程序](docs/01-入门/01-test.md)\n",
+            "docs/01-入门/01-test.md": "---\ntitle: t\ndescription: d\ncategory: 入门\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n",
+        })
+        chk.check_progress_sync()
+        self.assertEqual(chk.errors, [])
+
+    def test_progress_sync_缺失(self):
+        self.fixture({
+            "README.md": "| 阶段 | 文章 |\n|---|---|\n| 认知 | [认识小程序](docs/01-入门/01-test.md) |\n",
+            "PROGRESS.md": "# 进度\n",
+            "docs/01-入门/01-test.md": "---\ntitle: t\ndescription: d\ncategory: 入门\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n",
+        })
+        chk.check_progress_sync()
+        self.assertTrue(any("缺少" in e for e in chk.errors))
+
+    def test_progress_sync_不存在(self):
+        self.fixture({
+            "README.md": "| 阶段 | 文章 |\n|---|---|\n",
+        })
+        chk.check_progress_sync()
+        self.assertTrue(any("PROGRESS.md 不存在" in e for e in chk.errors))
+
+    # ---------- FAQ 格式校验 ----------
+
+    def test_faq_format_通过(self):
+        self.fixture({
+            "docs/00-学习路线/03-FAQ.md": (
+                "---\ntitle: FAQ\ndescription: d\ncategory: 学习路线\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 10 min\nupdated: 2026-01-01\n---\n"
+                "# FAQ\n**Q1**: 问题？\n<details><summary>回答</summary>\n答案\n</details>\n"
+            ),
+        })
+        chk.check_faq_format()
+        self.assertEqual(chk.errors, [])
+
+    def test_faq_format_不存在不报错(self):
+        self.fixture({})
+        chk.check_faq_format()
+        self.assertEqual(chk.errors, [])
+
+    def test_faq_format_缺元数据(self):
+        self.fixture({
+            "docs/00-学习路线/03-FAQ.md": "# FAQ\n**Q1**: 问题？\n<details><summary>回答</summary>\n答案\n</details>\n",
+        })
+        chk.check_faq_format()
+        self.assertTrue(any("frontmatter" in e for e in chk.errors))
+
+    # ---------- 架构决策表校验 ----------
+
+    def test_architecture_table_通过(self):
+        self.fixture({
+            "docs/06-实战/01-test.md": (
+                "# Test\n### 架构决策复盘\n"
+                "| 决策 | 选它 | 放弃什么 | 什么情况会推翻 |\n|---|---|---|---|\n"
+                "| A | B | C | D |\n"
+            ),
+        })
+        chk.check_architecture_table()
+        self.assertEqual(chk.errors, [])
+
+    def test_architecture_table_列名错误(self):
+        self.fixture({
+            "docs/06-实战/01-test.md": (
+                "# Test\n### 架构决策复盘\n"
+                "| 决策 | 好处 | 局限 | 后续演进 |\n|---|---|---|---|\n"
+                "| A | B | C | D |\n"
+            ),
+        })
+        chk.check_architecture_table()
+        self.assertTrue(any("列名须为" in e for e in chk.errors))
+
+    def test_architecture_table_缺失(self):
+        self.fixture({
+            "docs/06-实战/01-test.md": "# Test\n## 正文\nx\n",
+        })
+        chk.check_architecture_table()
+        self.assertTrue(any("架构决策复盘" in e for e in chk.errors))
+
+    # ---------- 踩坑回顾表校验 ----------
+
+    def test_pitfall_table_通过(self):
+        self.fixture({
+            "docs/06-实战/01-test.md": (
+                "# Test\n### 踩坑回顾\n"
+                "| 症状 | 原因 | 修复 |\n|---|---|---|\n"
+                "| A | B | C |\n"
+            ),
+        })
+        chk.check_pitfall_table()
+        self.assertEqual(chk.errors, [])
+
+    def test_pitfall_table_列名错误(self):
+        self.fixture({
+            "docs/06-实战/01-test.md": (
+                "# Test\n### 踩坑回顾\n"
+                "| 问题 | 原因 | 解决 |\n|---|---|---|\n"
+                "| A | B | C |\n"
+            ),
+        })
+        chk.check_pitfall_table()
+        self.assertTrue(any("列名须为" in e for e in chk.errors))
+
+    def test_pitfall_table_缺失(self):
+        self.fixture({
+            "docs/06-实战/01-test.md": "# Test\n## 正文\nx\n",
+        })
+        chk.check_pitfall_table()
+        self.assertTrue(any("踩坑回顾" in e for e in chk.errors))
+
+    # ---------- 延伸阅读校验 ----------
+
+    def test_extended_reading_通过(self):
+        self.fixture({
+            "docs/01-入门/01-test.md": (
+                "---\ntitle: t\ndescription: d\ncategory: 入门\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n"
+                "# Test\n## 延伸阅读\n- [官方](https://developers.weixin.qq.com/miniprogram/dev/framework/)\n"
+            ),
+        })
+        chk.check_extended_reading()
+        self.assertEqual(chk.errors, [])
+
+    def test_extended_reading_缺官方链接(self):
+        self.fixture({
+            "docs/01-入门/01-test.md": (
+                "---\ntitle: t\ndescription: d\ncategory: 入门\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n"
+                "# Test\n## 延伸阅读\n- [上一篇](../02-基础/01-test.md)\n"
+            ),
+        })
+        chk.check_extended_reading()
+        self.assertTrue(any("官方文档链接" in e for e in chk.errors))
+
+    def test_extended_reading_缺失(self):
+        self.fixture({
+            "docs/01-入门/01-test.md": (
+                "---\ntitle: t\ndescription: d\ncategory: 入门\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n"
+                "# Test\n## 正文\nx\n"
+            ),
+        })
+        chk.check_extended_reading()
+        self.assertTrue(any("延伸阅读" in e for e in chk.errors))
+
+    def test_depth_sections_通过(self):
+        self.fixture({
+            "docs/02-基础/01-test.md": (
+                "---\ntitle: t\ndescription: d\ncategory: 基础\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n"
+                "# Test\n## 为什么这样设计\nsome content\n## 延伸阅读\n- [官方](https://developers.weixin.qq.com/miniprogram/dev/framework/)\n"
+            ),
+        })
+        chk.check_depth_sections()
+        self.assertEqual(chk.errors, [])
+
+    def test_depth_sections_缺深度(self):
+        self.fixture({
+            "docs/02-基础/01-test.md": (
+                "---\ntitle: t\ndescription: d\ncategory: 基础\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n"
+                "# Test\n## 基本用法\nsome content\n## 延伸阅读\n- [官方](https://developers.weixin.qq.com/miniprogram/dev/framework/)\n"
+            ),
+        })
+        chk.check_depth_sections()
+        self.assertTrue(any("深度段落" in e for e in chk.errors))
+
+    def test_depth_sections_例外目录(self):
+        self.fixture({
+            "docs/07-资源/01-test.md": (
+                "---\ntitle: t\ndescription: d\ncategory: 资源\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n"
+                "# Test\n## 资源列表\nsome content\n"
+            ),
+        })
+        chk.check_depth_sections()
+        self.assertEqual(chk.errors, [])
+
+
+    def test_depth_sections_样板标题不算深度(self):
+        """只有「为什么读这篇」样板标题的文章应报错——防止深度校验形同虚设"""
+        self.fixture({
+            "docs/02-基础/01-test.md": (
+                "---\ntitle: t\ndescription: d\ncategory: 基础\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n"
+                "# Test\n## 为什么读这篇\nsome content\n## 延伸阅读\n- [官方](https://developers.weixin.qq.com/miniprogram/dev/framework/)\n"
+            ),
+        })
+        chk.check_depth_sections()
+        self.assertTrue(any("深度段落" in e for e in chk.errors))
+
+    def test_depth_sections_样板加真实深度(self):
+        """有「为什么读这篇」但也有真正深度标题的文章应通过"""
+        self.fixture({
+            "docs/02-基础/01-test.md": (
+                "---\ntitle: t\ndescription: d\ncategory: 基础\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n"
+                "# Test\n## 为什么读这篇\nsome content\n## 冷启动机制\ndetail\n## 延伸阅读\n- [官方](https://developers.weixin.qq.com/miniprogram/dev/framework/)\n"
+            ),
+        })
+        chk.check_depth_sections()
+        self.assertEqual(chk.errors, [])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

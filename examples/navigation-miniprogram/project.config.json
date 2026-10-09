@@ -1,0 +1,16 @@
+{
+  "description": "多页面导航示例工程（对应 docs/06-实战/02-多页面导航实战.md）",
+  "miniprogramRoot": "./",
+  "compileType": "miniprogram",
+  "appid": "touristappid",
+  "projectname": "navigation-miniprogram",
+  "setting": {
+    "useCompilerModule": true,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "urlCheck": true
+  },
+  "libVersion": "3.0.0"
+}

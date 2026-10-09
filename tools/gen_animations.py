@@ -7,7 +7,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from PIL import Image, ImageDraw, ImageEnhance  # noqa: E402
 from render import (  # noqa: E402
     new_screen, rrect, txt, text_w, text_c, status_bar, nav_bar, card, ripple,
-    emit, build, retween_gif, ease, ease_out, lerp, font, font_b, shadow,
+    emit, build, retween_gif, ease, ease_out, ease_spring, lerp, font, font_b, font_mono, shadow,
     GREEN, GREEN_DARK, BG, WHITE, DARK, GRAY, GRAY_L, RED, BLUE, ORANGE, PURPLE, NAV_BG, S, SW, SH,
 )
 
@@ -1235,6 +1235,185 @@ def anim_pay():
     build(kfs, hold=900, tween=4, tdur=60, colors=64, name="demo-pay.gif")
 
 
+# ============ demo-navigation-flow：多页面导航流 ============
+def anim_navigation_flow():
+    def home_page(highlight_tab=0, note=""):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "首页")
+        f = font_b(20)
+        text_c(d, 187, 200, "首页", f, GREEN)
+        for i, label in enumerate(["分类", "购物车", "我的"]):
+            rrect(d, (40 + i * 110, 280, 130 + i * 110, 340), 12, fill=GREEN if i == highlight_tab else (240, 240, 240))
+            text_c(d, 85 + i * 110, 298, label, font(13), WHITE if i == highlight_tab else DARK)
+        # tabBar
+        d.rectangle([0, 600 * S, 375 * S, 667 * S], fill=NAV_BG)
+        tabs = ["首页", "分类", "我的"]
+        for i, t in enumerate(tabs):
+            col = GREEN if i == highlight_tab else GRAY
+            text_c(d, 62 + i * 125, 620, t, font(11), col)
+            d.rectangle([(62 + i * 125 - 8) * S, 640 * S, (62 + i * 125 + 8) * S, 642 * S], fill=col)
+        if note:
+            txt(d, (28, 560), note, font(13), GREEN)
+        return img
+
+    def detail_page(title, note=""):
+        img, d = new_screen(); status_bar(d); nav_bar(d, title, back=True)
+        f = font_b(18)
+        text_c(d, 187, 220, f"商品详情", f, DARK)
+        card(d, (24, 280, 351, 420), 12)
+        txt(d, (40, 296), f"名称：{title}", font(13), DARK)
+        txt(d, (40, 326), "价格：¥99.00", font(13), RED)
+        txt(d, (40, 356), "库存：128 件", font(13), GRAY)
+        rrect(d, (40, 380, 335, 410), 8, fill=GREEN)
+        text_c(d, 187, 384, "加入购物车", font(13), WHITE)
+        if note:
+            txt(d, (28, 560), note, font(13), GREEN)
+        return img
+
+    frames, durs = [], []
+    frames.append(home_page(0, "① tabBar 切换：首页")); durs.append(900)
+    frames.append(home_page(1, "② tabBar 切换：分类页")); durs.append(900)
+    frames.append(home_page(0, "③ 点击商品 → wx.navigateTo")); durs.append(800)
+    frames.append(detail_page("小程序开发指南", "④ 详情页入栈（pages/detail/detail）")); durs.append(1000)
+    frames.append(detail_page("小程序开发指南", "⑤ 点击返回 → wx.navigateBack")); durs.append(800)
+    frames.append(home_page(0, "⑥ 回到首页，页面栈弹出详情页")); durs.append(1000)
+    emit(frames, durs, "demo-navigation-flow.gif")
+
+
+# ============ demo-product-list：商品列表搜索筛选 ============
+def anim_product_list():
+    products = [
+        ("蓝牙耳机", "¥129", "数码"),
+        ("手机壳", "¥29", "配件"),
+        ("充电宝", "¥89", "数码"),
+        ("数据线", "¥19", "配件"),
+    ]
+
+    def frame(search="", filtered=None, note=""):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "商品列表")
+        rrect(d, (24, 108, 351, 152), 12, outline=GREEN if search else (225, 225, 228), width=2)
+        txt(d, (40, 118), search if search else "搜索商品…", font(13), DARK if search else GRAY)
+        items = filtered if filtered is not None else products
+        y = 172
+        for name, price, cat in items:
+            card(d, (24, y, 351, y + 72), 12)
+            rrect(d, (36, y + 10, 96, y + 62), 8, fill=(240, 240, 240))
+            text_c(d, 66, y + 28, cat[:2], font(10), GRAY)
+            txt(d, (108, y + 12), name, font(14), DARK)
+            txt(d, (108, y + 38), price, font(13), RED)
+            txt(d, (280, y + 38), cat, font(11), GRAY)
+            y += 84
+        if not items:
+            text_c(d, 187, 300, "无匹配商品", font(13), GRAY)
+        if note:
+            txt(d, (28, 560), note, font(13), GREEN)
+        return img
+
+    frames, durs = [], []
+    frames.append(frame("", products, "① 初始列表：4 件商品")); durs.append(900)
+    for i in range(1, 5):
+        frames.append(frame("充电"[:i], products, "")); durs.append(100)
+    filtered = [p for p in products if "充电" in p[0]]
+    frames.append(frame("充电", filtered, "② 搜索「充电」→ filter 过滤")); durs.append(900)
+    frames.append(frame("充电", filtered, "③ wx:key=\"id\" 精确 diff")); durs.append(800)
+    frames.append(frame("", products, "④ 清空搜索 → 恢复全部")); durs.append(1000)
+    emit(frames, durs, "demo-product-list.gif")
+
+
+# ============ demo-component-behavior：input 受控 vs 非受控对比 ============
+def anim_component_behavior():
+    def frame_controlled(typed, note):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "input 受控组件")
+        txt(d, (24, 108), "受控模式（正确）", font_b(14), GREEN)
+        rrect(d, (24, 140, 351, 192), 12, outline=GREEN, width=2)
+        txt(d, (40, 156), typed if typed else "输入关键词…", font(14), DARK if typed else GRAY)
+        txt(d, (40, 200), "value ← data.keyword（逻辑层回填）", font(12), GREEN)
+        card(d, (24, 240, 351, 370), 12)
+        code = ['bindinput="onInput"', "onInput(e) {", "  this.setData({",
+                "    keyword: e.detail.value", "  })", "}"]
+        for i, ln in enumerate(code):
+            txt(d, (42, 258 + i * 20), ln, font_mono(11), DARK if "this" not in ln else GREEN)
+        txt(d, (28, 390), note, font(13), GREEN)
+        return img
+
+    def frame_uncontrolled(typed, note):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "input 非受控对比")
+        txt(d, (24, 108), "非受控模式（错误）", font_b(14), RED)
+        rrect(d, (24, 140, 351, 192), 12, outline=RED, width=2)
+        txt(d, (40, 156), typed if typed else "输入关键词…", font(14), DARK if typed else GRAY)
+        txt(d, (40, 200), "未 setData → 渲染层/逻辑层分叉", font(12), RED)
+        card(d, (24, 240, 351, 370), 12)
+        code = ['bindinput="onInput"', "onInput(e) {", "  // 忘记 setData", "  console.log(e.detail.value)", "}"]
+        for i, ln in enumerate(code):
+            txt(d, (42, 258 + i * 20), ln, font_mono(11), RED if "忘记" in ln else DARK)
+        txt(d, (28, 390), note, font(13), RED)
+        return img
+
+    frames, durs = [], []
+    frames.append(frame_controlled("", "初始：value 绑定 data.keyword")); durs.append(1000)
+    for i in range(1, 4):
+        frames.append(frame_controlled("搜索"[:i], "")); durs.append(120)
+    frames.append(frame_controlled("搜索", "每次输入都 setData → 受控正常")); durs.append(1200)
+    frames.append(frame_uncontrolled("", "非受控：初始状态相同")); durs.append(1000)
+    for i in range(1, 4):
+        frames.append(frame_uncontrolled("搜索"[:i], "")); durs.append(120)
+    frames.append(frame_uncontrolled("搜索", "DOM 状态与 data 分叉 → 光标乱跳")); durs.append(1400)
+    emit(frames, durs, "demo-component-behavior.gif")
+
+
+# ============ demo-serverless-flow：身份注入流程 ============
+def anim_serverless_flow():
+    def frame(step):
+        img, d = new_screen(); status_bar(d); nav_bar(d, "Serverless 身份注入")
+        nodes = [
+            (24, 110, 160, "小程序端", "wx.cloud.callFunction", BLUE),
+            (191, 110, 160, "微信客户端", "附加 access token", GREEN),
+            (24, 280, 160, "CloudBase", "验证 token 注入 openid", ORANGE),
+            (191, 280, 160, "云函数", "getWXContext()", PURPLE),
+        ]
+        for x, y, w, name, sub, col in nodes:
+            card(d, (x, y, x + w, y + 80), 12, border=col)
+            text_c(d, x + w / 2, y + 14, name, font_b(13), col)
+            text_c(d, x + w / 2, y + 44, sub, font(11), GRAY)
+
+        def flow_arrow(x0, y0, x1, y1, label, on):
+            c = GREEN if on else GRAY_L
+            d.line([x0 * S, y0 * S, x1 * S, y1 * S], fill=c, width=2 * S)
+            import math
+            angle = math.atan2(y1 - y0, x1 - x0)
+            sz = 8
+            p1 = (x1 - sz * math.cos(angle - 0.4), y1 - sz * math.sin(angle - 0.4))
+            p2 = (x1 - sz * math.cos(angle + 0.4), y1 - sz * math.sin(angle + 0.4))
+            d.polygon([(x1 * S, y1 * S), (p1[0] * S, p1[1] * S), (p2[0] * S, p2[1] * S)], fill=c)
+            mx, my = (x0 + x1) / 2, (y0 + y1) / 2
+            txt(d, (mx + 6, my - 10), label, font(10), c)
+
+        flow_arrow(160, 150, 191, 150, "callFunction", step >= 1)
+        flow_arrow(271, 190, 104, 280, "token", step >= 2)
+        flow_arrow(160, 320, 191, 320, "openid", step >= 3)
+
+        if step >= 4:
+            card(d, (24, 400, 351, 490), 12, border=GREEN, fill=(238, 250, 243))
+            txt(d, (40, 416), "身份注入完成", font_b(14), GREEN)
+            txt(d, (40, 446), "openid 由微信服务端签发", font(12), DARK)
+            txt(d, (40, 468), "不可伪造 / 免换码 / 安全可信", font(12), GREEN)
+        else:
+            card(d, (24, 400, 351, 460), 12)
+            text_c(d, 187, 420, "等待身份注入…", font(13), GRAY)
+
+        notes = ["小程序端发起云函数调用", "微信客户端附加 access token",
+                 "CloudBase 验证 token 注入身份", "云函数拿到 openid/unionid",
+                 "安全边界：前端权限不可信"]
+        idx = min(step, 4)
+        txt(d, (28, 520), f"步骤 {idx + 1}/5：{notes[idx]}", font(13), GREEN if step < 4 else RED)
+        return img
+
+    frames, durs = [], []
+    for s in range(5):
+        frames.append(frame(s)); durs.append(1100)
+    durs[-1] = 1600
+    emit(frames, durs, "demo-serverless-flow.gif")
+
+
 if __name__ == "__main__":
     anim_setdata()
     anim_lifecycle()
@@ -1270,6 +1449,10 @@ if __name__ == "__main__":
     anim_lib()
     anim_debug()
     anim_pay()
+    anim_navigation_flow()
+    anim_product_list()
+    anim_component_behavior()
+    anim_serverless_flow()
     print("全部动画生成完成")
 
     # 补间后处理：把静态帧切换的动画升级为含过渡的真动画

@@ -1,0 +1,16 @@
+<view class="container">
+  <view class="search-bar">
+    <input placeholder="搜索商品" value="{{keyword}}" bindinput="onSearch" confirm-type="search" />
+  </view>
+
+  <scroll-view scroll-y class="product-list" bindscrolltolower="loadMore">
+    <view class="product-card" wx:for="{{filtered}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+      <view class="product-name">{{item.name}}</view>
+      <view class="product-price">¥{{item.price}}</view>
+      <view class="product-tag" wx:if="{{item.tag}}">{{item.tag}}</view>
+    </view>
+
+    <view class="loading" wx:if="{{loading}}">加载中...</view>
+    <view class="empty" wx:if="{{!loading && filtered.length === 0}}">没有找到相关商品</view>
+  </scroll-view>
+</view>

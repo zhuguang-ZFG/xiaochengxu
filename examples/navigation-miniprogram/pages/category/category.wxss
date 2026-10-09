@@ -1,0 +1,2 @@
+.item { padding: 24rpx 0; border-bottom: 1rpx solid #eee; font-size: 30rpx; color: #333; }
+.item:last-child { border-bottom: none; }
