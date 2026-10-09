@@ -6,6 +6,16 @@
 
 每项变异是四元组：(目标脚本, 说明, 修复后的写法, 修复前的写法)。
 目标脚本决定跑哪个自测文件、以及断言哪个源文件未被改动。
+
+三条不能破的性质，破一条这个脚本就从「证据」退化成「装饰」：
+1. **自测文件必须复制进临时目录**。它按 __file__ 找同目录的被测脚本；只在原地跑
+   仓库里的原版，变异就是无效的。曾漏了这一行，每项都因「找不到自测文件」以退出码
+   2 结束，被计成「变红」——20/20 全绿，其实一次自测都没跑过（25 秒 vs 0.9 秒）。
+2. **必须看到 unittest 的测试汇总**（`Ran N tests in X.XXXs`，写在 stderr）。没有
+   汇总说明自测没跑起来，退出码非零只是崩了，不算「抓到了」。
+3. **锚点未命中必须计入失败**。锚点是源码里的字面文本，重构后失配就意味着该项
+   修复从未被验证；静默跳过会让捕获数悄悄少一个，而退出码仍是非零（CI 红），
+   却没人说得清为什么红。
 """
 import pathlib
 import shutil
@@ -31,6 +41,12 @@ TARGETS = {
 
 MUTATIONS = [
     # ---- check_repo.py ----
+    (
+        "check_repo.py",
+        "序号连续性检查形同虚设（缺号无人发现）",
+        "        if nums != expected:",
+        "        if False:",
+    ),
     (
         "check_repo.py",
         "孤儿检查不递归（iterdir 看不到 videos/）",
@@ -152,6 +168,12 @@ MUTATIONS = [
         "        if r.returncode != 0:",
         "        if False:",
     ),
+    (
+        "check_assets_fresh.py",
+        "工具链不符也继续比对（非 pinned ffmpeg 的字节被误报成资产漂移）",
+        "    if drift:",
+        "    if False:",
+    ),
 ]
 
 
@@ -176,9 +198,24 @@ def main():
                 (td / name).write_text(originals[name], encoding="utf-8")
             (td / target).write_text(
                 originals[target].replace(fixed, broken, 1), encoding="utf-8")
+            # 自测文件同样要在 td 里跑：它按 __file__ 找同目录的被测脚本，
+            # 放在外面跑的是仓库里的原版，变异等于没变。
+            # 曾少了这一行——每项都因「文件不存在」退出码 2 被计成「变红」，
+            # 20/20 全绿其实一次自测都没跑过。
+            test_file = TARGETS[target]
+            shutil.copy(TOOLS / test_file, td / test_file)
             r = subprocess.run(
-                [sys.executable, TARGETS[target]], cwd=td,
+                [sys.executable, test_file], cwd=td,
                 capture_output=True, text=True, encoding="utf-8", errors="replace")
+            out = (r.stdout or "") + (r.stderr or "")
+            # unittest 的汇总写在 stderr；没有汇总就说明自测根本没跑起来，
+            # 那退出码非零只是崩了，不能当作「抓到了」的证据。
+            ran = "Ran " in out and " tests in " in out
+            if not ran:
+                caught += 0
+                print(f"  ❌ 自测没跑起来（退出码 {r.returncode}，无测试汇总）: {label}")
+                print(f"     {out.strip()[-300:]}")
+                continue
             red = r.returncode != 0
             caught += red
             print(f"  {'✅ 变红（自测能抓到）' if red else '❌ 仍绿（自测抓不到！）'}  {label}")

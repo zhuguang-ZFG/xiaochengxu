@@ -80,6 +80,38 @@ class CheckRepoTest(unittest.TestCase):
         errs = self.run_checks("check_orphans")
         self.assertEqual(errs, [], f"已引用的资产不应报孤儿，实际: {errs}")
 
+    # ---------- 序号：目录内必须连续 ----------
+
+    def test_序号非连续要报(self):
+        """缺号会让「下一篇」链接断，读者按 01/03 顺序读会漏一篇。"""
+        self.fixture({
+            "docs/01-入门/01-a.md": "# a\n",
+            "docs/01-入门/03-c.md": "# c\n",
+            "README.md": "# 标题\n",
+        })
+        errs = self.run_checks("check_sequence")
+        self.assertTrue(any("序号非连续" in e for e in errs),
+                        f"序号缺号必须报出，实际: {errs}")
+
+    def test_序号连续不报(self):
+        self.fixture({
+            "docs/01-入门/01-a.md": "# a\n",
+            "docs/01-入门/02-b.md": "# b\n",
+            "README.md": "# 标题\n",
+        })
+        errs = self.run_checks("check_sequence")
+        self.assertEqual(errs, [], f"连续序号不应报，实际: {errs}")
+
+    def test_契约文件不参与序号检查(self):
+        """_契约.md 无序号，计入后每个目录都会误报缺号。"""
+        self.fixture({
+            "docs/_契约.md": "# 契约\n",
+            "docs/02-基础/01-a.md": "# a\n",
+            "README.md": "# 标题\n",
+        })
+        errs = self.run_checks("check_sequence")
+        self.assertEqual(errs, [], f"契约文件不应参与序号检查，实际: {errs}")
+
     # ---------- 链接：必须覆盖根目录文档 ----------
 
     def test_链接检查覆盖根目录文档(self):

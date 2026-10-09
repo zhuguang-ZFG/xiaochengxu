@@ -6,14 +6,19 @@
 - 错误：以「重跑前的工作区」为基准——那么「本地跑过脚本但忘了提交」时
   两次快照相同，脚本会报通过，而仓库里提交的恰恰是旧资产
 
-后者是一个**假通过**，比不检查更糟：它会给漂移盖上合格章。所以下面的用例
-两个方向都断言——该报的必须报，不该报的必须不报。
+另一个必须分开的是**工具链版本**：pillow / imageio-ffmpeg 与 CI 锁定值不符时，
+同样的画面也会产出不同字节，那不是资产漂移。本自测通过 PYTHONPATH 往被测脚本里
+注入桩模块来给定版本号，所以结果不取决于这台机器装了什么。
+
+两者都是**假通过**，比不检查更糟：它会给漂移盖上合格章。所以下面的用例
+多个方向都断言——该报的必须报，不该报的必须不报。
 
 脚本是 git 驱动的，因此每个用例在临时目录里 `git init` 一个迷你仓库，
 把 check_assets_fresh.py 与四个桩生成脚本放进去再跑。
 
 用法：python tools/test_assets_fresh.py
 """
+import os
 import pathlib
 import shutil
 import subprocess
@@ -40,6 +45,12 @@ for name, content in {files!r}.items():
     (d / name).write_text(content, encoding="utf-8")
 """
 GENERATORS = ["gen_statics.py", "gen_diagrams.py", "gen_animations.py", "gen_videos.py"]
+
+# 直接从被测脚本取锁定值：改了 workflow 里的 pin 而没同步，这里立刻失配
+sys.path.insert(0, str(TOOLS))
+import check_assets_fresh as caf  # noqa: E402
+
+PINNED = caf.PINNED_TOOLCHAIN
 
 
 def git(repo, *args):
@@ -69,15 +80,31 @@ class AssetsFreshTest(unittest.TestCase):
 
         git(repo, "add", "-A")
         git(repo, "commit", "-qm", "init")
+        fakelib = repo / "fakelib"
+        fakelib.mkdir()
+        (fakelib / "PIL.py").write_text(
+            '__version__ = %r\n' % PINNED["pillow"], encoding="utf-8")
+        (fakelib / "imageio_ffmpeg.py").write_text(
+            '__version__ = %r\n\n\n'
+            'def get_ffmpeg_version():\n    return (7, 1)\n' % PINNED["imageio-ffmpeg"],
+            encoding="utf-8")
         return repo
 
-    def run_check(self, repo):
+    def run_check(self, repo, toolchain=None):
         # 显式 utf-8：子进程会把自己的 stdout 切到 UTF-8，而 Windows 上父进程
         # 默认按 GBK 解码，不指定就会把输出读成乱码（断言随之失败）
+        env = dict(os.environ)
+        # 桩模块压过真实 site-packages：自测结果不该取决于这台机器装了什么
+        env["PYTHONPATH"] = str(repo / "fakelib")
+        if toolchain:
+            (repo / "fakelib" / "PIL.py").write_text(
+                '__version__ = %r\n' % toolchain[0], encoding="utf-8")
+            (repo / "fakelib" / "imageio_ffmpeg.py").write_text(
+                '__version__ = %r\n' % toolchain[1], encoding="utf-8")
         return subprocess.run(
             [sys.executable, "tools/check_assets_fresh.py"],
             cwd=repo, capture_output=True, text=True,
-            encoding="utf-8", errors="replace")
+            encoding="utf-8", errors="replace", env=env)
 
     # ---------- 一致：必须通过 ----------
 
@@ -151,6 +178,27 @@ class AssetsFreshTest(unittest.TestCase):
         r = self.run_check(repo)
         self.assertEqual(r.returncode, 1, f"生成脚本失败必须报出:\n{r.stdout}")
         self.assertIn("gen_diagrams.py", r.stdout)
+
+    # ---------- 工具链指纹：把「版本差异」和「资产漂移」分开 ----------
+
+    def test_工具链不符要拒绝比对(self):
+        """库里真实发生过：video-06 用另一版 ffmpeg 生成，1800 帧逐帧相同、
+        只是字节不同（272KB vs 284KB），却被报成「仓库里的是旧版本」。
+        工具链不对时必须在动 docs/assets 之前就拒绝，并说清是版本问题。"""
+        repo = self.build({"a.txt": "SAME"}, {"a.txt": "SAME"})
+        r = self.run_check(repo, toolchain=("9.9.9", "0.0.1"))
+        self.assertEqual(r.returncode, 1, f"工具链不符必须拒绝比对:\n{r.stdout}")
+        self.assertIn("工具链", r.stdout)
+        self.assertIn("9.9.9", r.stdout)
+        self.assertNotIn("重新生成", r.stdout,
+                         f"工具链不符时不应清空/重生成资产:\n{r.stdout}")
+
+    def test_工具链相符才放行(self):
+        """指纹相符不是障碍：版本对上就该照常比对。"""
+        repo = self.build({"a.txt": "SAME"}, {"a.txt": "SAME"})
+        r = self.run_check(repo)
+        self.assertEqual(r.returncode, 0, f"版本相符应照常通过:\n{r.stdout}\n{r.stderr}")
+        self.assertIn("工具链: Pillow", r.stdout)
 
 
 if __name__ == "__main__":

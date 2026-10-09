@@ -29,8 +29,14 @@ Windows 走微软雅黑、macOS 走苹方、Linux 走 Noto CJK，**同一份脚�
 windows-latest 上，并锁定与生成时一致的 pillow / imageio-ffmpeg 版本。
 ffmpeg 另需 `-threads 1`：libx264 的帧级多线程在不同核数机器上输出不同字节。
 
+版本不对时代价是**误报**：库里真实发生过一次——video-06-cloud.mp4 用另一版
+ffmpeg 生成，逐帧解码与脚本输出完全相同（1800 帧，md5 全同），只是编码字节
+不同（272KB vs 284KB），检查却说「仓库里的是旧版本」，把工具链问题报成了
+资产漂移。所以在动 docs/assets 之前，先核对本机 pillow / imageio-ffmpeg 版本，
+与 CI 锁定值（.github/workflows/check.yml 的 assets 作业）不符就直接拒绝。
+
 用法：python tools/check_assets_fresh.py
-退出码：0 = 全部一致；1 = 存在漂移
+退出码：0 = 全部一致；1 = 存在漂移或工具链不符
 """
 import pathlib
 import shutil
@@ -52,10 +58,54 @@ TOOLS = ROOT / "tools"
 # 顺序有意义：statics/diagrams 各写各的文件，animations 与 videos 最后
 GENERATORS = ["gen_statics.py", "gen_diagrams.py", "gen_animations.py", "gen_videos.py"]
 
+# 与 .github/workflows/check.yml 的 assets 作业锁定同一套版本——资产就是这套
+# 工具链的产物（Pillow 决定像素，imageio-ffmpeg 决定封装字节）。改 workflow 里
+# 的 pin 时必须同步这里，并且重新生成全部资产，否则本检查会把版本差异当成漂移。
+PINNED_TOOLCHAIN = {"pillow": "12.3.0", "imageio-ffmpeg": "0.6.0"}
+
 
 def git(*args):
     return subprocess.run(["git", *args], cwd=ROOT, capture_output=True,
                           text=True, encoding="utf-8", errors="replace")
+
+
+def check_toolchain():
+    """核对本机 pillow / imageio-ffmpeg 版本，与 CI 锁定值不符即拒绝比对。
+
+    只认版本，不试渲染：版本一致就假定字节一致（ffmpeg 已锁 -threads 1），
+    版本不同则明确说清「是工具链问题，不是资产漂移」。两个库都没装时返回
+    True——缺依赖会由后面的生成脚本自己报错，这里不抢先失败。
+    """
+    try:
+        import PIL
+        import imageio_ffmpeg
+    except ImportError:
+        print("⚠️ 未检测到 Pillow / imageio-ffmpeg，跳过节链路指纹"
+              "（生成阶段缺依赖会直接报错）")
+        return True
+
+    fp = {"pillow": PIL.__version__,
+          "imageio-ffmpeg": getattr(imageio_ffmpeg, "__version__", "unknown")}
+    try:
+        v = imageio_ffmpeg.get_ffmpeg_version()
+        # 不同版本返回类型不一：元组 (7, 1) 或字符串 "7.1"——按字符串迭代会得到
+        # 逐字符的 "7...1...-" 这种垃圾输出，必须分清
+        fp["ffmpeg"] = v if isinstance(v, str) else ".".join(str(p) for p in v)
+    except Exception:
+        fp["ffmpeg"] = "unknown"
+    print(f"工具链: Pillow {fp['pillow']} / imageio-ffmpeg {fp['imageio-ffmpeg']}"
+          f"（ffmpeg {fp['ffmpeg']}）")
+
+    drift = {k: (v, PINNED_TOOLCHAIN[k]) for k, v in fp.items()
+             if k in PINNED_TOOLCHAIN and v != PINNED_TOOLCHAIN[k]}
+    if drift:
+        print("❌ 本机工具链与 CI 锁定版本不一致，比对无意义：")
+        for k, (got, want) in drift.items():
+            print(f"   {k}: 本机 {got}，CI 锁定 {want}")
+        print("   渲染库/编码器版本不同时，同样的画面也会产出不同字节，")
+        print("   那会被误报成『资产是旧版本』。请按 CI 锁定的版本建环境再跑。")
+        return False
+    return True
 
 
 def dirty_assets():
@@ -95,6 +145,9 @@ def run_generators():
 
 
 def main():
+    if not check_toolchain():
+        return 1
+
     if git("rev-parse", "--is-inside-work-tree").returncode != 0:
         print("❌ 不在 git 仓库中：本检查以 HEAD 为基准，必须有 git")
         return 1
