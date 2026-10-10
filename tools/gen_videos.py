@@ -11,12 +11,14 @@
 用法：python tools/gen_videos.py
 依赖：pip install imageio-ffmpeg
 """
+import functools
 import pathlib
+import re
 import subprocess
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from PIL import Image, ImageDraw  # noqa: E402
+from PIL import Image, ImageDraw, ImageFilter  # noqa: E402
 from render import load_font  # noqa: E402
 
 VIDEO_DIR = pathlib.Path(__file__).resolve().parent.parent / "docs" / "assets" / "videos"
@@ -51,34 +53,147 @@ def fb(size):
     return load_font(size * SS, "bold")
 
 
+_bg_base = None
+
+
+def _background():
+    """整幅竖向微渐变（只算一次）。纯色背景在 H.264 下容易出色带，也给画面一点纵深。"""
+    global _bg_base
+    if _bg_base is None:
+        ramp = Image.new("RGB", (1, RH))
+        top, bottom = BG, (13, 14, 18)
+        for y in range(RH):
+            t = y / (RH - 1)
+            ramp.putpixel((0, y), tuple(int(top[i] + (bottom[i] - top[i]) * t) for i in range(3)))
+        _bg_base = ramp.resize((RW, RH), Image.NEAREST)
+    return _bg_base.copy()
+
+
 def canvas(title, series="小程序开发之路 · 教学视频"):
-    img = Image.new("RGB", (RW, RH), BG)
+    img = _background()
     d = ImageDraw.Draw(img)
     d.rectangle([0, 0, RW, 60 * SS], fill=(12, 13, 17))
     d.text((24 * SS, 14 * SS), series, font=f(20), fill=GRAY)
-    d.text((RW - 24 * SS - d.textlength(title, font=f(20)), 14 * SS), title, font=f(20), fill=GREEN)
+    # 集数标题做成深绿药丸：右上角唯一的彩色块，缩略图里也能认出当前集
+    tw = d.textlength(title, font=f(20))
+    pad = 10 * SS
+    d.rounded_rectangle([RW - 24 * SS - tw - pad * 2, 11 * SS, RW - 24 * SS, 33 * SS],
+                        radius=11 * SS, fill=(23, 74, 47))
+    d.text((RW - 24 * SS - tw - pad, 12 * SS), title, font=f(20), fill=GREEN)
     d.rectangle([0, 60 * SS, RW, 62 * SS], fill=(40, 44, 54))
     return img, d
 
 
+_ATOM_RE = re.compile(r"[A-Za-z0-9+._()$/\[\]*-]+|\s+|.")
+
+
+@functools.lru_cache(maxsize=512)
+def _wrap_lines(text, size=30, max_px=(W - 62 - 40) * SS):
+    """字幕折行：按真实像素宽度折行，**绝不把标识符从中间劈开**。
+
+    两代 bug。最早按 22 个字符贪心切，行尾会掉一个孤词——「对比：小程序 vs H5
+    网页 vs 原生 / App」第二行只剩「App」。改成按字符数均分之后，「统一身份：
+    cloud.getWXContext() 免鉴权拿 openid」被切成「统一身份：cloud.getWXCon /
+    text() 免鉴权拿 openid」——屏幕上凭空出现一个不存在的 API 名，比孤词严重。
+    于是：
+    ① 连续的拉丁字母/数字/`._()[]*+-$/` 算一个不可拆的整体（中文仍可逐字断行）；
+    ② 动态规划选断点，代价按 (行数, 最宽行, 宽度平方和) 字典序最小。行数必须排第一：
+       只最小化「最宽行」会退化成一行一个字（最宽行 = 最宽的那个 token，已经最小了），
+       实测第一版就踩了这个坑；
+    ③ 宽度用字体真实量（`max_px` 是 2x 超采样下的物理像素），不再数字符个数。
+    字幕字符串每帧重复出现，`lru_cache` 让动态规划每个字符串只算一次。
+    """
+    lines = []
+    fnt = fb(size)
+    for raw in text.split("\n"):
+        para = raw.strip()
+        if not para:
+            continue
+        toks = _ATOM_RE.findall(para)
+        n = len(toks)
+        dp = [(n + 1, float("inf"), 0.0, n)] * (n + 1)   # (行数, 最宽行, 平方和, 断点)
+        dp[n] = (0, 0.0, 0.0, n)
+        for i in range(n - 1, -1, -1):
+            best = None
+            for j in range(i + 1, n + 1):
+                seg = "".join(toks[i:j]).strip()
+                if not seg:
+                    continue                    # 纯空格不配独占一行
+                w = fnt.getlength(seg)
+                if w > max_px and j - 1 > i:
+                    break                       # 超长标识符独占一行也没办法，不能再撑
+                nl, mx, sq, _ = dp[j]
+                cost = (nl + 1, max(w, mx), sq + w * w)
+                if best is None or cost < best[0]:
+                    best = (cost, j)
+            if best is None:                    # 剩下全是空格（para 已 strip，正常到不了）
+                break
+            dp[i] = (best[0][0], best[0][1], best[0][2], best[1])
+        i = 0
+        while i < n and dp[i][0] <= n:
+            j = dp[i][3]
+            seg = "".join(toks[i:j]).strip()
+            if seg:
+                lines.append(seg)
+            i = j
+    return tuple(lines)
+
+
+_NOTDEF = None
+_GLYPH_CACHE = {}
+
+
+def _missing_glyphs(text):
+    """返回 `text` 里渲染字体**画不出来**的字符（去重保序）。
+
+    判定不靠猜：拿 U+10FFFF（必然未分配 ⇒ 一定走 .notdef）的字模位图当参照，
+    某个字符的点阵和它一模一样，就说明这个字符在该字体里没有字形——屏幕上会是
+    一个空心方块。`✓ ✗ ✅ ❌ 👆 ▶` 实测都是这样，此前「模拟器：成功 ✓」这类
+    文案已经在 GIF 里当了很久豆腐块。字幕是逐帧重复的，按整串缓存。
+    """
+    global _NOTDEF
+    if text in _GLYPH_CACHE:
+        return _GLYPH_CACHE[text]
+    fnt = load_font(30, "regular")
+    if _NOTDEF is None:
+        m = fnt.getmask("\U0010FFFF", mode="1")
+        _NOTDEF = (m.size, bytes(m))
+    missing = []
+    for ch in dict.fromkeys(text):
+        if ch in " \n":
+            continue
+        m = fnt.getmask(ch, mode="1")
+        if (m.size, bytes(m)) == _NOTDEF:
+            missing.append(ch)
+    _GLYPH_CACHE[text] = tuple(missing)
+    return _GLYPH_CACHE[text]
+
+
 def caption(img, d, text):
     """底部字幕区：常驻标题 + 当前要点"""
+    bad = _missing_glyphs(text)
+    if bad:
+        # 宁可渲染一启动就停下来，也不要花二十分钟渲染出一堆豆腐再靠人眼发现
+        raise SystemExit(f"字幕里有字体画不出的字符 {list(bad)}：{text}\n"
+                         f"换成本仓库画得出来的字符（→ ← ↑ ↓ √ × ● ○ ★ ☆ ·），"
+                         f"见 tools/test_gen_videos.py 的 PRESENT")
     d.rectangle([0, 1120 * SS, RW, RH], fill=(12, 13, 17))
-    d.rectangle([0, 1120 * SS, RW, 1122 * SS], fill=(40, 44, 54))
-    lines = []
-    for para in text.split("\n"):
-        cur = ""
-        for ch in para:
-            if len(cur) >= 22:
-                lines.append(cur)
-                cur = ""
-            cur += ch
-        if cur:
-            lines.append(cur)
-    y0 = 1150
-    for i, ln in enumerate(lines[:3]):
-        d.text((40 * SS, (y0 + i * 42) * SS), ln, font=fb(30), fill=WHITE)
-    d.text((40 * SS, 1226 * SS), "▶ 学习路径 · 每集 1-2 分钟 · 代码可复现", font=f(18), fill=GRAY)
+    d.rectangle([0, 1120 * SS, RW, 1123 * SS], fill=(40, 44, 54))
+    lines = _wrap_lines(text, 30)
+    shown = lines[:3]
+    # 小字常驻在字幕区底部，正文字号 30、最多 3 行；行距按行数自适应，
+    # 保证 3 行也不会压到小字（实测 2 行时行距仍是 42，第 3 行缩到 36）
+    meta_y = 1248
+    top = 1146
+    pitch = min(42, (meta_y - 12 - top) // max(1, len(shown))) if shown else 42
+    if shown:
+        # 绿色引导条：把视线从手机演示引到字幕，也标出这片区域的起点
+        d.rounded_rectangle([40 * SS, (top + 2) * SS, 46 * SS, (top + len(shown) * pitch - 14) * SS],
+                            radius=3 * SS, fill=GREEN)
+    for i, ln in enumerate(shown):
+        d.text((62 * SS, (top + i * pitch) * SS), ln, font=fb(30), fill=WHITE)
+    # 原先这行行首有个实心三角符号，本仓库用的字体没有它的字形，渲染出来是空心方块；
+    d.text((62 * SS, meta_y * SS), "学习路径 · 每集 1-2 分钟 · 代码可复现", font=f(18), fill=GRAY)
 
 
 def subtitle_bar(img, d, t, points):
@@ -97,11 +212,36 @@ def phone_frame(draw_fn):
     return img
 
 
+_shadow_cache = {}
+
+
+def _phone_shadow(size):
+    """手机外框的柔和投影（按尺寸缓存：1080 帧只模糊一次）。
+
+    深色画布上放一块深色手机，没有投影就是"一团黑贴在上面"；
+    一层向下偏移的柔化黑影把手机从背景里托出来。
+    """
+    if size in _shadow_cache:
+        return _shadow_cache[size]
+    w, h = size[0] + 16 * SS, size[1] + 16 * SS
+    m = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(m).rounded_rectangle([0, 0, w - 1, h - 1], radius=32 * SS, fill=120)
+    _shadow_cache[size] = m.filter(ImageFilter.GaussianBlur(16 * SS))
+    return _shadow_cache[size]
+
+
 def paste_phone(canvas_img, phone_img):
-    """将手机画面粘贴到画布，叠加拟真手机框（圆角 + 刘海 + 底部指示条 + 投影）"""
-    px, py = 40 * SS, 110 * SS
+    """将手机画面粘贴到画布，叠加拟真手机框（圆角 + 刘海 + 底部指示条 + 柔和投影）
+
+    位置取两轴居中：水平方向左右等距，垂直方向在标题带（62）与字幕带（1120）
+    之间等距。此前写死左上角 (40,110)，实测右边留 184、下边留 141，
+    主体明显偏在左上——整条视频最扎眼的结构问题。
+    """
+    px = (W * SS - phone_img.size[0] - 16 * SS) // 2
+    py = 62 * SS + ((1120 - 62) * SS - phone_img.size[1] - 16 * SS) // 2
     pw, ph = phone_img.size
     r = 28 * SS
+    canvas_img.paste((0, 0, 0), (px, py + 8 * SS), _phone_shadow((pw, ph)))
     mask = Image.new("L", (pw, ph), 0)
     md = ImageDraw.Draw(mask)
     md.rounded_rectangle([0, 0, pw, ph], radius=r, fill=255)

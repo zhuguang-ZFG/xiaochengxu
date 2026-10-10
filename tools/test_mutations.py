@@ -6,6 +6,8 @@
 
 每项变异是四元组：(目标脚本, 说明, 修复后的写法, 修复前的写法)。
 目标脚本决定跑哪个自测文件、以及断言哪个源文件未被改动。
+被测脚本 `import` 的同目录模块要登记进 `DEPS`：自测在临时目录里跑，依赖没跟过去
+就是 `ModuleNotFoundError`，而性质 2 会正确地把它判成「自测没跑起来」而不是「抓到了」。
 
 三条不能破的性质，破一条这个脚本就从「证据」退化成「装饰」：
 1. **自测文件必须复制进临时目录**。它按 __file__ 找同目录的被测脚本；只在原地跑
@@ -37,6 +39,15 @@ TOOLS = pathlib.Path(__file__).resolve().parent
 TARGETS = {
     "check_repo.py": "test_check_repo.py",
     "check_assets_fresh.py": "test_assets_fresh.py",
+    "gen_videos.py": "test_gen_videos.py",
+}
+
+# 被测脚本 import 的同目录模块（临时目录里没有 site-packages 之外的来源，必须复制）。
+# 也包括自测**当数据读**的同目录文件：test_gen_videos.py 的字形扫描要读
+# gen_animations/gen_diagrams/gen_statics，缺一个就是 FileNotFoundError，
+# 于是每次变异都因「自测崩了」变红——25/25 全绿里混着假捕获。
+DEPS = {
+    "gen_videos.py": ["render.py", "gen_animations.py", "gen_diagrams.py", "gen_statics.py"],
 }
 
 MUTATIONS = [
@@ -149,6 +160,12 @@ MUTATIONS = [
         "    if stray:",
         "    if False:",
     ),
+    (
+        "check_repo.py",
+        "MP4 完整性检查失效（渲染中断留下的 48 字节空壳被放行）",
+        "        if size <= VIDEO_LIMIT and not _mp4_is_complete(v):",
+        "        if False:",
+    ),
     # ---- check_assets_fresh.py ----
     (
         "check_assets_fresh.py",
@@ -173,6 +190,31 @@ MUTATIONS = [
         "工具链不符也继续比对（非 pinned ffmpeg 的字节被误报成资产漂移）",
         "    if drift:",
         "    if False:",
+    ),
+    # ---- gen_videos.py ----
+    (
+        "gen_videos.py",
+        "字幕折行只比最宽行、不比行数（退化成一行的一个字）",
+        "                cost = (nl + 1, max(w, mx), sq + w * w)",
+        "                cost = (max(w, mx), sq + w * w)",
+    ),
+    (
+        "gen_videos.py",
+        "折行不再把标识符当整体（cloud.getWXContext() 会被劈成两截）",
+        r'_ATOM_RE = re.compile(r"[A-Za-z0-9+._()$/\[\]*-]+|\s+|.")',
+        '_ATOM_RE = re.compile(r".")',
+    ),
+    (
+        "gen_videos.py",
+        "折行不再受可用宽度约束（字幕画出画面右边界）",
+        "                if w > max_px and j - 1 > i:",
+        "                if False and j - 1 > i:",
+    ),
+    (
+        "gen_videos.py",
+        "字形探针认不出 .notdef（缺字形的字符被当成画得出来，豆腐块漏到成片）",
+        "        if (m.size, bytes(m)) == _NOTDEF:",
+        "        if False:",
     ),
 ]
 
@@ -204,6 +246,8 @@ def main():
             # 20/20 全绿其实一次自测都没跑过。
             test_file = TARGETS[target]
             shutil.copy(TOOLS / test_file, td / test_file)
+            for dep in DEPS.get(target, []):
+                shutil.copy(TOOLS / dep, td / dep)
             r = subprocess.run(
                 [sys.executable, test_file], cwd=td,
                 capture_output=True, text=True, encoding="utf-8", errors="replace")

@@ -7,7 +7,7 @@
 3. 相对链接：所有 [..](相对路径) 指向存在文件
 4. 目录序号：docs 各分类目录序号连续（1,2,3...）
 5. 孤儿资产：docs/assets/ 下（含子目录）无未被引用的文件
-6. 视觉资产硬限制：GIF ≤200KB、教学视频 MP4 ≤3MB 且命名合规
+6. 视觉资产硬限制：GIF ≤200KB、教学视频 MP4 ≤3MB 且命名合规、MP4 含 moov 索引（拦截渲染中断留下的空壳）
 7. JSON 合法性：示例工程与配置文件的 json 可解析
 8. JS 语法：示例工程 js 可被 node 解析（python 侧仅做括号粗查，CI 用 node）
 9. API 真实性：正文与示例代码里的 `wx.<name>` 必须存在于官方 API 名单；
@@ -182,6 +182,20 @@ def check_gif_size():
             errors.append(f"{g.name}: {size} bytes 超过 200KB 上限（契约视觉资产规范）")
 
 
+def _mp4_is_complete(path):
+    """MP4 是否含 moov（索引）原子：没有它的文件播放器打不开。
+
+    只读头尾各 64KB 找 `moov`，不把 3MB 全读进来。`render_mp4` 用
+    `-movflags +faststart`（moov 移到文件头），但也接受 moov 在文件尾。
+    """
+    size = path.stat().st_size
+    with path.open("rb") as fh:
+        head = fh.read(64 * 1024)
+        fh.seek(max(0, size - 64 * 1024))
+        tail = fh.read(64 * 1024)
+    return b"moov" in head or b"moov" in tail
+
+
 def check_video_assets():
     """契约硬限制：教学视频存放 docs/assets/videos/，命名 video-*.mp4，单集 ≤ 3MB"""
     vdir = ASSETS / "videos"
@@ -199,6 +213,12 @@ def check_video_assets():
         size = v.stat().st_size
         if size > VIDEO_LIMIT:
             errors.append(f"{rel}: {size} bytes 超过 3MB 上限（契约视觉资产规范）")
+        # 体积检查对「渲染被中断」是瞎的：ffmpeg 先把文件建出来，进程被 kill 时
+        # 只剩 ftyp+mdat 头（48 字节），既小于 3MB 又能通过上面所有断言，
+        # 而播放器根本打不开。v2.4.3 提交前 13 集里有 4 集正是这样。
+        if size <= VIDEO_LIMIT and not _mp4_is_complete(v):
+            errors.append(f"{rel}: {size} bytes，缺少 moov 索引——渲染中断留下的空壳，"
+                          f"重新运行 tools/gen_videos.py 生成")
 
 
 # 文件名 token：长后缀必须排在短后缀前面，否则 "app.json" 会被 "app.js" 抢先匹配

@@ -37,13 +37,22 @@ def gen_hero():
     t((56, 56), "小程序开发之路", font_b(40), DARK)
     t((58, 122), "仿「通往 AGI 之路」知识库模式 · 开源共建", font(18), GRAY)
     t((58, 158), "从认识小程序到上线发布，一条人人都能走的路", font(18), GRAY)
-    stages = [("① 认知", BLUE), ("② 准备", GREEN), ("③ 基础", ORANGE), ("④ 进阶", PURPLE), ("⑤ 实战上线", RED)]
+    stages = [("① 认知", BLUE), ("② 准备", GREEN), ("③ 基础", ORANGE), ("④ 进阶", PURPLE), ("⑤ 实战与发布", RED)]
     x = 58
     for name, col in stages:
         w = text_w(d, name, font(14)) + 26
         rr((x, 238, x + w, 284), 23, fill=col)
         d.text(((x + 13) * S, 250 * S), name, font=font(14), fill=WHITE)
         x += w + 12
+    # 左下角原本空到画布底（chips 结束于 284，画布高 420）——用一行真实统计补上。
+    # 数字从仓库里数出来，别拍脑袋：29 篇教学文章、121 道随堂测验、13 集视频、3 个示例工程。
+    stats = [("29", "篇教程"), ("121", "道随堂测验"), ("13", "集视频"), ("3", "个示例工程")]
+    sx = 58
+    for num, label in stats:
+        t((sx, 322), num, font_b(24), GREEN_DARK)
+        sx += int(text_w(d, num, font_b(24))) + 6
+        t((sx, 330), label, font(13), GRAY)
+        sx += int(text_w(d, label, font(13))) + 26
     # 右侧手机（复用动画管线的高保真手机框）
     sw, sh = new_screen()
     sd = ImageDraw.Draw(sw)

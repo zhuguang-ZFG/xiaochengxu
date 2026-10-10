@@ -224,6 +224,37 @@ class CheckRepoTest(unittest.TestCase):
         self.assertTrue(any("超过 3MB 上限" in e or "3MB" in e for e in errs),
                         f"超限必须报出，实际: {errs}")
 
+    # 渲染中断留下的空壳：ffmpeg 已建出文件，进程被 kill 时只剩 ftyp+free+mdat 头。
+    # 体积检查对它完全瞎（48 字节 < 3MB），播放器却打不开。
+    SHELL_48 = bytes.fromhex(
+        "000000206674797069736f6d0000020069736f6d69736f32617663316d703431"
+        "0000000866726565"
+        "000000006d646174")
+
+    def _write(self, root, rel, data):
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(data)
+        return p
+
+    def test_视频缺moov要报(self):
+        """48 字节空壳必须报出——这是 v2.4.3 提交前 13 集里 4 集的真实状态。"""
+        root = self.fixture({})
+        self._write(root, "docs/assets/videos/video-02-intro.mp4", self.SHELL_48)
+        errs = self.run_checks("check_video_assets")
+        self.assertTrue(any("moov" in e for e in errs),
+                        f"缺 moov 的空壳必须报出，实际: {errs}")
+
+    def test_视频含moov不报(self):
+        """探针不能把正常视频判成空壳：moov 在文件头（faststart）或在文件尾都算完整。"""
+        for tag, blob in (("头", b"\x00\x00\x00\x20ftypisom" + b"\x00" * 8 + b"moov" + b"\x00" * 64),
+                          ("尾", b"\x00\x00\x00\x20ftypisom" + b"\x00" * 64 + b"moov")):
+            root = self.fixture({})
+            self._write(root, "docs/assets/videos/video-01-roadmap.mp4", blob)
+            errs = self.run_checks("check_video_assets")
+            self.assertEqual([e for e in errs if "moov" in e], [],
+                             f"moov 在文件{tag}却被误报: {errs}")
+
     def test_gif超限要报(self):
         self.fixture({"docs/assets/demo-x.gif": None})
         orig = chk.GIF_LIMIT

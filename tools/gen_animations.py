@@ -202,7 +202,7 @@ def anim_component():
         txt(d, (74, 262), "组件（子）", font(13), GRAY)
         d.ellipse([74 * S, 292 * S, 92 * S, 310 * S], outline=GREEN, width=S)
         txt(d, (106, 288), "学习云数据库", font(14), DARK)
-        arrows = {0: ("↓ properties 传参", BLUE), 1: ("👆 点击组件", GREEN),
+        arrows = {0: ("↓ properties 传参", BLUE), 1: ("● 点击组件", GREEN),
                   2: ("↑ triggerEvent('toggle')", GREEN), 3: ("↓ e.detail 回调页面", BLUE)}
         s, c = arrows[phase]
         text_c(d, 187, 228 if phase == 0 else 340, s, font(13), c)
@@ -254,15 +254,15 @@ def anim_domain():
         txt(d, (46, 164), "header: application/json", font(12), GRAY)
         if phase == 0:
             rrect(d, (28, 230, 347, 296), 12, fill=(235, 255, 240))
-            txt(d, (46, 244), "模拟器：成功 ✓", font(14), GREEN)
+            txt(d, (46, 244), "模拟器：成功 √", font(14), GREEN)
             txt(d, (46, 268), "「不校验合法域名」已勾选", font(12), GRAY)
         elif phase == 1:
             rrect(d, (28, 230, 347, 296), 12, fill=(255, 240, 240))
-            txt(d, (46, 244), "真机：失败 ✗", font(14), RED)
+            txt(d, (46, 244), "真机：失败 ×", font(14), RED)
             txt(d, (46, 268), "url not in domain list", font(12), RED)
         else:
             rrect(d, (28, 230, 347, 296), 12, fill=(235, 255, 240))
-            txt(d, (46, 244), "配置域名后：真机成功 ✓", font(14), GREEN)
+            txt(d, (46, 244), "配置域名后：真机成功 √", font(14), GREEN)
             txt(d, (46, 268), "HTTPS + 备案 + 归属校验", font(12), GRAY)
         tips = ["后台：开发设置 → 服务器域名", "不校验仅限开发，上线必须配好", "配置生效有延迟（约数分钟）"]
         card(d, (28, 336, 347, 400), 12)
@@ -328,7 +328,7 @@ def anim_database():
             txt(d, (46, 380), "→ 查询结果（≤20 条/次）", font(13), GREEN)
         elif phase == 2:
             doc(150, "doc(id).update({ done: true })", "部分更新，只改传的字段", True)(d)
-            doc(220, "文档 1：学习云数据库", "done: true ✓")(d)
+            doc(220, "文档 1：学习云数据库", "done: true √")(d)
             txt(d, (46, 310), "→ 更新成功", font(13), GREEN)
         else:
             doc(150, "doc(id).remove()", "不可撤销，生产用软删除")(d)
@@ -447,7 +447,7 @@ def anim_input():
         if controlled:
             txt(d, (40, 180), "value ← data.keyword（回填）", font(12), GREEN)
         else:
-            txt(d, (40, 180), "❌ 未 setData：值丢失/光标乱跳", font(12), RED)
+            txt(d, (40, 180), "× 未 setData：值丢失/光标乱跳", font(12), RED)
         card(d, (24, 220, 351, 400), 12)
         code = ['bindinput="onInput"', "onInput(e) {", "  this.setData({",
                 "    keyword: e.detail.value", "  })", "}"]
@@ -500,10 +500,10 @@ def anim_wxkey():
         return img
 
     frames, durs = [], []
-    frames.append(frame([("item: A", "1"), ("item: B", "2")], "❌ 无 wx:key：复用旧节点", False)); durs.append(1200)
-    frames.append(frame([("item: B", "1"), ("item: A", "2")], "❌ 重排后内容与 key 错位", False)); durs.append(1300)
-    frames.append(frame([("item: A", "1"), ("item: B", "2")], "✅ 有 wx:key：按 key 复用", True)); durs.append(1200)
-    frames.append(frame([("item: B", "2"), ("item: A", "1")], "✅ 重排后节点跟随 key，正确", True)); durs.append(1500)
+    frames.append(frame([("item: A", "1"), ("item: B", "2")], "× 无 wx:key：复用旧节点", False)); durs.append(1200)
+    frames.append(frame([("item: B", "1"), ("item: A", "2")], "× 重排后内容与 key 错位", False)); durs.append(1300)
+    frames.append(frame([("item: A", "1"), ("item: B", "2")], "√ 有 wx:key：按 key 复用", True)); durs.append(1200)
+    frames.append(frame([("item: B", "2"), ("item: A", "1")], "√ 重排后节点跟随 key，正确", True)); durs.append(1500)
     emit(frames, durs, "demo-wxkey.gif")
 
 

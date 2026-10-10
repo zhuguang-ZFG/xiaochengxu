@@ -172,13 +172,20 @@ def gen_components():
              ("input", "输入框", GREEN), ("image", "图片/懒加载", BLUE), ("swiper", "轮播", PURPLE),
              ("scroll-view", "滚动/加载更多", RED), ("navigator", "页面跳转", BLUE), ("rich-text", "富文本", ORANGE),
              ("web-view", "嵌 H5", PURPLE)]
+    cols, cw, ch, gap_x = 3, 228, 84, 16
+    pitch_x, pitch_y = cw + gap_x, ch + 12
     for i, (name, desc, col) in enumerate(comps):
-        cx = 40 + (i % 3) * 244
-        cy = 96 + (i // 3) * 100
-        c.card((cx, cy, cx + 228, cy + 88), border=col)
-        c.t(cx + 16, cy + 14, name, font_b(17), col)
-        c.t(cx + 16, cy + 50, desc, font(13), DARK)
-    c.t(40, 476, "通用规则：id/class/style + data-* 传参 + bind*/catch* 事件 + 布尔值用 {{}} 包裹", font(14), GRAY)
+        row, idx = divmod(i, cols)
+        n_in_row = min(cols, len(comps) - row * cols)      # 末行可能不满 3 个
+        # 不满的行整体居中：末行只有 1 个卡片时贴左，右边空一大块很难看
+        cx = 40 + (cols - n_in_row) * pitch_x // 2 + idx * pitch_x
+        cy = 96 + row * pitch_y
+        c.card((cx, cy, cx + cw, cy + ch), border=col)
+        c.t(cx + 16, cy + 12, name, font_b(17), col)
+        c.t(cx + 16, cy + 48, desc, font(13), DARK)
+    # 末行卡片底 468，脚注留 18px 呼吸——此前脚注写在 476，与卡片只差 8px，
+    # 灰字压在白色卡片的边框上
+    c.t(40, 492, "通用规则：id/class/style + data-* 传参 + bind*/catch* 事件 + 布尔值用 {{}} 包裹", font(14), GRAY)
     c.save("diagram-components.png")
 
 
@@ -210,61 +217,97 @@ def gen_languages():
 
 # ============ diagram-knowledge-graph ============
 def gen_knowledge_graph():
-    """全局概念关系图：29 篇文章为节点，5 个阶段分组着色，前置关系为有向边。"""
-    c = C(900, 700); title(c, "知识图谱：29 篇文章的概念关系")
+    """全局概念关系图：29 篇教学文章为节点，5 个阶段分组着色，前置关系为有向边。
 
-    stages = [
-        ("① 认知", BLUE, [(60, 110, "认识小程序"), (60, 170, "技术栈")]),
-        ("② 准备", GREEN, [(210, 110, "环境准备"), (210, 170, "项目结构")]),
-        ("③ 基础", ORANGE, [(360, 90, "WXML"), (360, 140, "WXSS"), (360, 190, "JS 逻辑层"), (360, 240, "生命周期")]),
-        ("④ 进阶", PURPLE, [(510, 70, "内置组件"), (510, 115, "自定义组件"), (510, 160, "网络请求"),
-                            (510, 205, "性能优化"), (510, 250, "媒体能力"), (510, 295, "地图定位"),
-                            (660, 70, "授权隐私"), (660, 115, "分享订阅"), (660, 160, "Skyline"),
-                            (660, 205, "组件库"), (660, 250, "调试排错"), (660, 295, "微信支付")]),
-        ("⑤ 实战", RED, [(790, 90, "云开发入门"), (790, 140, "云函数"), (790, 190, "云数据库"),
-                        (790, 240, "云存储"), (790, 310, "待办实战"), (790, 360, "上线发布"), (790, 410, "资源工具")]),
+    篇数由节点数推导（`sum(len(x) for …)`），不写死：此前标题手打「29 篇」而图里
+    只有 27 个节点——v2.0.0 新增的多页面导航实战、商品列表实战从未进图，
+    篇数与图形自此脱钩，也没人发现。
+    """
+    CARD_W_MIN, CARD_H = 100, 32
+
+    layout = [
+        ("① 认知", BLUE, [(40, ["认识小程序", "编程语言与技术栈"], 120, 60)]),
+        ("② 准备", GREEN, [(180, ["环境准备", "项目结构"], 120, 60)]),
+        ("③ 基础", ORANGE, [(320, ["WXML 数据绑定", "WXSS 与 rpx", "JS 逻辑层", "页面生命周期"], 90, 60)]),
+        ("④ 进阶", PURPLE, [
+            (460, ["内置组件", "自定义组件", "网络请求与数据", "性能优化", "媒体能力", "地图与定位"], 70, 48),
+            (600, ["授权与隐私", "分享与订阅", "Skyline 适配", "第三方组件库", "调试与排错", "微信支付"], 70, 48),
+        ]),
+        ("⑤ 云开发 · 实战 · 发布", RED, [
+            (740, ["云开发入门", "云函数", "云数据库", "云存储", "待办清单实战"], 70, 60),
+            (880, ["多页面导航实战", "商品列表实战", "上线发布", "资源与工具"], 70, 60),
+        ]),
     ]
 
-    node_positions = {}
-    for stage_name, col, nodes in stages:
-        for x, y, name in nodes:
-            w = max(100, c.tw(name, font(12)) + 20)
-            c.card((x, y, x + w, y + 32), r=8, border=col)
-            c.t(x + 10, y + 8, name, font(12), DARK)
-            node_positions[name] = (x + w / 2, y + 16, col)
+    total = sum(len(labels) for _, _, cols in layout for _, labels, _, _ in cols)
+    c = C(1010, 520)
+    title(c, f"知识图谱：{total} 篇文章的概念关系")
 
     edges = [
-        ("认识小程序", "技术栈"), ("认识小程序", "环境准备"), ("技术栈", "环境准备"),
-        ("环境准备", "项目结构"), ("项目结构", "WXML"), ("项目结构", "WXSS"), ("项目结构", "JS 逻辑层"),
-        ("WXML", "生命周期"), ("WXSS", "生命周期"), ("JS 逻辑层", "生命周期"),
-        ("生命周期", "内置组件"), ("生命周期", "自定义组件"), ("生命周期", "网络请求"),
-        ("内置组件", "性能优化"), ("自定义组件", "性能优化"), ("网络请求", "性能优化"),
-        ("生命周期", "媒体能力"), ("生命周期", "地图定位"), ("生命周期", "授权隐私"),
-        ("授权隐私", "分享订阅"), ("授权隐私", "Skyline"),
-        ("内置组件", "组件库"), ("自定义组件", "组件库"),
-        ("性能优化", "调试排错"), ("网络请求", "调试排错"),
-        ("媒体能力", "微信支付"), ("网络请求", "微信支付"),
-        ("JS 逻辑层", "云开发入门"), ("网络请求", "云开发入门"),
+        ("认识小程序", "编程语言与技术栈"), ("认识小程序", "环境准备"),
+        ("编程语言与技术栈", "环境准备"), ("认识小程序", "项目结构"),
+        ("环境准备", "项目结构"),
+        ("项目结构", "WXML 数据绑定"), ("项目结构", "WXSS 与 rpx"), ("项目结构", "JS 逻辑层"),
+        ("WXML 数据绑定", "页面生命周期"), ("WXSS 与 rpx", "页面生命周期"),
+        ("JS 逻辑层", "页面生命周期"),
+        ("页面生命周期", "内置组件"), ("页面生命周期", "自定义组件"),
+        ("页面生命周期", "网络请求与数据"),
+        ("内置组件", "性能优化"), ("自定义组件", "性能优化"), ("网络请求与数据", "性能优化"),
+        ("页面生命周期", "媒体能力"), ("页面生命周期", "地图与定位"), ("页面生命周期", "授权与隐私"),
+        ("授权与隐私", "分享与订阅"), ("授权与隐私", "Skyline 适配"),
+        ("内置组件", "第三方组件库"), ("自定义组件", "第三方组件库"),
+        ("性能优化", "调试与排错"), ("网络请求与数据", "调试与排错"),
+        ("媒体能力", "微信支付"), ("网络请求与数据", "微信支付"),
+        ("JS 逻辑层", "云开发入门"), ("网络请求与数据", "云开发入门"),
         ("云开发入门", "云函数"), ("云开发入门", "云数据库"), ("云开发入门", "云存储"),
-        ("云函数", "待办实战"), ("云数据库", "待办实战"), ("云存储", "待办实战"),
-        ("待办实战", "上线发布"), ("上线发布", "资源工具"),
+        ("云函数", "待办清单实战"), ("云数据库", "待办清单实战"), ("云存储", "待办清单实战"),
+        ("页面生命周期", "多页面导航实战"), ("项目结构", "多页面导航实战"),
+        ("WXML 数据绑定", "商品列表实战"), ("自定义组件", "商品列表实战"),
+        ("待办清单实战", "多页面导航实战"), ("待办清单实战", "商品列表实战"),
+        ("多页面导航实战", "上线发布"), ("商品列表实战", "上线发布"),
+        ("上线发布", "资源与工具"),
     ]
 
-    for src, dst in edges:
-        if src in node_positions and dst in node_positions:
-            sx, sy, _ = node_positions[src]
-            dx, dy, _ = node_positions[dst]
-            c.d.line([sx * S, sy * S, dx * S, dy * S], fill=(200, 200, 210), width=1 * S)
+    # 先算节点位置：边要在卡片之前画，才不会被卡片盖住一段
+    pos = {}
+    for stage_name, col, columns in layout:
+        for x, labels, y0, pitch in columns:
+            for i, name in enumerate(labels):
+                w = max(CARD_W_MIN, c.tw(name, font(12)) + 20)
+                pos[name] = (x, y0 + i * pitch, w, CARD_H, col)
 
-    c.t(60, 480, "阶段分组：", font_b(14), DARK)
-    legend = [("① 认知", BLUE), ("② 准备", GREEN), ("③ 基础", ORANGE), ("④ 进阶", PURPLE), ("⑤ 实战与发布", RED)]
+    # 边：深一档的灰 + 真箭头，两端各让出卡片宽度，起笔/收笔都不钻进卡片里
+    for src, dst in edges:
+        if src not in pos or dst not in pos:
+            continue
+        sx, sy, sw, sh, _ = pos[src]
+        dx_, dy_, dw, dh, _ = pos[dst]
+        x1, y1 = sx + sw / 2, sy + sh / 2
+        x2, y2 = dx_ + dw / 2, dy_ + dh / 2
+        dist = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5 or 1
+        ux, uy = (x2 - x1) / dist, (y2 - y1) / dist
+        c.arrow((x1 + ux * 26, y1 + uy * 26), (x2 - ux * 30, y2 - uy * 30),
+                (160, 166, 180), width=2)
+
+    # 节点：最后画，白卡片压在边上面
+    for stage_name, col, columns in layout:
+        for x, labels, y0, pitch in columns:
+            for i, name in enumerate(labels):
+                nx, ny, w, h, _ = pos[name]
+                c.card((nx, ny, nx + w, ny + h), r=8, border=col)
+                c.t(nx + 10, ny + 8, name, font(12), DARK)
+
+    c.t(40, 400, "阶段分组：", font_b(14), DARK)
+    legend = [("① 认知", BLUE), ("② 准备", GREEN), ("③ 基础", ORANGE), ("④ 进阶", PURPLE),
+              ("⑤ 云开发、实战与发布", RED)]
     lx = 170
     for name, col in legend:
-        c.d.ellipse([lx * S, 484 * S, (lx + 14) * S, 498 * S], fill=col)
-        c.t(lx + 20, 480, name, font(13), DARK)
+        c.d.ellipse([lx * S, 404 * S, (lx + 14) * S, 418 * S], fill=col)
+        c.t(lx + 20, 400, name, font(13), DARK)
         lx += c.tw(name, font(13)) + 40
-    c.t(60, 520, "箭头表示前置关系：左边的文章是右边文章的前置知识。按从左到右的顺序学习。", font(13), GRAY)
-    c.t(60, 550, "配套：[PROGRESS.md] 跟踪学习进度 · [FAQ] 高频问答 · 每篇随堂测验自测", font(13), GRAY)
+    c.t(40, 442, "箭头表示前置关系：左边/上边的文章是右边/下边文章的前置知识。按从左上到右下的顺序学习。",
+        font(13), GRAY)
+    c.t(40, 472, "配套：[PROGRESS.md] 跟踪学习进度 · [FAQ] 高频问答 · 每篇随堂测验自测", font(13), GRAY)
     c.save("diagram-knowledge-graph.png")
 
 
