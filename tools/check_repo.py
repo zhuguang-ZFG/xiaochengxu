@@ -183,17 +183,42 @@ def check_gif_size():
 
 
 def _mp4_is_complete(path):
-    """MP4 是否含 moov（索引）原子：没有它的文件播放器打不开。
+    """MP4 能不能播：有没有 moov（索引），以及 box 声明的长度是否自洽。
 
-    只读头尾各 64KB 找 `moov`，不把 3MB 全读进来。`render_mp4` 用
-    `-movflags +faststart`（moov 移到文件头），但也接受 moov 在文件尾。
+    沿着顶层 box 的头 8 字节往后跳，不读画面数据，所以再大的视频也只读几十个字节。
+    拦两种失败：
+      - **没有 moov**：渲染被 kill 时只剩 `ftyp+free+mdat` 头，播放器打不开；
+      - **box 声明的长度越过文件末尾**：写到一半被截断（faststart 的文件 moov 在
+        前面，光查「有没有 moov」对这种截断是瞎的）。
+
+    早先用的是「在头尾各 64KB 里搜 `moov` 四个字节」，两个方向都会错：H.264 载荷里
+    真的可能出现这 4 个字节（坏文件被判成好的），而 moov 若在文件尾且比 64KB 大，
+    它的位置标记就落在窗口外（好文件被判成坏的）。按 box 走两个都不会。
     """
     size = path.stat().st_size
+    found_moov = False
     with path.open("rb") as fh:
-        head = fh.read(64 * 1024)
-        fh.seek(max(0, size - 64 * 1024))
-        tail = fh.read(64 * 1024)
-    return b"moov" in head or b"moov" in tail
+        off = 0
+        while off + 8 <= size:
+            fh.seek(off)
+            hdr = fh.read(8)
+            if len(hdr) < 8:
+                return False
+            box = int.from_bytes(hdr[:4], "big")
+            kind = hdr[4:8]
+            if kind == b"moov":
+                found_moov = True            # 不能就此返回：后面的 box 还得验长度
+            if box == 1:                     # 长度用后面 8 字节的 64 位字段
+                ext = fh.read(8)
+                if len(ext) < 8:
+                    return False
+                box = int.from_bytes(ext, "big")
+            if box == 0:                     # 「一直到文件尾」，是合法的
+                box = size - off
+            if box < 8 or off + box > size:  # 长度不合法，或声明了却没写完
+                return False
+            off += box
+    return found_moov                        # 走到文件尾都没见到 moov 就是空壳
 
 
 def check_video_assets():

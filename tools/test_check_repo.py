@@ -231,6 +231,11 @@ class CheckRepoTest(unittest.TestCase):
         "0000000866726565"
         "000000006d646174")
 
+    @staticmethod
+    def _box(kind, payload=b""):
+        """一个合法的 ISO-BMFF 顶层 box：4 字节长度 + 4 字节类型 + 载荷"""
+        return (len(payload) + 8).to_bytes(4, "big") + kind + payload
+
     def _write(self, root, rel, data):
         p = root / rel
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -247,13 +252,38 @@ class CheckRepoTest(unittest.TestCase):
 
     def test_视频含moov不报(self):
         """探针不能把正常视频判成空壳：moov 在文件头（faststart）或在文件尾都算完整。"""
-        for tag, blob in (("头", b"\x00\x00\x00\x20ftypisom" + b"\x00" * 8 + b"moov" + b"\x00" * 64),
-                          ("尾", b"\x00\x00\x00\x20ftypisom" + b"\x00" * 64 + b"moov")):
+        mdat = self._box(b"mdat", b"\x11" * 40)
+        for tag, blob in (
+                ("头", self._box(b"ftyp", b"isom") + self._box(b"moov", b"\x22" * 20) + mdat),
+                ("尾", self._box(b"ftyp", b"isom") + mdat + self._box(b"moov", b"\x22" * 20))):
             root = self.fixture({})
             self._write(root, "docs/assets/videos/video-01-roadmap.mp4", blob)
             errs = self.run_checks("check_video_assets")
             self.assertEqual([e for e in errs if "moov" in e], [],
                              f"moov 在文件{tag}却被误报: {errs}")
+
+    def test_载荷里出现moov字样不算完整(self):
+        """按 box 走，而不是在字节流里搜 `moov` 四个字节。
+
+        这个文件根本没有 moov，只有 mdat 载荷，而载荷里故意嵌了 `moov` 字样——
+        「在头尾 64KB 里搜字节」的写法会把它判成完整，于是坏视频照样发布。
+        """
+        root = self.fixture({})
+        self._write(root, "docs/assets/videos/video-05-component.mp4",
+                    self._box(b"ftyp", b"isom") + self._box(b"mdat", b"xxmoov" + b"\x00" * 40))
+        errs = self.run_checks("check_video_assets")
+        self.assertTrue(any("moov" in e for e in errs),
+                        f"载荷里的 moov 字样不该被当成索引，实际: {errs}")
+
+    def test_box声明比文件长要报(self):
+        """写到一半被截断：faststart 的文件 moov 在前面，光查「有没有 moov」会漏。"""
+        root = self.fixture({})
+        blob = (self._box(b"ftyp", b"isom") + self._box(b"moov", b"\x22" * 20)
+                + self._box(b"mdat", b"\x33" * 200))
+        self._write(root, "docs/assets/videos/video-07-perf.mp4", blob[:-120])
+        errs = self.run_checks("check_video_assets")
+        self.assertTrue(any("moov" in e for e in errs),
+                        f"截断的文件必须报出，实际: {errs}")
 
     def test_gif超限要报(self):
         self.fixture({"docs/assets/demo-x.gif": None})

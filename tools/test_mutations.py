@@ -166,6 +166,12 @@ MUTATIONS = [
         "        if size <= VIDEO_LIMIT and not _mp4_is_complete(v):",
         "        if False:",
     ),
+    (
+        "check_repo.py",
+        "MP4 box 长度不再校验（moov 之后被截断的文件照样判为完整）",
+        "            if box < 8 or off + box > size:",
+        "            if False:",
+    ),
     # ---- check_assets_fresh.py ----
     (
         "check_assets_fresh.py",

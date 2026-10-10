@@ -543,8 +543,12 @@ def render_mp4(frames, name, fps=FPS):
     def abandon():
         tmp_path.unlink(missing_ok=True)
 
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    try:
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    except OSError:                      # 可执行文件没了：别让临时文件留在临时目录
+        abandon()
+        raise
     count = 0
     failure = None
     try:
