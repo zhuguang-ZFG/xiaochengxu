@@ -24,11 +24,12 @@ jobs:
       - name: 资产新鲜度检查的自测（守护「以 HEAD 为基准」这一属性）
         run: python tools/test_assets_fresh.py
 
-      - name: 安装 Pillow 与 CJK 字体（折行自测要按真实字体度量像素宽度）
+      - name: 安装 Pillow、编码器与 CJK 字体（折行要按真实字体度量像素宽度，
+          原子落盘自测要真的跑一遍 ffmpeg 合成）
         run: |
           sudo apt-get update
           sudo apt-get install -y fonts-noto-cjk
-          pip install pillow==12.3.0
+          pip install pillow==12.3.0 imageio-ffmpeg==0.6.0
 
       - name: 视频字幕折行自测（不许把标识符劈成两截、不许出现孤行）
         run: python tools/test_gen_videos.py

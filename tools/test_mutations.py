@@ -216,6 +216,12 @@ MUTATIONS = [
         "        if (m.size, bytes(m)) == _NOTDEF:",
         "        if False:",
     ),
+    (
+        "gen_videos.py",
+        "成片直接写进资产目录（渲染被打断就留下 48 字节空壳）",
+        "           tmp]",
+        "           str(out)]",
+    ),
 ]
 
 

@@ -196,6 +196,61 @@ class GlyphCoverage(unittest.TestCase):
                 for ch in self.MISSING if ch in node.value]
         self.assertEqual(hits, ["✗"], "字面量扫描没按预期工作")
 
+class AtomicRenderOutput(unittest.TestCase):
+    """渲染中途失败，不许在 docs/assets 里留下半成品。
+
+    这是 4 集 48 字节空壳的根因：`render_mp4` 过去直接把输出路径交给 ffmpeg，
+    进程被 kill 时文件已经建出来了，只剩一个 ftyp+mdat 头——体积检查放行、
+    播放器打不开。现在写临时文件、成功才落地，所以仓库里那一集要么是没动过的
+    完整旧版，要么是全新的完整新版。
+    """
+
+    @staticmethod
+    def _frames(n, blow_up_after=None):
+        from PIL import Image
+        for i in range(n):
+            if blow_up_after is not None and i >= blow_up_after:
+                raise RuntimeError("模拟渲染进程被中断")
+            yield Image.new("RGB", (32, 32), (i * 7 % 256, 0, 0))
+
+    def setUp(self):
+        import tempfile
+        if self._ffmpeg_missing():
+            self.skipTest("没有 imageio-ffmpeg，无法真的跑一遍合成")
+        self.td = tempfile.TemporaryDirectory()
+        self.addCleanup(self.td.cleanup)
+        self.dir = pathlib.Path(self.td.name)
+        self._orig = gv.VIDEO_DIR
+        gv.VIDEO_DIR = self.dir
+        self.addCleanup(setattr, gv, "VIDEO_DIR", self._orig)
+
+    @staticmethod
+    def _ffmpeg_missing():
+        try:
+            import imageio_ffmpeg  # noqa: F401
+            return False
+        except Exception:
+            return True
+
+    def test_success_lands_one_complete_file(self):
+        gv.render_mp4(self._frames(6), "video-99-ok")
+        produced = sorted(p.name for p in self.dir.iterdir())
+        self.assertEqual(produced, ["video-99-ok.mp4"],
+                         f"成功渲染只应留下成片，实际: {produced}")
+        data = (self.dir / "video-99-ok.mp4").read_bytes()
+        self.assertIn(b"moov", data, "成片没有 moov，等于不可播")
+
+    def test_interruption_leaves_previous_asset_untouched(self):
+        keep = self.dir / "video-99-cut.mp4"
+        keep.write_bytes(b"PREVIOUS-GOOD-VERSION")
+        with self.assertRaises(RuntimeError):
+            gv.render_mp4(self._frames(6, blow_up_after=2), "video-99-cut")
+        self.assertEqual(keep.read_bytes(), b"PREVIOUS-GOOD-VERSION",
+                         "渲染被打断却改写了已提交的那一集——空壳就是这么来的")
+        self.assertEqual(sorted(p.name for p in self.dir.iterdir()),
+                         ["video-99-cut.mp4"], f"临时文件漏在资产目录里: "
+                         f"{sorted(p.name for p in self.dir.iterdir())}")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

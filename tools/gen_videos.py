@@ -12,10 +12,13 @@
 依赖：pip install imageio-ffmpeg
 """
 import functools
+import os
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from PIL import Image, ImageDraw, ImageFilter  # noqa: E402
@@ -513,6 +516,12 @@ def render_mp4(frames, name, fps=FPS):
 
     2x 超采样：帧以 RW×RH 渲染，此处 LANCZOS 缩到 W×H 消除文字锯齿。
     不缓存帧列表：生成器 + rawvideo 管道，峰值内存仅数帧。
+
+    **先写临时文件、成功了才改名**。直接往 docs/assets 里写的话，渲染进程被
+    kill 时会在仓库里留下一个只有 `ftyp+free+mdat` 头的 48 字节空壳——播放器
+    打不开、体积检查照样放行（48B ≪ 3MB），v2.4.3 就这么漏出去了 4 集。
+    改成原子改名后，中途失败只会留下一个临时文件，仓库里那一集永远是
+    上一版的完整产物。
     """
     try:
         import imageio_ffmpeg
@@ -521,37 +530,55 @@ def render_mp4(frames, name, fps=FPS):
         raise SystemExit("缺少 imageio-ffmpeg：pip install imageio-ffmpeg")
 
     out = VIDEO_DIR / f"{name}.mp4"
+    fd, tmp = tempfile.mkstemp(prefix=f"{name}-", suffix=".mp4")
+    os.close(fd)                       # 只要路径，句柄交给 ffmpeg
+    tmp_path = pathlib.Path(tmp)
     cmd = [exe, "-y",
            "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
            "-framerate", str(fps), "-i", "pipe:0",
            "-c:v", "libx264", "-preset", "medium", "-crf", "27",
            "-pix_fmt", "yuv420p", "-threads", "1", "-movflags", "+faststart",
-           str(out)]
+           tmp]
+
+    def abandon():
+        tmp_path.unlink(missing_ok=True)
+
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     count = 0
+    failure = None
     try:
         for frame in frames:
             small = frame.resize((W, H), Image.LANCZOS)
             proc.stdin.write(small.tobytes())
             count += 1
     except BrokenPipeError:
-        pass
+        pass                             # ffmpeg 先退了，交给下面的退出码去报
+    except BaseException as exc:         # Ctrl-C / 生成器抛错
+        failure = exc
     finally:
         try:
             proc.stdin.close()
         except BrokenPipeError:
             pass
         err = proc.stderr.read().decode("utf-8", "replace")
-        if proc.wait() != 0:
-            raise SystemExit(f"ffmpeg 合成失败（{name}）：\n{err[-2000:]}")
+        # 必须等 ffmpeg 退出之后再删临时文件：进程还持有句柄时 unlink 会抛
+        # PermissionError（Windows 实测，回归测试 test_interruption_… 抓到的）
+        rc = proc.wait()
+    if failure is None and rc != 0:
+        failure = SystemExit(f"ffmpeg 合成失败（{name}）：\n{err[-2000:]}")
+    if failure is not None:
+        abandon()                        # 半成品不留在临时目录
+        raise failure
 
-    size = out.stat().st_size
-    print(f"{name}.mp4: {size // 1024} KB, {count} 帧, 时长 {count / fps:.1f}s")
+    size = tmp_path.stat().st_size
     if size > SIZE_LIMIT:
+        abandon()
         raise SystemExit(
             f"{name}.mp4 体积 {size // 1024} KB 超过契约上限 {SIZE_LIMIT // 1024} KB，"
             f"请提高 -crf 或缩短时长")
+    shutil.move(tmp, out)              # 跨盘符也能落地
+    print(f"{name}.mp4: {size // 1024} KB, {count} 帧, 时长 {count / fps:.1f}s")
 
 
 # ============ 第 4 集：WXML 数据绑定 ============

@@ -12,7 +12,9 @@
 
 ### 修复
 
-- **4 集视频是 48 字节空壳**：`video-02/06/10/13` 只剩 `ftyp+free+mdat` 头（`cat` 出来是 `ftypisom…mdat`），播放器打不开——上一次渲染被中断，而 `render_mp4` 是先把文件建出来再喂帧的。**体积检查对这类文件完全瞎**（48 字节远小于 3MB），`check_assets_fresh.py` 只在 CI 的 windows 作业里重渲染、本地跑不到，所以它一路漏到了提交前。已用 pinned 工具链重渲染这 4 集，并给 `check_repo.py` 加上 `moov` 完整性检查（只读头尾各 64KB）
+- **4 集视频是 48 字节空壳**：`video-02/06/10/13` 只剩 `ftyp+free+mdat` 头（`cat` 出来是 `ftypisom…mdat`），播放器打不开——上一次渲染被中断，而 `render_mp4` 是先把文件建出来再喂帧的。**体积检查对这类文件完全瞎**（48 字节远小于 3MB），`check_assets_fresh.py` 只在 CI 的 windows 作业里重渲染、本地跑不到，所以它一路漏到了提交前。已用 pinned 工具链重渲染这 4 集
+- **根因：渲染直接往 `docs/assets` 里写**。`render_mp4` 把最终路径直接交给 ffmpeg，进程被 kill 时文件已经建出来了，于是仓库里留下一堆「看起来像视频」的空壳。改成**写临时文件、成功之后才落地**（`tempfile.mkstemp` + `shutil.move`），中途失败只会在临时目录留下垃圾，仓库里那一集永远是上一版的完整产物；再给 `check_repo.py` 加上 `moov` 完整性检查（只读头尾各 64KB）兜底。改成原子落盘后实测 video-03 重渲染 md5 与提交值逐字节一致（`1bee906e…`），CI 的字节比对不受影响
+- **顺带修掉一个 Windows 专属崩溃**：第一版清理逻辑在 `finally` 等 ffmpeg 退出之前就 `unlink` 临时文件，而 ffmpeg 还持有句柄 ⇒ `PermissionError`。这是新加的回归自测（`test_interruption_leaves_previous_asset_untouched`）当场逼出来的；另外也单独验证过：把写法退回「直接写最终路径」，这两个用例会变红，说明它们守的是行为而不是巧合
 - **字形扫描把注释和文档字符串也算成违规**：`test_gen_videos.py` 的豆腐块扫描是逐行文本匹配，而解释「哪些字符画不出来」的注释必然要写出这些字符本身——`_missing_glyphs` 的 docstring 就是这样，于是自测一跑就红。改为用 AST 只扫**字符串字面量**（真正会上屏的东西），并补一个用例证明扫描确实会命中字面量里的字符
 - **变异测试的 `DEPS` 不全，25/25 里混着假捕获**：`test_gen_videos.py` 的字形扫描要读 `gen_animations/gen_diagrams/gen_statics` 三个同目录文件当数据，而变异测试的临时目录里只有被测脚本——每次变异都因 `FileNotFoundError` 崩溃，退出码非零被当成「抓到了」。补齐 `DEPS` 后重跑，基线在临时目录里是绿的，27/27 才是真的
 - **字形探针的自证依赖平台字体，会在 Linux CI 上误报**：`test_probe_is_not_vacuous` 原来断言 `MISSING` 表里的字符「在当前字体下必须缺字形」。这在 Windows 微软雅黑（资产就是它渲染的）下成立，但 validate 作业跑在 ubuntu + `fonts-noto-cjk` 上，Noto CJK **是有** `✓ ✗ ▶` 字形的——不负责渲染资产的作业反而最先变红。改用必然未分配的 U+10FFFE 当探针，并特意避开实现内部当参照的 U+10FFFF（自己和自己比是恒真断言，又是一次假通过）
@@ -33,10 +35,10 @@
 
 ### 新增
 
-- `tools/test_gen_videos.py`：11 个用例守住字幕折行的四条不变量——不劈开标识符、内容不丢、不超可用宽度（唯一例外是单个不可拆的标识符本身就超宽）、相邻两行不可再合并（即行数已最少）。断言全部按字体实际度量，不写死「这条该折几行」，所以换字体（Windows 雅黑 / Linux Noto）不会误报。另有字形覆盖扫描（只扫字符串字面量，注释与 docstring 豁免）
-- 变异表 +4 项（只比最宽行不比行数 / 折行不再把标识符当整体 / 不再受可用宽度约束 / MP4 完整性检查失效），`test_mutations.py` 的 `DEPS` 登记被测脚本与自测**当数据读**的同目录文件（`gen_videos.py` 要连 `render.py` 与三个生成脚本一起复制进临时目录，否则自测 import/读取就炸，每次变异都会被误记成「抓到了」）；捕获数 22/22 → 27/27
+- `tools/test_gen_videos.py`：13 个用例。字幕折行的四条不变量——不劈开标识符、内容不丢、不超可用宽度（唯一例外是单个不可拆的标识符本身就超宽）、相邻两行不可再合并（即行数已最少）；断言全部按字体实际度量，不写死「这条该折几行」，所以换字体（Windows 雅黑 / Linux Noto）不会误报。另有字形覆盖扫描（只扫字符串字面量，注释与 docstring 豁免），以及「渲染被打断不许动已提交那一集」的原子落盘用例（真的跑一遍 ffmpeg 合成，不是纸面断言）
 - `check_repo.py` 新增 MP4 `moov` 完整性检查 + `test_check_repo.py` 两个用例（48 字节空壳要报、moov 在头或在尾都不误报）
-- CI validate 作业安装 `pillow==12.3.0` + `fonts-noto-cjk` 并跑 `test_gen_videos.py`（此前该作业只有 stdlib）
+- 变异表 +5 项（只比最宽行不比行数 / 折行不再把标识符当整体 / 不再受可用宽度约束 / MP4 完整性检查失效 / 成片直接写进资产目录），`test_mutations.py` 的 `DEPS` 登记被测脚本与自测**当数据读**的同目录文件（`gen_videos.py` 要连 `render.py` 与三个生成脚本一起复制进临时目录，否则自测 import/读取就炸，每次变异都会被误记成「抓到了」）；捕获数 22/22 → 28/28
+- CI validate 作业安装 `pillow==12.3.0` + `imageio-ffmpeg==0.6.0` + `fonts-noto-cjk` 并跑 `test_gen_videos.py`（此前该作业只有 stdlib；装上编码器，原子落盘那个用例才不会在 CI 上被静默跳过）
 
 ## [v2.4.2] - 2026-10-10
 
