@@ -125,19 +125,27 @@ class WrapLines(unittest.TestCase):
 class GlyphCoverage(unittest.TestCase):
     """生成脚本里不许出现渲染字体画不出来的字符。"""
 
-    # 实测在 pinned 字体下走 .notdef 的字符（含常见装饰符与 emoji）
+    # 实测在 pinned 字体（Windows 微软雅黑，资产就是它渲染的）下走 .notdef 的字符。
+    # 这是一份**denylist 文本**，不要求它在别的字体下也缺字形：Linux 的 Noto CJK
+    # 是有 ✓ ✗ ▶ 的，若断言「这些字符在当前字体里必须缺」会在 validate 作业
+    # （ubuntu + fonts-noto-cjk）误报。
     MISSING = "✓✔✗✕✅❌👆👇▶◀▸♥❤✨🔥📱💡🚀"
-    # 实测画得出来的字符，用来证明探针本身没坏
-    PRESENT = "→←↑↓√×●○★☆·※"
+    # 任何中文字体都画得出来的字符，用来证明探针没坏
+    PRESENT = "正常中文 abc123 →←↑↓√×●○★☆·※"
     FILES = ("gen_videos.py", "gen_animations.py", "gen_diagrams.py",
              "gen_statics.py", "render.py")
 
     def test_probe_is_not_vacuous(self):
         """先证明 `gen_videos._missing_glyphs` 认得出豆腐块：否则「扫不出问题」
-        只是探针坏了，和「自测没跑起来」是同一类假通过。"""
-        self.assertEqual(sorted(set(gv._missing_glyphs(self.MISSING))),
-                         sorted(set(self.MISSING)),
-                         "探针认不出缺字形，下面的扫描不可信")
+        只是探针坏了，和「自测没跑起来」是同一类假通过。
+
+        用 U+10FFFE 当探针：它是**必然未分配**的码位（任何字体都走 .notdef），
+        且与实现内部拿来做参照的 U+10FFFF 是两个不同码位——自己和自己比会
+        恒真，那就又成了一次假通过。这条断言与字体无关，Linux 上同样成立。
+        """
+        UNASSIGNED = "\U0010FFFE"     # 与内部参照 U+10FFFF 不同，避免自证
+        self.assertEqual(gv._missing_glyphs(UNASSIGNED), (UNASSIGNED,),
+                         "探针认不出必然缺字形的码位，下面的扫描不可信")
         self.assertEqual(gv._missing_glyphs(self.PRESENT), (),
                          "探针把画得出的字符判成了豆腐块")
         self.assertEqual(gv._missing_glyphs("正常中文 abc123"), ())
