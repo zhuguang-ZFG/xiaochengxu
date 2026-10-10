@@ -11,6 +11,7 @@ from render import (  # noqa: E402
     GREEN, GREEN_DARK, BG, WHITE, DARK, GRAY, GRAY_L, RED, BLUE, ORANGE, PURPLE, NAV_BG, S,
     font, font_b, new_screen, status_bar, nav_bar, card, rrect, txt, text_w, text_c, shadow,
 )
+from check_repo import repo_stats  # noqa: E402
 
 
 def hi_canvas(w, h, bg=(243, 244, 246)):
@@ -45,8 +46,11 @@ def gen_hero():
         d.text(((x + 13) * S, 250 * S), name, font=font(14), fill=WHITE)
         x += w + 12
     # 左下角原本空到画布底（chips 结束于 284，画布高 420）——用一行真实统计补上。
-    # 数字从仓库里数出来，别拍脑袋：29 篇教学文章、121 道随堂测验、13 集视频、3 个示例工程。
-    stats = [("29", "篇教程"), ("121", "道随堂测验"), ("13", "集视频"), ("3", "个示例工程")]
+    # 数字**从仓库里数出来**（`check_repo.repo_stats()`）：手打的字面量一定会过期，
+    # 之前这里写死 29/121/13/3，靠人记得「加了文章要回来改图」。现在加一篇自己就变。
+    st = repo_stats()
+    stats = [(str(st["articles"]), "篇教程"), (str(st["quizzes"]), "道随堂测验"),
+             (str(st["videos"]), "集视频"), (str(st["projects"]), "个示例工程")]
     sx = 58
     for num, label in stats:
         t((sx, 322), num, font_b(24), GREEN_DARK)

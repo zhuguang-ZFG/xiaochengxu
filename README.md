@@ -126,12 +126,12 @@ flowchart LR
 | 指标 | 数值 |
 |---|---|
 | 教程文章 | 32 篇（学习路线 3 篇含 FAQ + 入门/基础/进阶/云开发/发布/实战/资源 29 篇教学链） |
-| 随堂测验 | 29 组（每篇教学文章 3~5 道场景选择题，`<details>` 折叠答案） |
-| 视觉资产 | 57 个（38 动画 GIF + 19 示意图 PNG），全部可脚本复现，CI 逐字节比对 |
+| 随堂测验 | 121 题 / 29 组（每篇教学文章 3~6 道场景选择题，`<details>` 折叠答案） |
+| 视觉资产 | 70 个（38 动画 GIF + 19 示意图 PNG + 13 教学视频 MP4），全部可脚本复现，CI 逐字节比对 |
 | 教学视频 | 13 集（`docs/assets/videos/`，720×1280 竖屏 MP4，含字幕帧，由脚本生成） |
 | 示例工程 | `examples/todo-miniprogram`、`examples/navigation-miniprogram`、`examples/product-list-miniprogram`（可运行，对应实战篇） |
 | 学习体验 | [PROGRESS.md](PROGRESS.md) 进度追踪 + [FAQ](docs/00-学习路线/03-FAQ.md) 高频问答 + 知识图谱 |
-| 自动校验 | 链接/元数据/序号/孤儿资产/GIF 与视频体积/代码块语言/交叉引用顺序/示例工程结构/实战篇与示例工程逐行一致/**API 真实性 + Promise 断言**/**随堂测验格式 + checkbox 校验**/**进度同步**/**知识图谱引用**/**FAQ 格式**/**架构决策表列名**/**踩坑回顾表列名**/**延伸阅读官方链接**/**深度段落标题校验**，见 CI（外链 HTTP 校验为本地可选：`python tools/check_repo.py --external`） |
+| 自动校验 | 链接/元数据/序号/孤儿资产/GIF 与视频体积/MP4 完整性与时长/代码块语言/交叉引用顺序/示例工程结构/实战篇与示例工程逐行一致/**API 真实性 + Promise 断言**/**随堂测验格式 + checkbox 校验**/**进度同步**/**知识图谱引用**/**FAQ 格式**/**架构决策表列名**/**踩坑回顾表列名**/**延伸阅读官方链接**/**深度段落标题校验**/**README 指标表数字与仓库实际计数一致**，见 CI（外链 HTTP 校验为本地可选：`python tools/check_repo.py --external`） |
 | 资产复现校验 | `tools/check_assets_fresh.py` 清空 `docs/assets/` 重跑四个生成脚本，要求与 HEAD 逐字节一致（CI 在 windows-latest 上跑，1m50s） |
 
 ## 示例工程
@@ -152,7 +152,7 @@ flowchart LR
 
 ## 教学视频
 
-`docs/assets/videos/` 下有 13 集竖屏教学视频（720×1280、24fps、H.264，单集 ≤ 300KB），由 `python tools/gen_videos.py` 程序化生成——含字幕帧，不需要录音或录屏：
+`docs/assets/videos/` 下有 13 集竖屏教学视频（720×1280、24fps、H.264，单集上限 3MB 由 `tools/check_repo.py` 强制），由 `python tools/gen_videos.py` 程序化生成——含字幕帧，不需要录音或录屏。下表的时长不是手打的：`check_repo.py` 会读每集成片 `mdhd` 里的真实时长逐行比对，改了一边就会被拦：
 
 | 集 | 主题 | 时长 | 对应文章 |
 |---|---|---|---|

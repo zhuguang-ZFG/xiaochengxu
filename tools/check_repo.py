@@ -299,6 +299,85 @@ def check_video_claims():
                               f"成片实际 {actual:g} 秒（改时长须重渲染并同步文档）")
 
 
+README_EPISODE_RE = re.compile(
+    r"^\|\s*第\s*(\d+)\s*集\s*\|[^|]*\|\s*(\d+)\s*秒\s*\|\s*\[[^\]]*\]\(([^)]+\.md)\)", re.M)
+DOC_VIDEO_LINK_RE = re.compile(r"\]\(([^)]*?video-[a-z0-9-]+\.mp4)\)")
+
+
+def _doc_video(md):
+    """文章引用的那一集：返回 (MP4 路径, 实测时长)；没引用返回 (None, None)。"""
+    m = DOC_VIDEO_LINK_RE.search(strip_code(md.read_text(encoding="utf-8")))
+    if not m:
+        return None, None
+    v = (md.parent / m.group(1).split("#")[0]).resolve()
+    return (v, _mp4_duration(v) if v.is_file() else None)
+
+
+def check_readme_videos():
+    """README 视频总表：集数要齐、每行时长要和成片一致。
+
+    表格里没有 mp4 链接，只有「对应文章」，所以顺着文章找到它引用的那一集再量时长——
+    表里的秒数因此是硬连在 MP4 上的，改了一边就会被拦。
+    """
+    readme = ROOT / "README.md"
+    if not readme.is_file():
+        return
+    text = strip_code(readme.read_text(encoding="utf-8"))
+    rows = README_EPISODE_RE.findall(text)
+    n_videos = len(list((ASSETS / "videos").glob("*.mp4")))
+    if not rows:
+        if n_videos:
+            errors.append(f"README.md: 有 {n_videos} 集视频却没有视频总表，时长无人核对")
+        return
+    if len(rows) != n_videos:
+        errors.append(f"README.md: 视频总表 {len(rows)} 行，docs/assets/videos 里却有 {n_videos} 集")
+    for ep, claimed, article in rows:
+        md = ROOT / article
+        if not md.is_file():
+            continue                          # 断链由 check_links 报
+        v, actual = _doc_video(md)
+        if v is None:
+            errors.append(f"README.md: 第 {ep} 集对应的 {article} 里没引用任何视频")
+        elif actual is None:
+            errors.append(f"README.md: 第 {ep} 集的 {v.name} 读不出时长，无法核对表格写的 {claimed} 秒")
+        elif abs(actual - int(claimed)) > 0.5:
+            errors.append(f"README.md: 第 {ep} 集表格写 {claimed} 秒，成片实际 {actual:g} 秒")
+
+
+README_METRIC_RE = re.compile(r"^\|\s*(教程文章|随堂测验|视觉资产|教学视频)\s*\|\s*([^|]*)\|", re.M)
+
+
+def check_readme_stats():
+    """README 指标表里的数字必须能从仓库里数出来。
+
+    这里曾经写着「视觉资产 57 个」——那是加教学视频之前的数；「随堂测验 29 组
+    （每篇 3~5 道）」也和契约的 3~6 道对不上。抄来的数字一定会过期，所以改成数出来的。
+    """
+    readme = ROOT / "README.md"
+    if not readme.is_file():
+        return
+    st = repo_stats()
+    cells = dict(README_METRIC_RE.findall(strip_code(readme.read_text(encoding="utf-8"))))
+    expect = {
+        "教程文章": (r"(\d+) 篇（.*?(\d+) 篇教学链", (len(md_files()), st["articles"])),
+        "随堂测验": (r"(\d+) 题.*?(\d+) 组", (st["quizzes"], st["articles"])),
+        "视觉资产": (r"(\d+) 个（(\d+) 动画 GIF \+ (\d+) 示意图 PNG \+ (\d+) 教学视频 MP4）",
+                     (st["assets"], st["gifs"], st["pngs"], st["videos"])),
+        "教学视频": (r"(\d+) 集", (st["videos"],)),
+    }
+    for label, (pat, want) in expect.items():
+        cell = cells.get(label)
+        if cell is None:
+            errors.append(f"README.md: 指标表缺「{label}」行，数字无人核对")
+            continue
+        m = re.search(pat, cell)
+        if not m:
+            errors.append(f"README.md: 指标表「{label}」里找不到可比对的数字（应为 {want}）")
+        elif tuple(int(x) for x in m.groups()) != want:
+            errors.append(f"README.md: 指标表「{label}」写 {tuple(int(x) for x in m.groups())}，"
+                          f"仓库里数出来是 {want}")
+
+
 def check_video_assets():
     """契约硬限制：教学视频存放 docs/assets/videos/，命名 video-*.mp4，单集 ≤ 3MB"""
     vdir = ASSETS / "videos"
@@ -766,6 +845,27 @@ def check_promise_claims():
 # 教学文章目录（需要随堂测验的），排除元文章目录
 _TEACHING_DIRS = ["01-入门", "02-基础", "03-进阶", "04-云开发", "05-发布", "06-实战", "07-资源"]
 QUIZ_QUESTION_RE = re.compile(r"^\*\*Q\d+\*\*\s*[：:]", re.M)
+def repo_stats():
+    """从仓库里数出来的统计量。README 的指标表和 hero 图上的数字都只从这里取。
+
+    之前 `gen_statics.py` 里那行数字是手打的字面量，注释却写着「数字从仓库里数出来」；
+    README 的「视觉资产 57 个」也停留在加视频之前（实际 70）。数字一旦是抄来的就一定会过期。
+    """
+    articles = [f for d in _TEACHING_DIRS for f in sorted((DOCS / d).glob("*.md"))]
+    quizzes = sum(len(QUIZ_QUESTION_RE.findall(f.read_text(encoding="utf-8")))
+                  for f in articles)
+    assets = [p for p in ASSETS.rglob("*") if p.is_file()]
+    examples_dir = ROOT / "examples"
+    return {
+        "articles": len(articles),
+        "quizzes": quizzes,
+        "videos": len(list((ASSETS / "videos").glob("*.mp4"))),
+        "projects": len([p for p in examples_dir.iterdir() if p.is_dir()])
+                    if examples_dir.is_dir() else 0,
+        "assets": len(assets),
+        "gifs": len([p for p in assets if p.suffix.lower() == ".gif"]),
+        "pngs": len([p for p in assets if p.suffix.lower() == ".png"]),
+    }
 
 
 def check_quiz_format():
@@ -1060,6 +1160,8 @@ def main():
     check_gif_size()
     check_video_assets()
     check_video_claims()
+    check_readme_videos()
+    check_readme_stats()
     check_example_sync()
     check_example_structure()
     check_json()

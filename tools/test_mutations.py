@@ -184,6 +184,18 @@ MUTATIONS = [
         "            if actual is None:",
         "            if False:",
     ),
+    (
+        "check_repo.py",
+        "README 视频总表的行数不再核对（新增一集不写进表格也没人管）",
+        "    if len(rows) != n_videos:",
+        "    if False:",
+    ),
+    (
+        "check_repo.py",
+        "README 指标表的数字不再与仓库计数比对（「57 个」那种过期数又能活下来）",
+        "        elif tuple(int(x) for x in m.groups()) != want:",
+        "        elif False:",
+    ),
     # ---- check_assets_fresh.py ----
     (
         "check_assets_fresh.py",

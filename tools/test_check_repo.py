@@ -237,9 +237,13 @@ class CheckRepoTest(unittest.TestCase):
         return (len(payload) + 8).to_bytes(4, "big") + kind + payload
 
     def _write(self, root, rel, data):
+        """写一个文件到迷你仓库里；给 str 当文本写，给 bytes 当二进制写（MP4 夹具用）。"""
         p = root / rel
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_bytes(data)
+        if isinstance(data, str):
+            p.write_text(data, encoding="utf-8")
+        else:
+            p.write_bytes(data)
         return p
 
     def test_视频缺moov要报(self):
@@ -337,6 +341,68 @@ class CheckRepoTest(unittest.TestCase):
         errs = self.run_checks("check_video_claims")
         self.assertEqual([e for e in errs if "秒" in e], [],
                          f"文档没写时长不该凭空报错: {errs}")
+
+    # ---------- README 的视频总表 / 指标表 ----------
+    # 这两张表里的数字以前是手打的：README 曾写「视觉资产 57 个」「单集 ≤ 300KB」，
+    # 而仓库里其实是 70 个、4 集超过 300KB。抄来的数字一定会过期，所以改成数出来的。
+
+    def _mini_repo(self, root):
+        """一篇文章（4 道题）+ 1 GIF + 1 PNG + 1 集 75 秒视频 + 1 个示例工程。"""
+        quiz = "".join(
+            f"**Q{i}**：题目？\n\n- [ ] A. a\n- [ ] B. b\n- [ ] C. c\n- [ ] D. d\n\n"
+            f"<details><summary>答案</summary>A</details>\n\n" for i in (1, 2, 3, 4))
+        self._write(root, "docs/01-入门/01-环境准备.md",
+                    "## 常见错误\n\n- 例子\n\n## 随堂测验\n\n" + quiz +
+                    "## 验证\n\n看控制台\n\n> 📺 配套视频：[《环境准备》]"
+                    "(../assets/videos/video-01-env.mp4)（75 秒 · 竖屏 720×1280）\n")
+        self._write(root, "docs/assets/demo-a.gif", b"\0")
+        self._write(root, "docs/assets/diagram-a.png", b"\0")
+        self._write(root, "docs/assets/videos/video-01-env.mp4", self._video(75))
+        (root / "examples" / "todo-miniprogram").mkdir(parents=True)
+
+    def _readme(self, root, secs=75, assets=None):
+        st = chk.repo_stats()          # 必须先有 fixture，数字要从仓库里数
+        self._write(root, "README.md", (
+            "# 标题\n\n| 指标 | 数值 |\n|---|---|\n"
+            f"| 教程文章 | {st['articles']} 篇（学习路线 0 篇含 FAQ + {st['articles']} 篇教学链） |\n"
+            f"| 随堂测验 | {st['quizzes']} 题 / {st['articles']} 组（每篇 3~6 道） |\n"
+            f"| 视觉资产 | {st['assets'] if assets is None else assets} 个（{st['gifs']} 动画 GIF + "
+            f"{st['pngs']} 示意图 PNG + {st['videos']} 教学视频 MP4） |\n"
+            f"| 教学视频 | {st['videos']} 集 |\n\n"
+            "| 集 | 主题 | 时长 | 对应文章 |\n|---|---|---|---|\n"
+            f"| 第 1 集 | 环境准备 | {secs} 秒 | [环境准备](docs/01-入门/01-环境准备.md) |\n"))
+
+    def test_README两表数字一致不报(self):
+        root = self.fixture({})
+        self._mini_repo(root)
+        self._readme(root)
+        errs = self.run_checks("check_readme_videos", "check_readme_stats")
+        self.assertEqual(errs, [], f"数字都对却被报出: {errs}")
+
+    def test_README表格时长与成片不符要报(self):
+        root = self.fixture({})
+        self._mini_repo(root)
+        self._readme(root, secs=60)     # 成片其实是 75 秒
+        errs = self.run_checks("check_readme_videos")
+        self.assertTrue(any("第 1 集" in e and "75" in e for e in errs),
+                        f"表格时长与成片不符必须报出，实际: {errs}")
+
+    def test_README表格集数与视频数不符要报(self):
+        root = self.fixture({})
+        self._mini_repo(root)
+        self._readme(root)
+        self._write(root, "docs/assets/videos/video-02-x.mp4", self._video(75))
+        errs = self.run_checks("check_readme_videos")
+        self.assertTrue(any("1 行" in e and "2 集" in e for e in errs),
+                        f"新增一集却没进表格必须报出，实际: {errs}")
+
+    def test_README指标数字过期要报(self):
+        root = self.fixture({})
+        self._mini_repo(root)
+        self._readme(root, assets=57)   # 就是 README 里那个停留在加视频之前的数
+        errs = self.run_checks("check_readme_stats")
+        self.assertTrue(any("视觉资产" in e and "57" in e and "3" in e for e in errs),
+                        f"指标表数字过期必须报出，实际: {errs}")
 
     def test_gif超限要报(self):
         self.fixture({"docs/assets/demo-x.gif": None})
