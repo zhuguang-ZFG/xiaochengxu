@@ -285,6 +285,59 @@ class CheckRepoTest(unittest.TestCase):
         self.assertTrue(any("moov" in e for e in errs),
                         f"截断的文件必须报出，实际: {errs}")
 
+    # ---------- 文档写的时长 vs 成片实际时长 ----------
+    # 每集文档都写着「（75 秒 · 竖屏 720×1280）」。这个数字只能从成片本身核对：
+    # 脚本改了时长没重跑、或者只改了文档，读者看到的时长就是假的。
+
+    @staticmethod
+    def _mdhd(seconds, timescale=24000):
+        """version 0 的 mdhd：timescale + duration，成片时长就是这么来的。"""
+        body = (b"\x00\x00\x00\x00" + (0).to_bytes(4, "big") + (0).to_bytes(4, "big")
+                + timescale.to_bytes(4, "big") + (seconds * timescale).to_bytes(4, "big"))
+        return CheckRepoTest._box(b"mdhd", body)
+
+    def _video(self, seconds):
+        """一个结构完整、时长为 seconds 的迷你 MP4（moov→trak→mdia→mdhd + mdat）。"""
+        moov = self._box(b"moov", self._box(b"trak", self._box(b"mdia", self._mdhd(seconds))))
+        return (self._box(b"ftyp", b"isom") + moov + self._box(b"mdat", b"\x00" * 32))
+
+    def _doc(self, seconds):
+        return ("第 3 集：[《环境准备》](../assets/videos/video-03-env.mp4)"
+                f"（{seconds} 秒 · 竖屏 720×1280）\n")
+
+    def test_时长与实际一致不报(self):
+        root = self.fixture({"docs/01-入门/02-环境准备.md": self._doc(75)})
+        self._write(root, "docs/assets/videos/video-03-env.mp4", self._video(75))
+        errs = self.run_checks("check_video_claims")
+        self.assertEqual([e for e in errs if "秒" in e], [],
+                         f"时长一致却被报出: {errs}")
+
+    def test_时长写错要报(self):
+        """文档说 60 秒、成片其实是 75 秒——必须报，否则这条检查就是空的。"""
+        root = self.fixture({"docs/01-入门/02-环境准备.md": self._doc(60)})
+        self._write(root, "docs/assets/videos/video-03-env.mp4", self._video(75))
+        errs = self.run_checks("check_video_claims")
+        self.assertTrue(any("60" in e and "75" in e for e in errs),
+                        f"时长不符必须报出（写的是 60、实际 75），实际: {errs}")
+
+    def test_读不出时长要报(self):
+        """有 moov 但没有 mdhd：不能静默放过，否则解析一坏整条检查就隐形了。"""
+        root = self.fixture({"docs/01-入门/02-环境准备.md": self._doc(75)})
+        self._write(root, "docs/assets/videos/video-03-env.mp4",
+                    self._box(b"ftyp", b"isom") + self._box(b"moov", b"\x22" * 20)
+                    + self._box(b"mdat", b"\x00" * 32))
+        errs = self.run_checks("check_video_claims")
+        self.assertTrue(any("读不出时长" in e for e in errs),
+                        f"读不出时长必须报出，实际: {errs}")
+
+    def test_没写时长就不管(self):
+        root = self.fixture({"docs/01-入门/02-环境准备.md":
+                             "[《环境准备》](../assets/videos/video-03-env.mp4)\n"})
+        self._write(root, "docs/assets/videos/video-03-env.mp4", self._video(75))
+        errs = self.run_checks("check_video_claims")
+        self.assertEqual([e for e in errs if "秒" in e], [],
+                         f"文档没写时长不该凭空报错: {errs}")
+
     def test_gif超限要报(self):
         self.fixture({"docs/assets/demo-x.gif": None})
         orig = chk.GIF_LIMIT

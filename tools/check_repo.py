@@ -182,10 +182,50 @@ def check_gif_size():
             errors.append(f"{g.name}: {size} bytes 超过 200KB 上限（契约视觉资产规范）")
 
 
+def _mp4_boxes(fh, start, end):
+    """按 ISO-BMFF 走 `[start, end)` 内的 box，产出 (类型, 内容起点, 结束点)。
+
+    只读 box 头，不读画面数据，所以再大的视频也只读几十个字节。结构不自洽
+    （长度小于 8、越过父 box 末尾、头读不满）就抛 ValueError，由调用方判成坏文件。
+    `size == 0` 是规范里的「一直到末尾」，`size == 1` 是后面跟 8 字节 64 位长度。
+    """
+    off = start
+    while off + 8 <= end:
+        fh.seek(off)
+        hdr = fh.read(8)
+        if len(hdr) < 8:
+            raise ValueError("box 头读不满")
+        size = int.from_bytes(hdr[:4], "big")
+        kind = hdr[4:8]
+        body = off + 8
+        if size == 1:
+            ext = fh.read(8)
+            if len(ext) < 8:
+                raise ValueError("64 位长度读不满")
+            size = int.from_bytes(ext, "big")
+            body = off + 16
+        elif size == 0:
+            size = end - off
+        if size < 8 or off + size > end:
+            raise ValueError(f"{kind!r} 声明 {size} 字节，越过父 box 末尾")
+        yield kind, body, off + size
+        off += size
+
+
+_MP4_CONTAINERS = (b"moov", b"trak", b"mdia")
+
+
+def _mp4_walk(fh, start, end):
+    """同上，但会钻进 moov/trak/mdia 容器（不碰 mdat，那里面是画面）。"""
+    for kind, body, stop in _mp4_boxes(fh, start, end):
+        yield kind, body, stop
+        if kind in _MP4_CONTAINERS:
+            yield from _mp4_walk(fh, body, stop)
+
+
 def _mp4_is_complete(path):
     """MP4 能不能播：有没有 moov（索引），以及 box 声明的长度是否自洽。
 
-    沿着顶层 box 的头 8 字节往后跳，不读画面数据，所以再大的视频也只读几十个字节。
     拦两种失败：
       - **没有 moov**：渲染被 kill 时只剩 `ftyp+free+mdat` 头，播放器打不开；
       - **box 声明的长度越过文件末尾**：写到一半被截断（faststart 的文件 moov 在
@@ -195,30 +235,68 @@ def _mp4_is_complete(path):
     真的可能出现这 4 个字节（坏文件被判成好的），而 moov 若在文件尾且比 64KB 大，
     它的位置标记就落在窗口外（好文件被判成坏的）。按 box 走两个都不会。
     """
-    size = path.stat().st_size
     found_moov = False
-    with path.open("rb") as fh:
-        off = 0
-        while off + 8 <= size:
-            fh.seek(off)
-            hdr = fh.read(8)
-            if len(hdr) < 8:
-                return False
-            box = int.from_bytes(hdr[:4], "big")
-            kind = hdr[4:8]
-            if kind == b"moov":
-                found_moov = True            # 不能就此返回：后面的 box 还得验长度
-            if box == 1:                     # 长度用后面 8 字节的 64 位字段
-                ext = fh.read(8)
-                if len(ext) < 8:
-                    return False
-                box = int.from_bytes(ext, "big")
-            if box == 0:                     # 「一直到文件尾」，是合法的
-                box = size - off
-            if box < 8 or off + box > size:  # 长度不合法，或声明了却没写完
-                return False
-            off += box
+    try:
+        with path.open("rb") as fh:
+            for kind, _body, _stop in _mp4_boxes(fh, 0, path.stat().st_size):
+                if kind == b"moov":
+                    found_moov = True      # 不就此返回：后面的 box 还得验长度
+    except (ValueError, OSError):
+        return False
     return found_moov                        # 走到文件尾都没见到 moov 就是空壳
+
+
+def _mp4_duration(path):
+    """成片实际时长（秒），取 moov/trak/mdia/mdhd 的 timescale 与 duration。
+
+    文档里每集都写着「（75 秒 · 竖屏 720×1280）」，这个数字必须能从成片本身核对——
+    脚本里改了时长没重跑、或者只改了文档，都会让读者看到的时长是假的。
+    读不出来返回 None（由调用方决定怎么报，不静默放过）。
+    """
+    try:
+        with path.open("rb") as fh:
+            for kind, body, _stop in _mp4_walk(fh, 0, path.stat().st_size):
+                if kind != b"mdhd":
+                    continue
+                fh.seek(body)
+                head = fh.read(4)
+                if len(head) < 4:
+                    return None
+                if head[0] == 1:             # version 1：时间与时长都是 64 位
+                    fh.seek(body + 20)
+                    scale = int.from_bytes(fh.read(4), "big")
+                    dur = int.from_bytes(fh.read(8), "big")
+                else:                        # version 0：各 32 位
+                    fh.seek(body + 12)
+                    scale = int.from_bytes(fh.read(4), "big")
+                    dur = int.from_bytes(fh.read(4), "big")
+                if scale:
+                    return dur / scale
+    except (ValueError, OSError):
+        return None
+    return None
+
+
+VIDEO_CLAIM_RE = re.compile(r"\]\(([^)]*?video-[a-z0-9-]+\.mp4)\)\s*（(\d+)\s*秒")
+
+
+def check_video_claims():
+    """契约：文档里写的「（NN 秒」必须与成片实际时长一致（容差 0.5 秒）。"""
+    for f in reference_md_files():
+        text = strip_code(f.read_text(encoding="utf-8"))
+        for m in VIDEO_CLAIM_RE.finditer(text):
+            link, claimed = m.group(1), int(m.group(2))
+            v = (f.parent / link.split("#")[0]).resolve()
+            if not v.is_file():
+                continue                     # 断链由 check_links 负责报
+            actual = _mp4_duration(v)
+            rel = f.relative_to(ROOT)
+            if actual is None:
+                errors.append(f"{rel}: {v.name} 读不出时长（mdhd 缺失？），"
+                              f"无法核对文档写的 {claimed} 秒")
+            elif abs(actual - claimed) > 0.5:
+                errors.append(f"{rel}: {v.name} 文档写 {claimed} 秒，"
+                              f"成片实际 {actual:g} 秒（改时长须重渲染并同步文档）")
 
 
 def check_video_assets():
@@ -981,6 +1059,7 @@ def main():
     check_orphans()
     check_gif_size()
     check_video_assets()
+    check_video_claims()
     check_example_sync()
     check_example_structure()
     check_json()

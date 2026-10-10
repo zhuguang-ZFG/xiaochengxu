@@ -169,7 +169,19 @@ MUTATIONS = [
     (
         "check_repo.py",
         "MP4 box 长度不再校验（moov 之后被截断的文件照样判为完整）",
-        "            if box < 8 or off + box > size:",
+        "        if size < 8 or off + size > end:",
+        "        if False:",
+    ),
+    (
+        "check_repo.py",
+        "文档时长与成片时长的容差放到离谱（写 60 秒实际 75 秒也放行）",
+        "            elif abs(actual - claimed) > 0.5:",
+        "            elif abs(actual - claimed) > 0.5 * claimed:",
+    ),
+    (
+        "check_repo.py",
+        "读不出时长时静默放过（mdhd 解析一坏，整条时长核对就隐形）",
+        "            if actual is None:",
         "            if False:",
     ),
     # ---- check_assets_fresh.py ----
