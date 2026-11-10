@@ -13,6 +13,11 @@ Thumbs.db
 __pycache__/
 *.pyc
 tools/.cache/
+tools/publish/.cache/
+
+# 发布物料：成片/封面/投稿文案体积大，且配音走在线服务、不是逐字节可复现，
+# 所以只提交生成脚本（tools/publish/），产物不进版本库
+dist/
 
 # 微信开发者工具（如本仓库将来加入示例工程）
 project.private.config.json
