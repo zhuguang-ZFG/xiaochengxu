@@ -44,7 +44,7 @@ d.mkdir(parents=True, exist_ok=True)
 for name, content in {files!r}.items():
     (d / name).write_text(content, encoding="utf-8")
 """
-GENERATORS = ["gen_statics.py", "gen_diagrams.py", "gen_animations.py", "gen_videos.py"]
+GENERATORS = ["gen_statics.py", "gen_diagrams.py", "gen_handdrawn.py", "gen_animations.py", "gen_videos.py"]
 
 # 直接从被测脚本取锁定值：改了 workflow 里的 pin 而没同步，这里立刻失配
 sys.path.insert(0, str(TOOLS))

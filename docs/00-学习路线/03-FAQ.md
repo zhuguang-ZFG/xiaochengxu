@@ -12,6 +12,10 @@ updated: 2026-10-09
 
 汇总学习者在各阶段的高频问题。如果这里没有你的问题，欢迎到 [Issues](https://github.com/zhuguang-ZFG/xiaochengxu/issues) 提问。
 
+先说一句本库的学习观（手绘草稿纸一张：做题比划线有用）：
+
+![手绘：随堂测验草稿纸](../assets/hd-quiz.png)
+
 ## 入门阶段
 
 **Q1**: 没有编程基础能学小程序吗？

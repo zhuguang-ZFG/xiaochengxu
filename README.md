@@ -11,7 +11,7 @@
 
 ## 学习路径
 
-按「认知 → 理解 → 应用 → 实战 → 发布」五个阶段组织，与 [docs/00-学习路线/01-学习路径总览.md](docs/00-学习路线/01-学习路径总览.md) 对应：
+按「认知 → 准备 → 基础 → 进阶 → 实战与发布」五个阶段组织，与 [docs/00-学习路线/01-学习路径总览.md](docs/00-学习路线/01-学习路径总览.md) 对应：
 
 ```mermaid
 flowchart LR
@@ -63,7 +63,7 @@ flowchart LR
 ## 如何阅读
 
 - **零基础起步**：按上表从上往下读，每篇末尾的「随堂测验」和「验证」小节做完再进入下一篇。用 [PROGRESS.md](PROGRESS.md) 跟踪你的学习进度。
-- **查速查**：直接看对应分类文章；`内置组件`、`WXSS` 等篇章按速查风格组织；找 API 先看 [API 速查索引](docs/00-学习路线/02-API速查索引.md)。
+- **要速查**：直接看对应分类文章；`内置组件`、`WXSS` 等篇章按速查风格组织；找 API 先看 [API 速查索引](docs/00-学习路线/02-API速查索引.md)。
 - **常见问题**：学习过程中遇到问题先看 [FAQ](docs/00-学习路线/03-FAQ.md)，覆盖各阶段高频问题。
 - **进阶目标**：读完「进阶」十一篇 + 「云开发」四篇后，跟随实战项目做一遍完整上线。
 
@@ -89,9 +89,10 @@ flowchart LR
 │   ├── todo-miniprogram/        # 待办清单（云开发实战）
 │   ├── navigation-miniprogram/  # 多页面导航（tabBar + 跳转）
 │   └── product-list-miniprogram/ # 商品列表（搜索 + 列表渲染）
-└── tools/                  # 资产生成（render/gen_animations/gen_statics/gen_diagrams/gen_videos）
-                            # 校验：check_repo.py + check_assets_fresh.py + 三者各自的自测
-                            # data/wx-api-names.txt、wx-api-promise.txt：官方 API 名单（校验真实性/Promise 断言用，脚本抓取）
+└── tools/                  # 资产生成（render/gen_animations/gen_statics/gen_diagrams/gen_handdrawn/gen_videos）
+│                            # 导出：export_book.py（本地 PDF/EPUB）· 发布管线 publish/
+│                            # 校验：check_repo.py + check_assets_fresh.py + 各自的自测
+│                            # data/wx-api-names.txt、wx-api-promise.txt：官方 API 名单（校验真实性/Promise 断言用，脚本抓取）
 ```
 
 ## 参与共建
@@ -127,12 +128,12 @@ flowchart LR
 |---|---|
 | 教程文章 | 32 篇（学习路线 3 篇含 FAQ + 入门/基础/进阶/云开发/发布/实战/资源 29 篇教学链） |
 | 随堂测验 | 121 题 / 29 组（每篇教学文章 3~6 道场景选择题，`<details>` 折叠答案） |
-| 视觉资产 | 70 个（38 动画 GIF + 19 示意图 PNG + 13 教学视频 MP4），全部可脚本复现，CI 逐字节比对 |
+| 视觉资产 | 77 个（38 动画 GIF + 26 示意图 PNG + 13 教学视频 MP4），全部可脚本复现，CI 逐字节比对 |
 | 教学视频 | 13 集（`docs/assets/videos/`，720×1280 竖屏 MP4，含字幕帧，由脚本生成） |
 | 示例工程 | `examples/todo-miniprogram`、`examples/navigation-miniprogram`、`examples/product-list-miniprogram`（可运行，对应实战篇） |
 | 学习体验 | [PROGRESS.md](PROGRESS.md) 进度追踪 + [FAQ](docs/00-学习路线/03-FAQ.md) 高频问答 + 知识图谱 |
 | 自动校验 | 链接/元数据/序号/孤儿资产/GIF 与视频体积/MP4 完整性与时长/代码块语言/交叉引用顺序/示例工程结构/实战篇与示例工程逐行一致/**API 真实性 + Promise 断言**/**随堂测验格式 + checkbox 校验**/**进度同步**/**知识图谱引用**/**FAQ 格式**/**架构决策表列名**/**踩坑回顾表列名**/**延伸阅读官方链接**/**深度段落标题校验**/**README 指标表数字与仓库实际计数一致**，见 CI（外链 HTTP 校验为本地可选：`python tools/check_repo.py --external`） |
-| 资产复现校验 | `tools/check_assets_fresh.py` 清空 `docs/assets/` 重跑四个生成脚本，要求与 HEAD 逐字节一致（CI 在 windows-latest 上跑，1m50s） |
+| 资产复现校验 | `tools/check_assets_fresh.py` 清空 `docs/assets/` 重跑五个生成脚本，要求与 HEAD 逐字节一致（CI 在 windows-latest 上跑，1m50s） |
 
 ## 示例工程
 
@@ -147,7 +148,7 @@ flowchart LR
 - **CI 校验**：每次 push/PR 自动运行 [tools/check_repo.py](tools/check_repo.py)（链接断链、元数据、目录序号、孤儿资产、GIF/视频体积上限、代码块语言、交叉引用顺序、实战篇与示例工程逐行一致、API 真实性、Promise 断言）+ 示例工程 JS 语法检查与云函数单元测试，见 [.github/workflows/check.yml](.github/workflows/check.yml)
 - **API 真实性 / Promise 断言**：正文与示例代码里出现的每个 `wx.<name>` 都要在 [tools/data/wx-api-names.txt](tools/data/wx-api-names.txt)（507 个，抓自官方 API 索引页 + 官方 typings）里，拼错或虚构的接口名直接红——本库曾把一个 npm 包的能力当成 `wx.` 接口收进速查索引；同时对照 [wx-api-promise.txt](tools/data/wx-api-promise.txt)（194 个不传回调即返回 Promise 的接口）检查两件事：不能把支持 Promise 风格的接口说成回调式，不能 `await` 不返回 Promise 的接口
 - **资产复现校验**：另有一个 CI job 清空 `docs/assets/` 重跑全部生成脚本，要求与仓库内容逐字节一致——「改了脚本忘了重跑」或「手工改了 GIF」都会红。跑在 windows 上是因为字体解析（见 [docs/_契约.md](docs/_契约.md)）
-- **校验器自测**：[tools/test_check_repo.py](tools/test_check_repo.py) 用迷你仓库夹具反证校验逻辑本身有效（40 用例）；[tools/test_assets_fresh.py](tools/test_assets_fresh.py) 守护资产比对「以 HEAD 为基准」这一属性（8 用例）；[tools/test_mutations.py](tools/test_mutations.py) 把已知缺陷还原成变异体验证自测确实会变红（20/20 捕获）——防止出现「校验静默失效、CI 依旧全绿」
+- **校验器自测**：[tools/test_check_repo.py](tools/test_check_repo.py) 用迷你仓库夹具反证校验逻辑本身有效（79 用例）；[tools/test_assets_fresh.py](tools/test_assets_fresh.py) 守护资产比对「以 HEAD 为基准」这一属性（10 用例）；[tools/test_mutations.py](tools/test_mutations.py) 把已知缺陷还原成变异体验证自测确实会变红（33/33 捕获）——防止出现「校验静默失效、CI 依旧全绿」
 - 本地可随时运行 `python tools/check_repo.py` 自查
 
 ## 教学视频
