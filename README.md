@@ -133,7 +133,7 @@ flowchart LR
 | 示例工程 | `examples/todo-miniprogram`、`examples/navigation-miniprogram`、`examples/product-list-miniprogram`（可运行，对应实战篇） |
 | 学习体验 | [PROGRESS.md](PROGRESS.md) 进度追踪 + [FAQ](docs/00-学习路线/03-FAQ.md) 高频问答 + 知识图谱 |
 | 自动校验 | 链接/元数据/序号/孤儿资产/GIF 与视频体积/MP4 完整性与时长/代码块语言/交叉引用顺序/示例工程结构/实战篇与示例工程逐行一致/**API 真实性 + Promise 断言**/**随堂测验格式 + checkbox 校验**/**进度同步**/**知识图谱引用**/**FAQ 格式**/**架构决策表列名**/**踩坑回顾表列名**/**延伸阅读官方链接**/**深度段落标题校验**/**README 指标表数字与仓库实际计数一致**，见 CI（外链 HTTP 校验为本地可选：`python tools/check_repo.py --external`） |
-| 资产复现校验 | `tools/check_assets_fresh.py` 清空 `docs/assets/` 重跑五个生成脚本，要求与 HEAD 逐字节一致（CI 在 windows-latest 上跑，1m50s） |
+| 资产复现校验 | `tools/check_assets_fresh.py` 清空 `docs/assets/` 重跑五个生成脚本，要求与 HEAD 逐字节一致（CI 在 windows-latest 上跑，全量重渲约十几分钟） |
 
 ## 示例工程
 
