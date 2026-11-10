@@ -44,7 +44,9 @@ d.mkdir(parents=True, exist_ok=True)
 for name, content in {files!r}.items():
     (d / name).write_text(content, encoding="utf-8")
 """
-GENERATORS = ["gen_statics.py", "gen_diagrams.py", "gen_handdrawn.py", "gen_animations.py", "gen_videos.py"]
+# 与 check_assets_fresh.py 保持同一份顺序（gen_videos 先于 gen_statics：
+# hero 图烤进视频计数，顺序错了会写成 0——见 check_assets_fresh.py 顶部注释）
+GENERATORS = ["gen_videos.py", "gen_statics.py", "gen_diagrams.py", "gen_handdrawn.py", "gen_animations.py"]
 
 # 直接从被测脚本取锁定值：改了 workflow 里的 pin 而没同步，这里立刻失配
 sys.path.insert(0, str(TOOLS))
