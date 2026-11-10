@@ -538,6 +538,12 @@ def render_mp4(frames, name, fps=FPS):
            "-framerate", str(fps), "-i", "pipe:0",
            "-c:v", "libx264", "-preset", "medium", "-crf", "27",
            "-pix_fmt", "yuv420p", "-threads", "1", "-movflags", "+faststart",
+           # cpu-independent=1：x264 默认按 CPU 特性派发 SIMD 指令，不同机器
+           # （如 CI 的 runner 与开发机）即使 -threads 1 也会编出不同字节——
+           # video-03/04/06 三集曾因此连续一个月在 CI 上被误报「资产漂移」。
+           # 该开关让 x264 走纯 C 路径（实测与 noasm=1 输出逐字节相同，只慢 ~15%），
+           # 字节只由输入帧 + 参数决定，跨 CPU 复现成立。
+           "-x264-params", "cpu-independent=1",
            tmp]
 
     def abandon():
