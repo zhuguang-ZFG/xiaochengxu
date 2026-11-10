@@ -55,8 +55,8 @@ ASSETS = ROOT / "docs" / "assets"
 ASSETS_REL = "docs/assets"
 TOOLS = ROOT / "tools"
 
-# 顺序有意义：statics/diagrams 各写各的文件，animations 与 videos 最后
-GENERATORS = ["gen_statics.py", "gen_diagrams.py", "gen_animations.py", "gen_videos.py"]
+# 顺序有意义：statics/diagrams/handdrawn 各写各的文件，animations 与 videos 最后
+GENERATORS = ["gen_statics.py", "gen_diagrams.py", "gen_handdrawn.py", "gen_animations.py", "gen_videos.py"]
 
 # 与 .github/workflows/check.yml 的 assets 作业锁定同一套版本——资产就是这套
 # 工具链的产物（Pillow 决定像素，imageio-ffmpeg 决定封装字节）。改 workflow 里
