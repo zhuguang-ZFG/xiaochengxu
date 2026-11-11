@@ -165,9 +165,9 @@ class Sketch:
             hy = y1 - head * (uy * math.cos(ang) + ux * math.sin(ang))
             self.stroke((x1, y1), (hx, hy), color=color, width=width, amp=0.8, passes=1)
 
-    def underline(self, cx, y, s, size=15, color=INK, width=1.4):
-        """标签下的手绘着重线。"""
-        f = font_b(size) if size >= 16 else font(size)
+    def underline(self, cx, y, s, size=15, color=INK, width=1.4, bold=False):
+        """标签下的手绘着重线（宽度按同一字重度量，别短一截）。"""
+        f = font_b(size) if (bold or size >= 16) else font(size)
         w = self.d.textlength(s, font=f) / S
         self.stroke((cx - w / 2 - 3, y), (cx + w / 2 + 4, y + self.rng.uniform(-0.8, 0.8)),
                     color=color, width=width, passes=1)
@@ -325,10 +325,16 @@ def gen_setdata():
     sk.stroke((352, 224), (338, 232), color=INK_SOFT, width=1.5, passes=1)
     sk.stroke((352, 240), (338, 232), color=INK_SOFT, width=1.5, passes=1)
     sk.text_c(420, 240, "事件、触摸往回传", 13, INK_SOFT)
-    # 中转站：微信客户端小房子
+    # 中转站：微信客户端小房子（补上门窗，别只是一个方块）
     sk.rect((386, 300, 454, 344), color=INK, width=1.5, r=6, fill=_mix(GREEN, PAPER, 0.75))
     sk.stroke((380, 304), (420, 284), color=INK, width=1.5)
     sk.stroke((420, 284), (460, 304), color=INK, width=1.5)
+    sk.stroke((410, 344), (410, 326), color=INK, width=1.3, amp=0.6, passes=1)   # 门框左
+    sk.stroke((430, 344), (430, 326), color=INK, width=1.3, amp=0.6, passes=1)   # 门框右
+    sk.circle(420, 336, 2.2, color=INK, width=0.9, passes=1)                     # 门把手
+    sk.rect((394, 306, 406, 318), color=INK, width=1.0, overshoot=1.2, fill=(255, 255, 255))
+    sk.stroke((400, 306), (400, 318), color=INK_SOFT, width=0.9, amp=0.4, passes=1)  # 十字窗
+    sk.stroke((394, 312), (406, 312), color=INK_SOFT, width=0.9, amp=0.4, passes=1)
     sk.text_c(420, 352, "数据不共享，靠微信客户端中转", 13, _mix(INK, PAPER, 0.3))
     sk.text(70, 60, "为什么不能直接改 DOM？两层中间隔了一道墙。", 15, INK, bold=True)
     sk.sparkle(508, 70, color=GREEN, r=5)
@@ -387,22 +393,26 @@ def gen_debug():
     sk.circle(92, 89, 5, color=RED, width=1.2)
     sk.circle(114, 89, 5, color=YELLOW, width=1.2)
     sk.circle(136, 89, 5, color=GREEN, width=1.2)
-    # 代码行：彩色短横
-    rows = [(134, 134, 90, BLUE), (134, 150, 90, INK_SOFT), (164, 150, 60, ORANGE), (134, 210, 90, INK_SOFT),
-            (194, 210, 90, RED), (134, 270, 90, INK_SOFT), (150, 270, 70, BLUE), (134, 330, 90, INK_SOFT)]
+    # 代码行：彩色短横（带缩进层级，别太稀疏）
+    rows = [(134, 134, 90, BLUE), (164, 162, 60, ORANGE), (134, 190, 90, INK_SOFT),
+            (194, 218, 96, RED), (164, 246, 60, INK_SOFT), (134, 274, 76, BLUE),
+            (164, 302, 60, PURPLE), (134, 330, 90, INK_SOFT)]
     for x, y, wln, col in rows:
         sk.stroke((x, y), (x + wln, y), color=_mix(col, PAPER, 0.25), width=2.4, amp=0.7, passes=1)
-    # 虫子趴在 RED 那行末尾
-    bx, by = 356, 210
+        sk.circle(x - 14, y, 1.4, color=INK_SOFT, width=0.8, passes=1)  # 行号点
+    # 虫子趴在 RED 那行末尾（补两根触角）
+    bx, by = 356, 218
     sk.circle(bx, by, 9, color=RED, width=1.6, fill=_mix(RED, PAPER, 0.75))
     for ang in (-1.1, -0.5, 0.5, 1.1):
         sk.stroke((bx + 8 * math.cos(ang), by + 8 * math.sin(ang)),
                   (bx + 15 * math.cos(ang), by + 15 * math.sin(ang)), color=RED, width=1.2, amp=0.4, passes=1)
-    # 放大镜压在虫子上
+    sk.stroke((bx - 7, by - 8), (bx - 13, by - 14), color=RED, width=1.1, amp=0.4, passes=1)   # 触角
+    sk.stroke((bx - 4, by - 9), (bx - 7, by - 16), color=RED, width=1.1, amp=0.4, passes=1)
+    # 放大镜压在虫子上（手柄一根粗杆 + 环口一圈箍）
     mx, my = 380, 180
     sk.circle(mx, my, 52, color=INK, width=2.4, fill=None)
-    sk.stroke((mx + 38, my + 38), (mx + 74, my + 74), color=INK, width=3.0)
-    sk.stroke((mx + 38, my + 42), (mx + 70, my + 78), color=_mix(INK, PAPER, 0.62), width=2.2, passes=1)
+    sk.stroke((mx + 38, my + 38), (mx + 74, my + 74), color=INK, width=3.2, amp=0.8, passes=1)
+    sk.stroke((mx + 34, my + 42), (mx + 44, my + 32), color=INK, width=2.6, amp=0.5, passes=1)
     # Console 面板
     sk.rect((500, 150, 740, 300), color=INK, width=1.8, r=10, fill=(255, 255, 255))
     sk.text(518, 164, "Console", 13, INK_SOFT)
@@ -492,6 +502,301 @@ def gen_quiz():
     sk.save("hd-quiz.png")
 
 
+# ============ 08 hd-phone.png：小程序是什么（即点即用） ============
+def gen_phone():
+    sk = Sketch(800, 420, seed=808)
+    sk.text(300, 56, "无需下载安装，即点即用", 17, INK, bold=True)
+    sk.underline(388, 80, "无需下载安装，即点即用", 17, color=GREEN, bold=True)
+    # 左：一台手机，屏里是小程序宫格与「最近使用」条
+    sk.rect((70, 110, 280, 380), color=INK, width=2.0, r=20, fill=(255, 255, 255))
+    sk.stroke((150, 126), (200, 126), color=INK_SOFT, width=2.2, amp=0.8)
+    tiles = [(100, 156), (170, 156), (100, 222), (170, 222)]
+    for (tx, ty), col in zip(tiles, [GREEN, BLUE, ORANGE, PURPLE]):
+        sk.rect((tx, ty, tx + 52, ty + 52), color=_mix(INK, PAPER, 0.2), width=1.3,
+                r=10, fill=_mix(col, PAPER, 0.72))
+        sk.circle(tx + 26, ty + 20, 6, color=_mix(col, PAPER, 0.2), width=1.2, passes=1)
+        sk.stroke((tx + 14, ty + 38), (tx + 38, ty + 38), color=INK_SOFT, width=1.4, amp=0.5, passes=1)
+    sk.rect((100, 292, 250, 326), color=INK_SOFT, width=1.2, r=8, fill=_mix(YELLOW, PAPER, 0.75))
+    sk.text_c(175, 300, "最近使用", 12, INK_SOFT)
+    # 右：三个入口气泡，箭头指回手机——入口都在微信里
+    sk.text(360, 96, "三个入口，都在微信里", 13, INK_SOFT)
+    for label, by in (("扫码", 120), ("搜索", 180), ("分享卡片", 240)):
+        sk.rect((360, by, 490, by + 42), color=INK, width=1.5, r=12, fill=(255, 255, 255))
+        sk.text_c(425, by + 13, label, 14, INK)
+        sk.arrow((354, by + 21), (296, by + 21), color=INK_SOFT, width=1.4, head=6)
+    # 用完即走
+    sk.arrow((286, 350), (400, 350), color=GREEN, width=1.8, head=8)
+    sk.text(412, 342, "用完关掉，不占桌面", 14, INK)
+    sk.sparkle(560, 90)
+    sk.save("hd-phone.png")
+
+
+# ============ 09 hd-env.png：环境准备（开发者工具三步跑通） ============
+def gen_env():
+    sk = Sketch(840, 430, seed=909)
+    sk.text(84, 52, "注册 → 装工具 → 编译，三分钟见 Hello World", 17, INK, bold=True)
+    sk.underline(318, 76, "注册 → 装工具 → 编译，三分钟见 Hello World", 17, color=BLUE, bold=True)
+    # 开发者工具窗口
+    sk.rect((80, 100, 520, 330), color=INK, width=2.0, r=12, fill=(255, 255, 255))
+    sk.stroke((80, 136), (520, 136), color=INK_SOFT, width=1.4, amp=0.8, passes=1)
+    sk.circle(100, 118, 5, color=RED, width=1.2, passes=1)
+    sk.circle(120, 118, 5, color=YELLOW, width=1.2, passes=1)
+    sk.circle(140, 118, 5, color=GREEN, width=1.2, passes=1)
+    # 工具条：绿色「编译」胶囊
+    sk.rect((168, 106, 236, 130), color=INK, width=1.2, r=6, fill=_mix(GREEN, PAPER, 0.3))
+    sk.text_c(202, 111, "编译", 13, (255, 255, 255), bold=True)
+    # 三栏：文件树 / 代码 / 模拟器
+    sk.stroke((268, 136), (268, 330), color=_mix(INK, PAPER, 0.7), width=1.0, amp=0.5, passes=1)
+    sk.stroke((388, 136), (388, 330), color=_mix(INK, PAPER, 0.7), width=1.0, amp=0.5, passes=1)
+    for i, y in enumerate((156, 178, 200, 222, 244)):
+        sk.stroke((96, y), (96 + (44 if i % 2 else 58), y), color=INK_SOFT, width=1.6, amp=0.6, passes=1)
+    for y, x, wln, col in ((160, 284, 78, BLUE), (186, 284, 60, INK_SOFT), (212, 302, 66, ORANGE),
+                           (238, 284, 60, INK_SOFT), (264, 284, 78, GREEN)):
+        sk.stroke((x, y), (x + wln, y), color=_mix(col, PAPER, 0.25), width=2.2, amp=0.6, passes=1)
+    sk.rect((404, 158, 500, 312), color=INK, width=1.6, r=10, fill=_mix(BLUE, PAPER, 0.88))
+    sk.text_c(452, 226, "模拟器", 13, INK_SOFT)
+    sk.text_c(452, 290, "Hello World", 12, INK, bold=True)
+    # 右下：真机预览（二维码 → 手机）
+    sk.rect((580, 160, 668, 248), color=INK, width=1.8, overshoot=2.0, fill=(255, 255, 255))
+    for qx, qy in ((596, 176), (612, 192), (628, 176), (596, 208), (640, 216), (612, 224)):
+        sk.rect((qx, qy, qx + 10, qy + 10), color=INK, width=0.9, overshoot=0.8, fill=INK)
+    sk.arrow((676, 204), (724, 204), color=INK, width=1.6, head=7)
+    sk.rect((730, 150, 806, 258), color=INK, width=1.8, r=12, fill=_mix(GREEN, PAPER, 0.8))
+    sk.text_c(768, 196, "真机", 13, INK, bold=True)
+    sk.text(580, 280, "扫码预览：手机上跑的就是", 13, INK_SOFT)
+    sk.text(580, 302, "编辑器里这一份代码", 13, INK_SOFT)
+    sk.text(84, 356, "坑先说破：模拟器「正常」不等于真机「正常」，编译按钮救不了没填的 AppID", 13, INK_SOFT)
+    sk.sparkle(560, 84)
+    sk.save("hd-env.png")
+
+
+# ============ 10 hd-structure.png：项目结构（页面 = 同名四件套） ============
+def gen_structure():
+    sk = Sketch(860, 470, seed=1010)
+    sk.text(84, 48, "一个页面 = 同名四件套，谁都不能少", 17, INK, bold=True)
+    sk.underline(262, 72, "一个页面 = 同名四件套，谁都不能少", 17, color=ORANGE, bold=True)
+    # 根目录
+    sk.rect((84, 104, 216, 138), color=INK, width=1.6, r=6, fill=_mix(YELLOW, PAPER, 0.55))
+    sk.text_c(150, 112, "my-app", 14, INK, bold=True)
+    # 主干
+    sk.stroke((104, 138), (104, 384), color=INK_SOFT, width=1.3, amp=0.8)
+    # 一级：pages（带子树）+ 三个全局文件
+    sk.stroke((104, 176), (136, 176), color=INK_SOFT, width=1.2, amp=0.6, passes=1)
+    sk.rect((138, 160, 224, 192), color=INK, width=1.3, r=6, fill=_mix(GREEN, PAPER, 0.7))
+    sk.text_c(181, 167, "pages", 13, INK)
+    # index/ 与四件套（缩进到 x246 起，避开 app.* 行）
+    sk.stroke((160, 192), (160, 224), color=INK_SOFT, width=1.2, amp=0.6, passes=1)
+    sk.stroke((160, 224), (178, 224), color=INK_SOFT, width=1.2, amp=0.6, passes=1)
+    sk.rect((178, 208, 266, 240), color=INK, width=1.3, r=6, fill=_mix(GREEN, PAPER, 0.7))
+    sk.text_c(222, 215, "index/", 13, INK)
+    sk.stroke((246, 240), (246, 388), color=INK_SOFT, width=1.2, amp=0.8)
+    files = [("index.wxml", 250, "结构：写标签"), ("index.wxss", 286, "样式：管长相"),
+             ("index.js", 322, "逻辑：管数据"), ("index.json", 358, "配置：报页面")]
+    for fname, y, note in files:
+        sk.stroke((246, y + 14), (258, y + 14), color=INK_SOFT, width=1.2, amp=0.6, passes=1)
+        sk.rect((258, y, 388, y + 28), color=INK, width=1.3, r=6, fill=(255, 255, 255))
+        sk.text_c(323, y + 7, fname, 13, INK)
+        sk.arrow((396, y + 14), (432, y + 14), color=INK_SOFT, width=1.1, head=5)
+        sk.text(442, y + 7, note, 13, INK)
+    # 全局三件
+    for label, y in (("app.js", 292), ("app.json", 328), ("app.wxss", 364)):
+        sk.stroke((104, y + 16), (136, y + 16), color=INK_SOFT, width=1.2, amp=0.6, passes=1)
+        sk.rect((138, y, 238, y + 32), color=INK, width=1.3, r=6, fill=_mix(BLUE, PAPER, 0.85))
+        sk.text_c(188, y + 8, label, 13, INK)
+    sk.text(84, 416, "app.json 是总入口：少登记一个页面，编译直接报错；四个文件必须同名放在同一目录", 13, INK_SOFT)
+    sk.sparkle(760, 92)
+    sk.save("hd-structure.png")
+
+
+# ============ 11 hd-wxml.png：WXML（标签搭骨架，花括号插数据） ============
+def gen_wxml():
+    sk = Sketch(820, 420, seed=1111)
+    sk.text(84, 52, "标签搭骨架，花括号插数据", 17, INK, bold=True)
+    sk.underline(196, 76, "标签搭骨架，花括号插数据", 17, color=BLUE, bold=True)
+    # 手机屏里的列表项骨架
+    sk.rect((80, 110, 300, 360), color=INK, width=2.0, r=20, fill=(255, 255, 255))
+    sk.stroke((162, 126), (218, 126), color=INK_SOFT, width=2.2, amp=0.8)
+    sk.rect((104, 156, 276, 300), color=INK, width=1.5, r=10, fill=_mix(BLUE, PAPER, 0.92))
+    sk.rect((116, 168, 168, 220), color=INK, width=1.2, r=8, fill=_mix(YELLOW, PAPER, 0.6))  # 图位
+    sk.circle(136, 184, 5, color=ORANGE, width=1.2, passes=1)                                # 小太阳
+    sk.stroke((120, 210), (136, 196), color=ORANGE, width=1.3, amp=0.6, passes=1)            # 小山
+    sk.stroke((136, 210), (160, 188), color=ORANGE, width=1.3, amp=0.6, passes=1)
+    sk.rect((180, 172, 264, 190), color=INK, width=1.1, r=5, fill=_mix(GREEN, PAPER, 0.5))
+    sk.text_c(222, 173, "{{title}}", 11, INK, bold=True)
+    sk.stroke((180, 202), (260, 202), color=INK_SOFT, width=1.6, amp=0.6, passes=1)
+    sk.stroke((180, 216), (236, 216), color=INK_SOFT, width=1.6, amp=0.6, passes=1)
+    sk.text_c(190, 316, "wx:for 列表", 12, INK_SOFT)
+    sk.text_c(190, 338, "{{ }} 插数据", 12, INK_SOFT)
+    # 右侧注解
+    sk.text(380, 110, "WXML 只管「有什么」，", 15, INK)
+    sk.text(380, 136, "长什么样归 WXSS，", 15, INK)
+    sk.text(380, 162, "数据从 JS 里来。", 15, INK)
+    sk.text(380, 214, "它不是 HTML：", 14, INK, bold=True)
+    sk.text(380, 240, "没有 div/section，", 13, INK_SOFT)
+    sk.text(380, 262, "只有 view/text/image", 13, INK_SOFT)
+    sk.text(380, 284, "这些写好的组件。", 13, INK_SOFT)
+    sk.text(380, 330, "双向不自由：视图不能反写数据，", 13, INK_SOFT)
+    sk.text(380, 352, "要改就老老实实 setData。", 13, INK_SOFT)
+    sk.sparkle(320, 96)
+    sk.save("hd-wxml.png")
+
+
+# ============ 12 hd-lifecycle.png：页面生命周期（一条线读完） ============
+def gen_lifecycle():
+    sk = Sketch(860, 400, seed=1212)
+    sk.text(84, 48, "页面的一生，一条线读完", 17, INK, bold=True)
+    sk.underline(196, 72, "页面的一生，一条线读完", 17, color=PURPLE, bold=True)
+    nodes = [("onLoad", 110, "拿参数，一次"), ("onShow", 262, "每次出现都跑"),
+             ("onReady", 414, "首渲染完，能量尺寸"), ("onUnload", 700, "销毁，收尾")]
+    for label, x, sub in nodes:
+        sk.rect((x, 128, x + 132, 184), color=INK, width=1.8, r=12,
+                fill=_mix(PURPLE, PAPER, 0.8))
+        sk.text_c(x + 66, 140, label, 15, INK, bold=True)
+        sk.text_c(x + 66, 196, sub, 12, INK_SOFT)
+    for x0, x1 in ((246, 258), (398, 410), (550, 696)):
+        sk.arrow((x0, 156), (x1, 156), color=INK, width=1.7, head=8)
+    # 隐藏/回前台分支：去程向下，回程绕上方回到 onShow
+    sk.rect((300, 268, 460, 316), color=INK, width=1.6, r=10, fill=_mix(BLUE, PAPER, 0.85))
+    sk.text_c(380, 279, "onHide", 14, INK, bold=True)
+    sk.text_c(380, 324, "切后台暂停，别死循环", 12, INK_SOFT)
+    sk.stroke((328, 188), (328, 264), color=BLUE, width=1.5, amp=0.8)
+    sk.stroke((320, 256), (328, 265), color=BLUE, width=1.4, amp=0.5, passes=1)
+    sk.stroke((336, 256), (328, 265), color=BLUE, width=1.4, amp=0.5, passes=1)
+    sk.arrow((466, 292), (556, 292), color=BLUE, width=1.4, head=6)
+    sk.stroke((556, 292), (556, 100), color=BLUE, width=1.4, amp=0.8)
+    sk.stroke((556, 100), (328, 100), color=BLUE, width=1.4, amp=0.8)
+    sk.stroke((328, 100), (328, 122), color=BLUE, width=1.4, amp=0.6)
+    sk.stroke((320, 114), (328, 124), color=BLUE, width=1.3, amp=0.5, passes=1)
+    sk.stroke((336, 114), (328, 124), color=BLUE, width=1.3, amp=0.5, passes=1)
+    sk.text(400, 82, "回前台再走 onShow", 12, BLUE)
+    sk.text(110, 250, "顺序不看背的，", 14, INK, bold=True)
+    sk.text(110, 274, "看它服务什么：", 14, INK, bold=True)
+    sk.text(110, 298, "onLoad 拿一次参数，", 13, INK_SOFT)
+    sk.text(110, 320, "onShow 反复进出，", 13, INK_SOFT)
+    sk.text(110, 342, "onReady 才能问布局。", 13, INK_SOFT)
+    sk.text(560, 356, "注册在 Page({...}) 里的同名方法就是钩子", 13, INK_SOFT)
+    sk.sparkle(780, 84)
+    sk.save("hd-lifecycle.png")
+
+
+# ============ 13 hd-component.png：自定义组件（数据往下，事件往上） ============
+def gen_component():
+    sk = Sketch(860, 420, seed=1313)
+    sk.text(84, 48, "数据往下走，事件往上报", 17, INK, bold=True)
+    sk.underline(196, 72, "数据往下走，事件往上报", 17, color=GREEN, bold=True)
+    # 父（页面）包着子（组件）
+    sk.rect((110, 110, 430, 340), color=INK, width=2.0, r=14, fill=_mix(BLUE, PAPER, 0.9))
+    sk.text(126, 122, "页面（父）", 14, INK, bold=True)
+    sk.rect((170, 170, 370, 300), color=INK, width=1.8, r=12, fill=_mix(GREEN, PAPER, 0.78))
+    sk.text_c(270, 182, "组件（子）", 14, INK, bold=True)
+    sk.text_c(270, 214, "properties 只读", 13, INK_SOFT)
+    sk.text_c(270, 236, "自己管自己的 data", 13, INK_SOFT)
+    sk.text_c(270, 258, "不偷改父的值", 13, INK_SOFT)
+    sk.circle(270, 282, 5, color=GREEN, width=1.3, passes=1)
+    # 两条通道（贴着框内边走，标签跟在箭头旁）
+    sk.arrow((200, 148), (200, 168), color=BLUE, width=1.8, head=7)
+    sk.text(210, 140, "properties · 父传子", 12, BLUE, bold=True)
+    sk.arrow((400, 302), (400, 148), color=ORANGE, width=1.8, head=7)
+    sk.text(410, 210, "triggerEvent", 12, ORANGE, bold=True)
+    sk.text(410, 230, "（子说：用户点了！）", 11, INK_SOFT)
+    # 右侧要点
+    sk.text(540, 116, "组件不是小页面：", 15, INK, bold=True)
+    sk.underline(626, 140, "组件不是小页面：", 15, color=ORANGE, bold=True)
+    for i, s in enumerate(("数据只进不出的部分用 properties 声明", "想改父的值？发事件让父自己改",
+                           "样式默认隔离，别指望外层选择器")):
+        sk.check(552, 178 + i * 34, color=GREEN, s=5)
+        sk.text(568, 168 + i * 34, s, 13, INK)
+    sk.text(540, 292, "拆的时机：一个 wxml 超过两屏、", 13, INK_SOFT)
+    sk.text(540, 314, "或同一段 UI 出现两次，就值得拆。", 13, INK_SOFT)
+    sk.sparkle(780, 92)
+    sk.save("hd-component.png")
+
+
+# ============ 14 hd-network.png：网络请求（一次往返） ============
+def gen_network():
+    sk = Sketch(860, 420, seed=1414)
+    sk.text(84, 48, "域名先登记，请求才出发", 17, INK, bold=True)
+    sk.underline(212, 72, "域名先登记，请求才出发", 17, color=BLUE, bold=True)
+    # 手机 → 白名单闸门 → 服务器
+    sk.rect((84, 140, 200, 300), color=INK, width=2.0, r=16, fill=(255, 255, 255))
+    sk.text_c(142, 210, "手机里的小程序", 12, INK_SOFT)
+    sk.rect((84, 160, 200, 196), color=INK, width=1.2, r=8, fill=_mix(GREEN, PAPER, 0.6))
+    sk.text_c(142, 167, "wx.request", 13, INK, bold=True)
+    sk.rect((330, 130, 500, 250), color=INK, width=1.8, r=12, fill=_mix(ORANGE, PAPER, 0.8))
+    sk.text_c(415, 142, "域名白名单", 15, INK, bold=True)
+    sk.text_c(415, 172, "request 合法域名", 12, INK_SOFT)
+    sk.text_c(415, 192, "https 且先在后台登记", 12, INK_SOFT)
+    sk.circle(415, 222, 7, color=ORANGE, width=1.4, fill=_mix(YELLOW, PAPER, 0.4))  # 锁孔
+    # 服务器塔
+    sk.rect((660, 120, 780, 310), color=INK, width=2.0, r=10, fill=(255, 255, 255))
+    for y in (150, 190, 230, 270):
+        sk.stroke((676, y), (764, y), color=INK_SOFT, width=1.5, amp=0.7, passes=1)
+    sk.stroke((720, 120), (720, 92), color=INK, width=1.6, amp=0.6)                    # 天线
+    sk.circle(720, 86, 4, color=RED, width=1.3, passes=1)
+    sk.text_c(720, 322, "服务器", 13, INK)
+    # 去程 / 回程（回程虚线绕开白名单闸门，分两段指回手机）
+    sk.arrow((206, 180), (324, 180), color=INK, width=1.8, head=8)
+    sk.rect((238, 148, 300, 172), color=INK, width=1.2, r=6, fill=(255, 255, 255))
+    sk.text_c(269, 152, "请求", 12, INK, bold=True)
+    sk.dashed((656, 240), (506, 240), color=INK_SOFT, width=1.5)
+    sk.stroke((516, 232), (505, 240), color=INK_SOFT, width=1.4, amp=0.4, passes=1)
+    sk.stroke((516, 248), (505, 240), color=INK_SOFT, width=1.4, amp=0.4, passes=1)
+    sk.dashed((326, 240), (212, 240), color=INK_SOFT, width=1.5)
+    sk.stroke((222, 232), (211, 240), color=INK_SOFT, width=1.4, amp=0.4, passes=1)
+    sk.stroke((222, 248), (211, 240), color=INK_SOFT, width=1.4, amp=0.4, passes=1)
+    sk.rect((360, 226, 430, 254), color=INK, width=1.2, r=6, fill=_mix(BLUE, PAPER, 0.5))
+    sk.text_c(395, 231, "响应", 12, INK, bold=True)
+    # 底部提示
+    sk.text(84, 344, "开发者工具里能关掉域名校验——真机关不掉，", 13, INK_SOFT)
+    sk.text(84, 366, "所以白名单要在真机上线前配好。", 13, INK_SOFT)
+    sk.text(540, 344, "登录态：wx.login 换 code，", 13, INK_SOFT)
+    sk.text(540, 366, "服务端换 session，别存前端。", 13, INK_SOFT)
+    sk.sparkle(600, 90)
+    sk.save("hd-network.png")
+
+
+# ============ 15 hd-pay.png：微信支付（付钱快，对账靠回调） ============
+def gen_pay():
+    sk = Sketch(860, 420, seed=1515)
+    sk.text(84, 48, "用户付得快，回调要对得上", 17, INK, bold=True)
+    sk.underline(212, 72, "用户付得快，回调要对得上", 17, color=GREEN, bold=True)
+    # 手机支付键盘
+    sk.rect((84, 110, 260, 350), color=INK, width=2.0, r=18, fill=(255, 255, 255))
+    sk.text_c(172, 126, "收银台", 14, INK, bold=True)
+    sk.text_c(172, 152, "￥ 99.00", 18, RED, bold=True)
+    for r in range(2):
+        for c in range(3):
+            sk.circle(118 + c * 54, 200 + r * 44, 8, color=INK_SOFT, width=1.3, passes=1)
+    sk.rect((116, 284, 228, 316), color=INK, width=1.3, r=8, fill=_mix(GREEN, PAPER, 0.35))
+    sk.text_c(172, 291, "确认支付", 13, (255, 255, 255), bold=True)
+    sk.check(146, 332, color=GREEN, s=5)
+    sk.text_c(206, 324, "支付成功", 12, INK_SOFT)
+    # 中间：微信支付平台
+    sk.circle(430, 190, 46, color=INK, width=2.0, fill=_mix(GREEN, PAPER, 0.82))
+    sk.text_c(430, 176, "微信", 14, INK, bold=True)
+    sk.text_c(430, 198, "支付", 14, INK, bold=True)
+    # 右：商户后台（回调 + 幂等）
+    sk.rect((600, 120, 800, 320), color=INK, width=2.0, r=12, fill=(255, 255, 255))
+    sk.text_c(700, 134, "商户后台", 14, INK, bold=True)
+    items = [("收到回调", "验签别跳过"), ("先查单再改状态", "回调会重发多次"), ("同一单只处理一次", "幂等是底线")]
+    for i, (head, sub) in enumerate(items):
+        y = 164 + i * 52
+        sk.check(618, y + 9, color=GREEN, s=5)
+        sk.text(636, y, head, 13, INK, bold=True)
+        sk.text(636, y + 20, sub, 11, INK_SOFT)
+    # 两条通道：付款去程 / 回调通知
+    sk.arrow((266, 200), (378, 200), color=INK, width=1.8, head=8)
+    sk.arrow((480, 190), (596, 190), color=ORANGE, width=1.8, head=8)
+    sk.text(500, 164, "回调通知", 12, ORANGE, bold=True)
+    sk.dashed((760, 326), (760, 372), color=INK_SOFT, width=1.4)
+    sk.stroke((748, 366), (760, 375), color=INK_SOFT, width=1.3, passes=1)
+    sk.stroke((772, 366), (760, 375), color=INK_SOFT, width=1.3, passes=1)
+    sk.text_c(760, 384, "没回 200？它还会再来", 12, INK_SOFT)
+    sk.text(84, 384, "前端只负责调起 wx.requestPayment，", 13, INK_SOFT)
+    sk.text(420, 384, "钱对不对账，看服务端。", 13, INK_SOFT)
+    sk.save("hd-pay.png")
+
+
 if __name__ == "__main__":
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -502,4 +807,12 @@ if __name__ == "__main__":
     gen_debug()
     gen_rocket()
     gen_quiz()
+    gen_phone()
+    gen_env()
+    gen_structure()
+    gen_wxml()
+    gen_lifecycle()
+    gen_component()
+    gen_network()
+    gen_pay()
     print("done")
