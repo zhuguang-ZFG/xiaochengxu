@@ -8,16 +8,18 @@
 
 两种产物：
 - PDF：先用 markdown 库把每章转 HTML、拼成一整本（带封面/目录/章节样式），
-  再调 Edge 无头模式打印。中文排版交给浏览器引擎，比自制 PDF 渲染器可靠。
+  再调 Edge 无头模式打印。Chromium 打印不生成 PDF 大纲，所以打完再用
+  PyMuPDF 把「章 → 节」两级书签写进文件——没有书签的 240 页 PDF 基本没法翻。
 - EPUB 3：手写打包（mimetype + container.xml + OPF + 每章一个 XHTML），
-  不依赖 calibre/ebook-convert——纯标准库 + markdown 库即可复现。
+  nav 目录做成两级（章内含小节锚点），不依赖 calibre/ebook-convert。
 
 用法：
   python tools/export_book.py               # PDF + EPUB 都生成
   python tools/export_book.py --pdf-only    # 只要 PDF
   python tools/export_book.py --epub-only   # 只要 EPUB
 
-依赖：`pip install markdown`；PDF 另需本机 Edge（路径可用环境变量 EDGE_PATH 覆盖）。
+依赖：`pip install markdown pymupdf`；PDF 另需本机 Edge（路径可用环境变量
+EDGE_PATH 覆盖）。
 """
 import argparse
 import datetime
@@ -151,6 +153,48 @@ def fix_image_srcs(html, md_path, to_uri, gif_cache=None):
     return re.sub(r'(<img[^>]*?\bsrc=")([^"]+)(")', repl, html), resolved
 
 
+def _norm(s):
+    """书签定位用：去掉空白与行内代码记号，拿 PDF 提取文本做包含匹配。"""
+    return re.sub(r"[\s`*]+", "", s)
+
+
+def _h2_sections(raw_md):
+    return re.findall(r"^## (.+)$", raw_md, re.M)
+
+
+def add_pdf_outline(pdf_path, chapters):
+    """把「章 → 节」两级书签写进 PDF。
+
+    Chromium --print-to-pdf 不产大纲；逐页提取文本做定位（标题若因折行
+    断开，空白归一化后仍能命中）。页码随章节游标单调递增，同名小节
+    （如「验证」「随堂测验」每章都有）不会串章。
+    """
+    import fitz
+    doc = fitz.open(str(pdf_path))
+    norm_pages = [_norm(doc[i].get_text()) for i in range(doc.page_count)]
+    toc = [[1, "封面", 1]]
+    toc.append([1, "目录", next((i + 1 for i, t in enumerate(norm_pages) if "目录" in t[:60]), 2)])
+    starts, cursor = [], 0
+    for no, _title, _sec in chapters:
+        marker = _norm(f"第{no}章")
+        start = next(i for i in range(cursor, doc.page_count) if marker in norm_pages[i])
+        starts.append(start)
+        cursor = start + 1
+    bounds = starts[1:] + [doc.page_count]
+    for (no, title, sections), start, nxt in zip(chapters, starts, bounds):
+        toc.append([1, f"第 {no} 章 {title}", start + 1])
+        for sec in sections:
+            pg = next((i for i in range(start, nxt) if _norm(sec) in norm_pages[i]), None)
+            if pg is not None:
+                toc.append([2, sec.replace("`", ""), pg + 1])
+    doc.set_toc(toc)
+    tmp = pdf_path.with_name(pdf_path.stem + "-toc.pdf")
+    doc.save(str(tmp), garbage=3, deflate=True)
+    doc.close()
+    shutil.move(tmp, pdf_path)
+    print(f"书签: {len(toc)} 条（{len(chapters)} 章 + {len(toc) - len(chapters) - 2} 节）")
+
+
 CHAPTER_TMPL = """<div class="chapter">
 <div class="chapter-no">第 {no} 章</div>
 <h1>{title}</h1>
@@ -160,12 +204,13 @@ CHAPTER_TMPL = """<div class="chapter">
 
 
 def build_pdf(chapters, out_dir):
-    """拼单页 HTML → Edge 无头打印 PDF。"""
-    parts = []
+    """拼单页 HTML → Edge 无头打印 PDF → 写两级书签。"""
+    parts, ch_meta = [], []
     gif_cache = out_dir / "gif-frames"
     for no, f, meta in chapters:
         raw = strip_front_matter(f.read_text(encoding="utf-8"))
         html, _ = fix_image_srcs(md_to_html(raw), f, to_uri=True, gif_cache=gif_cache)
+        ch_meta.append((no, meta.get("title", f.stem), _h2_sections(raw)))
         parts.append(CHAPTER_TMPL.format(
             no=no, title=meta.get("title", f.stem), body=html,
             category=meta.get("category", ""), difficulty=meta.get("difficulty", ""),
@@ -234,6 +279,7 @@ img {{ max-width: 100%; max-height: 84mm; }}
     if not tmp_pdf.is_file() or tmp_pdf.stat().st_size < 50_000:
         raise SystemExit(f"PDF 打印失败：{r.stderr[-500:] if r.stderr else r.stdout[-500:]}")
     shutil.move(tmp_pdf, final_pdf)
+    add_pdf_outline(final_pdf, ch_meta)
     print(f"PDF: {final_pdf}（{final_pdf.stat().st_size // 1024} KB）")
 
 
@@ -272,6 +318,14 @@ def build_epub(chapters, out_dir):
         html, resolved = fix_image_srcs(md_to_html(raw), f, to_uri=False)
         for old, new in register_images(resolved).items():
             html = re.sub(rf'src="{re.escape(old)}"', f'src="{new}"', html)
+        # 小节锚点 + 两级目录：每章的 h2 依次挂 id，nav 里嵌一层 ol
+        sec_ids = []
+
+        def _id_h2(m):
+            sec_ids.append(m.group(1))
+            return f'<h2 id="s{len(sec_ids) - 1}">{m.group(1)}</h2>'
+
+        html = re.sub(r"<h2>(.*?)</h2>", _id_h2, html)
         title = meta.get("title", f.stem)
         xhtml = XHTML_TMPL.format(no=no, title=title, body=html,
                                   category=meta.get("category", ""),
@@ -282,7 +336,10 @@ def build_epub(chapters, out_dir):
         files[fname] = xhtml
         manifest.append(f'<item id="ch{no:02d}" href="{fname}" media-type="application/xhtml+xml"/>')
         spine.append(f'<itemref idref="ch{no:02d}"/>')
-        nav_lis.append(f'<li><a href="{fname}">{no}. {title}</a></li>')
+        subs = "".join(f'<li><a href="{fname}#s{i}">{s.replace("`", "")}</a></li>'
+                       for i, s in enumerate(sec_ids))
+        nested = f"<ol>{subs}</ol>" if subs else ""
+        nav_lis.append(f'<li><a href="{fname}">{no}. {title}</a>{nested}</li>')
 
     for src, arc in img_registry.items():
         files[arc] = src.read_bytes()
