@@ -128,7 +128,7 @@ flowchart LR
 |---|---|
 | 教程文章 | 32 篇（学习路线 3 篇含 FAQ + 入门/基础/进阶/云开发/发布/实战/资源 29 篇教学链） |
 | 随堂测验 | 121 题 / 29 组（每篇教学文章 3~6 道场景选择题，`<details>` 折叠答案） |
-| 视觉资产 | 77 个（38 动画 GIF + 26 示意图 PNG + 13 教学视频 MP4），全部可脚本复现，CI 逐字节比对 |
+| 视觉资产 | 85 个（38 动画 GIF + 34 示意图 PNG + 13 教学视频 MP4），全部可脚本复现，CI 逐字节比对 |
 | 教学视频 | 13 集（`docs/assets/videos/`，720×1280 竖屏 MP4，含字幕帧，由脚本生成） |
 | 示例工程 | `examples/todo-miniprogram`、`examples/navigation-miniprogram`、`examples/product-list-miniprogram`（可运行，对应实战篇） |
 | 学习体验 | [PROGRESS.md](PROGRESS.md) 进度追踪 + [FAQ](docs/00-学习路线/03-FAQ.md) 高频问答 + 知识图谱 |
