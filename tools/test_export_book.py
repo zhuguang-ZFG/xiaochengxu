@@ -3,7 +3,7 @@
 
 守护的是「书稿层」的不变量：标题不重复、书内链接全部可跳、锚点能解析、
 符号能打印、图有说明、封面可复现。EPUB 成品在临时目录真打一次包再校验结构；
-PDF 成品校验需要本机 Edge（约 1 分钟），没有 Edge 的机器自动跳过。
+PDF 成品校验需要本机 Edge 与 PyMuPDF（约 1 分钟），缺任意一项自动跳过。
 
 用法：
     python tools/test_export_book.py
@@ -376,7 +376,18 @@ class EpubBuildTest(unittest.TestCase):
         self.assertGreater(count, 60)
 
 
-@unittest.skipUnless(eb.find_edge(), "本机没有 Edge，跳过 PDF 成品校验")
+def _pdf_ready():
+    """PDF 成品校验同时依赖 Edge 与 PyMuPDF；CI 有 Edge 但未装 PyMuPDF。"""
+    if not eb.find_edge():
+        return False
+    try:
+        import fitz  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+@unittest.skipUnless(_pdf_ready(), "未安装 Edge 或 PyMuPDF，跳过 PDF 成品校验")
 class PdfBuildTest(unittest.TestCase):
     """真打一次 PDF（约 1 分钟），校验书签、目录页码与元数据。"""
 
