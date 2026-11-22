@@ -105,7 +105,7 @@ python tools/export_book.py              # PDF + EPUB
 python tools/export_book.py --epub-only  # 只要 EPUB
 ```
 
-PDF 含封面、版权页、前言、使用说明、带页码的详细目录、部分与章分隔页、页眉页脚和三级书签；EPUB 3 含封面、三级导航与 landmarks，支持深色模式。PDF 打印需要本机 Microsoft Edge（路径可用 `EDGE_PATH` 覆盖）。导出层的自测：`python tools/test_export_book.py`（无 Edge 时自动跳过 PDF 成品校验）。
+PDF 含封面、版权页、前言、使用说明、带页码的详细目录、部分与章分隔页、页眉页脚和三级书签；EPUB 3 含封面、三级导航与 landmarks，支持深色模式。PDF 打印需要本机 Microsoft Edge（路径可用 `EDGE_PATH` 覆盖）。导出层的自测：`python tools/test_export_book.py`（缺 Edge 或 PyMuPDF 时自动跳过 PDF 成品校验）。
 
 ## 参与共建
 
