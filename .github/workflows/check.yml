@@ -34,6 +34,11 @@ jobs:
       - name: 视频字幕折行自测（不许把标识符劈成两截、不许出现孤行）
         run: python tools/test_gen_videos.py
 
+      - name: 电子书导出层自测（真打 EPUB 校验结构与链接；PDF 成品需 Edge，CI 自动跳过）
+        run: |
+          pip install markdown==3.11
+          python tools/test_export_book.py
+
       - name: 变异测试（确认自测真的能抓到缺陷，而非碰巧全绿）
         run: python tools/test_mutations.py
 
