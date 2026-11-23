@@ -4,7 +4,8 @@
 图源仍以 Markdown 里的 Mermaid 块为准：GitHub 上直接渲染，电子书用这里的
 预渲染图。渲染链固定为 tools/mermaid 下锁定的 mermaid-cli + Chrome for
 Testing + 白底 2x，再由 Pillow 合成白底、重存为确定性 PNG——浏览器吐出的
-字节不稳定，不能直接入库。
+字节不稳定，不能直接入库。Mermaid 量文字时会混用系统的 sans-serif；
+pin_sans_serif.mjs 在页面建好后把它映射到主题字体，消除 Arial 版本差异。
 
 用法：
   npm ci --ignore-scripts --prefix tools/mermaid
@@ -41,6 +42,8 @@ DOCS = ROOT / "docs"
 ASSETS = DOCS / "assets"
 CONTRACT_NAME = "_契约.md"
 MERMAID_DIR = ROOT / "tools" / "mermaid"
+PIN_SANS_SERIF = MERMAID_DIR / "pin_sans_serif.mjs"
+SANS_SERIF_ENV = "NEEDLEFISH_MERMAID_SANS"
 
 PINNED_MERMAID_CLI = "11.4.2"
 PINNED_MERMAID = "11.17.2"
@@ -75,6 +78,16 @@ MERMAID_CONFIG = {
     "flowchart": {"htmlLabels": False, "curve": "basis"},
     "sequence": {"useMaxWidth": False},
 }
+
+
+def theme_font_family(config=None):
+    """主题字体栈的首个字体：钩子把它同时用作通用 sans-serif 的映射目标。"""
+    config = MERMAID_CONFIG if config is None else config
+    family = config["themeVariables"]["fontFamily"]
+    first = family.split(",")[0].strip().strip("\"'")
+    if not first:
+        raise SystemExit("themeVariables.fontFamily 为空，无法固定测量字体")
+    return first
 
 
 def node_exe():
@@ -151,7 +164,9 @@ def check_pinned_deps(mermaid_dir=None):
 
 
 def build_cmd(source, output, mermaid_cfg, puppeteer_cfg):
-    return [node_exe(), str(mmdc_js())] + [
+    # --import 走 file://：Windows 盘符路径会被 ESM 加载器当成未知 scheme。
+    return [node_exe(), "--import", PIN_SANS_SERIF.as_uri(),
+            str(mmdc_js())] + [
         "-i", str(source),
         "-o", str(output),
         "-c", str(mermaid_cfg),
@@ -210,6 +225,8 @@ def normalize_png(src, dst):
 def render_all(blocks, workdir, browser, run=subprocess.run):
     workdir = pathlib.Path(workdir)
     mermaid_cfg, puppeteer_cfg = write_configs(workdir, browser)
+    env = dict(os.environ)
+    env[SANS_SERIF_ENV] = theme_font_family()
     for block in blocks:
         stem = block.asset_path.stem
         source = workdir / f"{stem}.mmd"
@@ -217,7 +234,7 @@ def render_all(blocks, workdir, browser, run=subprocess.run):
         source.write_text(block.source + "\n", encoding="utf-8")
         cmd = build_cmd(source, raw, mermaid_cfg, puppeteer_cfg)
         try:
-            run(cmd, check=True, capture_output=True, text=True)
+            run(cmd, check=True, capture_output=True, text=True, env=env)
         except subprocess.CalledProcessError as exc:
             detail = (exc.stderr or exc.stdout or "").strip()
             raise SystemExit(
@@ -246,6 +263,8 @@ def main():
         raise SystemExit(
             f"找不到本地 mermaid-cli：{mmdc_js()}\n"
             "请运行 npm ci --ignore-scripts --prefix tools/mermaid")
+    if not PIN_SANS_SERIF.is_file():
+        raise SystemExit(f"找不到字体固定钩子：{PIN_SANS_SERIF}")
     chrome = find_pinned_chrome()
     if not chrome:
         raise SystemExit(

@@ -66,13 +66,25 @@ class CommandTest(unittest.TestCase):
     def test_命令走本地锁定的_mmdc_而不是_npx(self):
         cmd = gm.build_cmd("in.mmd", "out.png", "m.json", "p.json")
         self.assertTrue(pathlib.Path(cmd[0]).name.lower().startswith("node"))
-        cli = pathlib.Path(cmd[1])
-        self.assertEqual(cli.name, "cli.js")
+        cli = pathlib.Path(next(part for part in cmd
+                                if str(part).endswith("cli.js")))
         self.assertIn("node_modules", cli.parts)
         self.assertIn("mermaid-cli", cli.parts)
         lowered = [part.lower() for part in cmd]
         self.assertNotIn("npx", lowered)
         self.assertNotIn("--yes", lowered)
+
+    def test_启动_mmdc_前先加载字体固定钩子(self):
+        """时序图会同时用 sans-serif 和主题字体量文字并取较大者。
+
+        CI 与本机的 Arial 版本不同，两条测量分支会选到不同结果，坐标随之
+        漂移。钩子必须在 mmdc 之前加载，把通用 sans-serif 映射到主题字体。
+        """
+        cmd = gm.build_cmd("in.mmd", "out.png", "m.json", "p.json")
+        self.assertEqual(cmd[1], "--import")
+        self.assertEqual(cmd[2], gm.PIN_SANS_SERIF.as_uri())
+        self.assertTrue(gm.PIN_SANS_SERIF.is_file())
+        self.assertEqual(pathlib.Path(cmd[3]).name, "cli.js")
 
     def test_依赖与浏览器版本全部精确锁定(self):
         self.assertEqual(gm.PINNED_MERMAID_CLI, "11.4.2")
@@ -109,6 +121,18 @@ class ConfigTest(unittest.TestCase):
         self.assertFalse(gm.MERMAID_CONFIG["flowchart"]["htmlLabels"])
         # 配置必须能原样序列化，避免 set 之类不可写 JSON 的值混进来
         json.dumps(gm.MERMAID_CONFIG)
+
+
+class ThemeFontTest(unittest.TestCase):
+    def test_取主题字体栈的第一个字体(self):
+        self.assertEqual(gm.theme_font_family(), "Microsoft YaHei")
+        config = {"themeVariables": {"fontFamily": ' "Noto Sans SC" , sans-serif '}}
+        self.assertEqual(gm.theme_font_family(config), "Noto Sans SC")
+
+    def test_主题字体缺失时拒绝渲染(self):
+        with self.assertRaises(SystemExit):
+            gm.theme_font_family(
+                {"themeVariables": {"fontFamily": " , sans-serif"}})
 
 
 class PinnedEnvironmentTest(unittest.TestCase):
@@ -264,6 +288,8 @@ class RenderAllTest(unittest.TestCase):
                 mmd = pathlib.Path(cmd[cmd.index("-i") + 1])
                 self.assertEqual(mmd.read_text(encoding="utf-8").strip(),
                                  "flowchart LR\n  A --> B")
+                self.assertEqual(kwargs["env"][gm.SANS_SERIF_ENV],
+                                 "Microsoft YaHei")
 
             gm.render_all([block], td, "C:/Chrome/chrome.exe", run=fake_run)
             self.assertTrue(block.asset_path.is_file())

@@ -55,7 +55,7 @@ DEPS = {
     # 自测会读 package.json / lockfile 核对版本，临时目录里缺了它们，
     # 每次变异都会因 FileNotFoundError 变红，全绿里全是假捕获。
     "gen_mermaid.py": ["mermaid_source.py", "mermaid/package.json",
-                       "mermaid/package-lock.json"],
+                       "mermaid/package-lock.json", "mermaid/pin_sans_serif.mjs"],
     "mermaid/install-browser.js": ["mermaid/package.json",
                                    "mermaid/package-lock.json"],
 }
@@ -341,8 +341,28 @@ MUTATIONS = [
     (
         "gen_mermaid.py",
         "渲染退回 PATH 上的 mmdc（不再用 tools/mermaid 锁定的 CLI）",
-        "    return [node_exe(), str(mmdc_js())] + [",
+        "    return [node_exe(), \"--import\", PIN_SANS_SERIF.as_uri(),\n"
+        "            str(mmdc_js())] + [",
         "    return [\"mmdc\"] + [",
+    ),
+    (
+        "gen_mermaid.py",
+        "字体固定钩子不再预加载（Arial 版本差异重新影响时序图布局）",
+        "    return [node_exe(), \"--import\", PIN_SANS_SERIF.as_uri(),\n"
+        "            str(mmdc_js())] + [",
+        "    return [node_exe(), str(mmdc_js())] + [",
+    ),
+    (
+        "gen_mermaid.py",
+        "钩子拿到整条字体栈而不是首个字体（sans-serif 映射到无效族名）",
+        "    first = family.split(\",\")[0].strip().strip(\"\\\"'\")",
+        "    first = family",
+    ),
+    (
+        "gen_mermaid.py",
+        "测量字体环境变量未传给 mmdc（钩子启动即退出）",
+        "    env[SANS_SERIF_ENV] = theme_font_family()",
+        "    env[SANS_SERIF_ENV] = \"Arial\"",
     ),
     (
         "gen_mermaid.py",
