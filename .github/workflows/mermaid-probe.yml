@@ -1,0 +1,89 @@
+name: mermaid-probe
+
+# 临时诊断流程：只渲染 Mermaid 三张图并导出 PNG/SVG，供与本地产物比对。
+# 完整 assets 作业要跑 30 分钟的视频生成，定位渲染差异时太慢；本流程约 3 分钟。
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: windows-latest
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: "1"
+      PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 安装与 assets 作业一致的锁定依赖
+        run: |
+          pip install pillow==12.3.0 imageio-ffmpeg==0.6.0
+          npm ci --ignore-scripts --prefix tools/mermaid
+          npm run install-browser --prefix tools/mermaid
+
+      - name: 渲染三张图并导出 PNG/SVG
+        shell: bash
+        run: |
+          mkdir -p probe
+          python tools/gen_mermaid.py
+          git status --porcelain -- docs/assets | tee probe/git-status.txt
+          sha256sum docs/assets/diagram-*.png | tee probe/sha256.txt
+          python - <<'PY'
+          import pathlib
+          import subprocess
+          import sys
+
+          sys.path.insert(0, "tools")
+          import gen_mermaid as gm
+          from mermaid_source import scan_paths
+
+          out = pathlib.Path("probe")
+          chrome = gm.find_pinned_chrome()
+          (out / "browser.txt").write_text(chrome or "not found", encoding="utf-8")
+          cfg, pup = gm.write_configs(out, chrome)
+          for block in scan_paths(gm.source_files()):
+              src = out / (block.asset_path.stem + ".mmd")
+              src.write_text(block.source + "\n", encoding="utf-8")
+              subprocess.run(
+                  ["node", str(gm.mmdc_js()), "-i", str(src),
+                   "-o", str(src.with_suffix(".svg")),
+                   "-c", str(cfg), "-p", str(pup), "-b", "white"],
+                  check=True)
+          from PIL import Image
+          for png in sorted(pathlib.Path("docs/assets").glob("diagram-*.png")):
+              dst = out / png.name
+              dst.write_bytes(png.read_bytes())
+              print(png.name, Image.open(png).size)
+          PY
+
+      - name: 记录字体与运行环境指纹
+        shell: pwsh
+        run: |
+          $fonts = @(
+            "C:\Windows\Fonts\msyh.ttc",
+            "C:\Windows\Fonts\msyhbd.ttc",
+            "C:\Windows\Fonts\arial.ttf",
+            "C:\Windows\Fonts\segoeui.ttf"
+          )
+          Get-FileHash $fonts -Algorithm SHA256 -ErrorAction SilentlyContinue |
+            Format-List | Out-File -Encoding utf8 probe/fonts.txt
+          (Get-Item C:\Windows\Fonts\msyh.ttc).VersionInfo |
+            Format-List | Out-File -Append -Encoding utf8 probe/fonts.txt
+          python -c "import sys, PIL, imageio_ffmpeg; print(sys.version); print('Pillow', PIL.__version__, 'imageio-ffmpeg', imageio_ffmpeg.__version__)" |
+            Out-File -Encoding utf8 probe/env.txt
+          node --version | Out-File -Append -Encoding utf8 probe/env.txt
+          (Get-ComputerInfo -Property OsName, OsVersion) |
+            Format-List | Out-File -Append -Encoding utf8 probe/env.txt
+
+      - name: 上传探针产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: mermaid-probe
+          path: probe/
