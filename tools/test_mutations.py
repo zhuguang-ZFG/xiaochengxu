@@ -40,6 +40,8 @@ TARGETS = {
     "check_repo.py": "test_check_repo.py",
     "check_assets_fresh.py": "test_assets_fresh.py",
     "gen_videos.py": "test_gen_videos.py",
+    "gen_mermaid.py": "test_gen_mermaid.py",
+    "mermaid_source.py": "test_mermaid_source.py",
 }
 
 # 被测脚本 import 的同目录模块（临时目录里没有 site-packages 之外的来源，必须复制）。
@@ -47,7 +49,9 @@ TARGETS = {
 # gen_animations/gen_diagrams/gen_statics，缺一个就是 FileNotFoundError，
 # 于是每次变异都因「自测崩了」变红——25/25 全绿里混着假捕获。
 DEPS = {
+    "check_repo.py": ["mermaid_source.py"],
     "gen_videos.py": ["render.py", "gen_animations.py", "gen_diagrams.py", "gen_statics.py"],
+    "gen_mermaid.py": ["browser.py", "mermaid_source.py"],
 }
 
 MUTATIONS = [
@@ -233,6 +237,26 @@ MUTATIONS = [
         "        for lineno, line in enumerate(masked.split(\"\\n\"), 1):\n            if ignored(lineno):",
         "        for lineno, line in enumerate(masked.split(\"\\n\"), 1):\n            if False:",
     ),
+    (
+        "check_repo.py",
+        "图片 alt 题注检查形同虚设（空 alt 的裸图漏到电子书）",
+        "                if not m.group(1).strip():",
+        "                if False:",
+    ),
+    (
+        "check_repo.py",
+        "表题后必须紧跟表格的检查形同虚设（孤立表题照样放行）",
+        "            if (j + 1 >= len(lines)\n"
+        "                    or not TABLE_HEADER_RE.match(lines[j][1])\n"
+        "                    or not TABLE_RULE_RE.match(lines[j + 1][1])):",
+        "            if False:",
+    ),
+    (
+        "check_repo.py",
+        "Mermaid 输出资产缺失不报（成书时图位空着）",
+        "        if not block.asset_path.is_file():",
+        "        if False:",
+    ),
     # ---- check_assets_fresh.py ----
     (
         "check_assets_fresh.py",
@@ -288,6 +312,27 @@ MUTATIONS = [
         "成片直接写进资产目录（渲染被打断就留下 48 字节空壳）",
         "           tmp]",
         "           str(out)]",
+    ),
+    # ---- gen_mermaid.py ----
+    (
+        "gen_mermaid.py",
+        "写作契约被卷进渲染扫描（契约里的 Mermaid 示例让生成脚本直接崩溃）",
+        "    return sorted(p for p in pathlib.Path(docs_root).rglob(\"*.md\")\n"
+        "                  if p.name != CONTRACT_NAME)",
+        "    return sorted(p for p in pathlib.Path(docs_root).rglob(\"*.md\"))",
+    ),
+    # ---- mermaid_source.py ----
+    (
+        "mermaid_source.py",
+        "未标记的 Mermaid 块被静默跳过（电子书里只剩一行代码说明）",
+        "        if MERMAID_OPEN_RE.match(line):",
+        "        if False:",
+    ),
+    (
+        "mermaid_source.py",
+        "同一输出资产被多处声明不报（后一个标记覆盖前图，成书图错位）",
+        "            if block.asset_path in seen:",
+        "            if False:",
     ),
 ]
 

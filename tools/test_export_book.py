@@ -69,6 +69,27 @@ class BookModelTest(unittest.TestCase):
         self.assertEqual(wxml.no, 8)
         self.assertEqual(wxml.title, "WXML 数据绑定与渲染")
 
+    def test_74_张插图按章连续编号(self):
+        figures = self.book.figures
+        self.assertEqual(len(figures), 74)
+        self.assertEqual(len({f.id for f in figures}), 74)
+        for ch in self.book.chapters:
+            self.assertEqual([f.no for f in ch.figures],
+                             list(range(1, len(ch.figures) + 1)))
+            self.assertTrue(all(f.id.startswith(f"ch{ch.no:02d}-f")
+                                for f in ch.figures))
+        login = self.book.figure_by_id("ch14-f04")
+        self.assertEqual(login.label, "图 14-4")
+        self.assertEqual(login.caption, "wx.login 登录态全流程")
+
+    def test_十张关键表格有题注编号(self):
+        tables = self.book.tables
+        self.assertEqual(len(tables), 10)
+        self.assertEqual(tables[0].label, "表 4-1")
+        self.assertEqual(tables[0].caption, "小程序与 H5 的差异")
+        self.assertEqual([t.chapter_no for t in tables],
+                         [4, 6, 9, 11, 15, 20, 24, 26, 28, 29])
+
 
 class SlugTest(unittest.TestCase):
     def test_空白转连字符并去掉标点(self):
@@ -103,17 +124,39 @@ class TextTransformTest(unittest.TestCase):
         self.assertEqual(eb.replace_glyphs("📺 配套视频 ✅ ❌ ⚠️"),
                          "配套视频 √ × 注意：")
 
-    def test_图片包成_figure_并保留_alt_作说明(self):
-        html = '<p><img alt="知识图谱" src="x.png" /></p>'
-        out = eb.wrap_figures(html)
-        self.assertIn("<figure>", out)
-        self.assertIn("<figcaption>知识图谱</figcaption>", out)
+    def _figure(self, source="x.png", caption="知识图谱"):
+        return eb.Figure(chapter_no=8, no=1, id="ch08-f01", caption=caption,
+                         source=source, path=pathlib.Path(source))
+
+    def test_图片包成_figure_并挂上图号(self):
+        html = f'<p><img alt="知识图谱" src="x.png" /></p>'
+        out = eb.wrap_figures(html, [self._figure()])
+        self.assertIn('<figure id="ch08-f01">', out)
+        self.assertIn('<span class="fig-label">图 8-1</span>　知识图谱',
+                      out)
         self.assertNotIn("<p><img", out)
 
-    def test_无_alt_的图不生成空说明(self):
-        out = eb.wrap_figures('<p><img src="x.png" /></p>')
-        self.assertIn("<figure>", out)
-        self.assertNotIn("<figcaption>", out)
+    def test_未登记的独占图片必须报错(self):
+        with self.assertRaisesRegex(ValueError, "图录"):
+            eb.wrap_figures('<p><img alt="x" src="other.png" /></p>',
+                            [self._figure()])
+
+    def test_表格题注挂上表号且包成块(self):
+        html = ('<p>表：小程序与 H5 的差异</p>\n'
+                '<table>\n<tr><th>维度</th></tr>\n</table>')
+        table = eb.Table(chapter_no=4, no=1, id="ch04-t01",
+                         caption="小程序与 H5 的差异")
+        out = eb.wrap_tables(html, [table])
+        self.assertIn('<div class="table-block" id="ch04-t01">', out)
+        self.assertIn('<span class="table-label">表 4-1</span>　小程序与 H5 的差异',
+                      out)
+        self.assertIn("<table>", out)
+        self.assertNotIn("<p>表：", out)
+
+    def test_表题多于实际表格必须报错(self):
+        with self.assertRaisesRegex(ValueError, "表题"):
+            eb.wrap_tables("<p>正文</p>", [eb.Table(
+                chapter_no=4, no=1, id="ch04-t01", caption="题注")])
 
     def test_视频块只转换自己那一块(self):
         html = ('<blockquote>\n<p>一句话定义</p>\n</blockquote>\n'
@@ -166,6 +209,20 @@ class LinkRewriteTest(unittest.TestCase):
         href = eb.rewrite_href("../assets/videos/video-04-wxml.mp4", self.ch, self.book, "epub")
         self.assertEqual(href, f"{eb.BOOK_URL}/blob/main/docs/assets/videos/video-04-wxml.mp4")
 
+    def test_图片链接指向图号(self):
+        ch = self.book.chapter_by_path(eb.DOCS / "03-进阶" / "03-网络请求与数据.md")
+        href = eb.rewrite_href("../assets/diagram-login-flow.png", ch, self.book, "pdf")
+        self.assertEqual(href, "#ch14-f04")
+        href = eb.rewrite_href("../assets/diagram-login-flow.png", ch, self.book, "epub")
+        self.assertEqual(href, "ch14.xhtml#ch14-f04")
+
+    def test_图链接自动补图号但不重复(self):
+        html = ('<a class="xref" href="#ch14-f04">登录态全流程</a>'
+                '<a class="xref" href="ch14.xhtml#ch14-f04">见图 14-4</a>')
+        out = eb.label_figure_links(html, self.book)
+        self.assertIn(">图 14-4　登录态全流程</a>", out)
+        self.assertIn(">见图 14-4</a>", out)
+
     def test_外部链接原样保留(self):
         url = "https://developers.weixin.qq.com/miniprogram/dev/framework/"
         self.assertEqual(eb.rewrite_href(url, self.ch, self.book, "pdf"), url)
@@ -217,9 +274,25 @@ class ChapterRenderTest(unittest.TestCase):
         self.assertNotIn(" - □ A.", self.html)
         self.assertNotIn(" - □ B.", self.html)
 
+    def test_表格题注与编号进正文(self):
+        ch = self.book.chapter_by_path(eb.DOCS / "01-入门" / "01-认识小程序.md")
+        html = eb.render_chapter_body(ch, self.book, "pdf")
+        self.assertIn('id="ch04-t01"', html)
+        self.assertIn('<span class="table-label">表 4-1</span>', html)
+
+    def test_mermaid_物化为带图号的普通图片(self):
+        ch = self.book.chapter_by_path(
+            eb.DOCS / "03-进阶" / "03-网络请求与数据.md")
+        html = eb.render_chapter_body(ch, self.book, "pdf")
+        self.assertNotIn("```mermaid", html)
+        self.assertNotIn("Mermaid 流程图", html)
+        self.assertIn('id="ch14-f04"', html)
+        self.assertIn("图 14-4", html)
+
     def test_图片带说明且路径可用(self):
-        self.assertIn("<figure>", self.html)
+        self.assertIn("<figure id=", self.html)
         self.assertIn("<figcaption>", self.html)
+        self.assertIn('<span class="fig-label">图 ', self.html)
 
 
 class TocFillTest(unittest.TestCase):
@@ -293,7 +366,7 @@ class EpubBuildTest(unittest.TestCase):
     def test_全部_xml_格式合法(self):
         xml_files = [n for n in self.names
                      if n.endswith((".xhtml", ".opf", ".xml"))]
-        self.assertGreaterEqual(len(xml_files), 43)
+        self.assertGreaterEqual(len(xml_files), 45)
         for name in xml_files:
             ElementTree.fromstring(self.zf.read(name))
 
@@ -303,7 +376,15 @@ class EpubBuildTest(unittest.TestCase):
         self.assertEqual(set(navs), {"toc", "landmarks"})
         self.assertEqual(_ol_depth(navs["toc"].find(XHTML + "ol")), 3)
         kinds = {a.get(OPS + "type") for a in navs["landmarks"].iter(XHTML + "a")}
-        self.assertEqual(kinds, {"cover", "toc", "bodymatter"})
+        self.assertEqual(kinds, {"cover", "toc", "bodymatter", "loi", "lot"})
+
+    def test_插图目录与表格目录(self):
+        figs = self.zf.read("OEBPS/figures.xhtml").decode("utf-8")
+        tables = self.zf.read("OEBPS/tables.xhtml").decode("utf-8")
+        self.assertIn("图 14-4", figs)
+        self.assertIn("ch14.xhtml#ch14-f04", figs)
+        self.assertIn("表 4-1", tables)
+        self.assertIn("ch04.xhtml#ch04-t01", tables)
 
     def test_内部链接全部有目标(self):
         dead = []
@@ -411,7 +492,7 @@ class PdfBuildTest(unittest.TestCase):
         levels = {}
         for level, _, _ in self.toc:
             levels[level] = levels.get(level, 0) + 1
-        self.assertEqual(levels, {1: 8, 2: 32, 3: 342})
+        self.assertEqual(levels, {1: 10, 2: 32, 3: 342})
 
     def test_书签页码落在范围内且逐章递增(self):
         self.assertTrue(all(1 <= page <= self.doc.page_count

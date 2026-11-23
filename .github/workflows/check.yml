@@ -24,6 +24,9 @@ jobs:
       - name: 资产新鲜度检查的自测（守护「以 HEAD 为基准」这一属性）
         run: python tools/test_assets_fresh.py
 
+      - name: Mermaid 标记解析自测（未标记块/重复资产/路径越界必须报错）
+        run: python tools/test_mermaid_source.py
+
       - name: 安装 Pillow、编码器与 CJK 字体（折行要按真实字体度量像素宽度，
           原子落盘自测要真的跑一遍 ffmpeg 合成）
         run: |
@@ -33,6 +36,9 @@ jobs:
 
       - name: 视频字幕折行自测（不许把标识符劈成两截、不许出现孤行）
         run: python tools/test_gen_videos.py
+
+      - name: Mermaid 渲染命令自测（锁定版本、路径必须落在 assets 下、配置固定）
+        run: python tools/test_gen_mermaid.py
 
       - name: 电子书导出层自测（真打 EPUB 校验结构与链接；PDF 成品需 Edge + PyMuPDF，CI 自动跳过）
         run: |
@@ -61,12 +67,21 @@ jobs:
     # Linux Noto CJK），同一份脚本在 Linux 上渲染出的像素与已提交资产完全不同，
     # 比对必然失败。这不是能靠改脚本绕开的差异，只能用同一字体环境。
     runs-on: windows-latest
+    env:
+      # 预渲染用 runner 自带的 Edge，不让 Puppeteer 另下 Chromium：
+      # 版本漂移只来自一处，资产比对报红时原因单一。
+      PUPPETEER_SKIP_DOWNLOAD: "1"
+      PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "1"
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
       - name: 安装生成依赖（锁定版本——资产就是这套工具链生成的）
         run: pip install pillow==12.3.0 imageio-ffmpeg==0.6.0

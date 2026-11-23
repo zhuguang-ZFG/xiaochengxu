@@ -8,10 +8,11 @@
 
 ### 概述
 
-三轮并行的质量轮：正文去 AI 味两轮迭代、新增手绘风章节插图、新增本地 PDF/EPUB 导出，发布管线（tools/publish）脚本首次入库。
+三轮并行的质量轮：正文去 AI 味两轮迭代、新增手绘风章节插图、新增本地 PDF/EPUB 导出，发布管线（tools/publish）脚本首次入库；随后补齐图示系统：Mermaid 预渲染、全库图表编号与电子书图录/表录。
 
 ### 新增
 
+- **图示系统升级（Mermaid + 图表编号 + 图录/表录）**：新增 `tools/mermaid_source.py` 与 `tools/gen_mermaid.py`，把 Markdown 里的 `<!-- figure: ../assets/xxx.png | 图题 -->` 标记与紧随其后的 Mermaid 块绑定，用锁定的 `@mermaid-js/mermaid-cli@11.4.2` + 本机 Edge 渲染、Pillow 重存为确定性 PNG——GitHub 继续直接渲染 Mermaid，PDF/EPUB 用预渲染图，图源只有一份。首批三张：登录态全流程、支付全链路、上线发布全流程。导出层给每章独占图片与「表：」题注编号（`图 N-M` / `表 N-M`），正文引用自动补号，PDF 增加带页码的插图目录与表格目录，EPUB 增加 loi/lot 页面与 landmarks；10 张关键表格补了独立表题。`check_repo.py` 新增 `check_figure_captions()`（图片必须独占一行且有 alt）、`check_table_captions()`（「表：」题注前空行、后紧邻表头与分隔行）、`check_mermaid_figures()`（Mermaid 标记必须存在、输出资产必须已生成）；`check_assets_fresh.py` 的生成顺序加入 `gen_mermaid`；新增 `test_mermaid_source.py`（14 用例）与 `test_gen_mermaid.py`（9 用例），`test_check_repo.py` 增至 104 用例，变异表增至 45 项并全部捕获
 - **中文排版一致性校验**：新增 `check_repo.check_typography()`，按 11 条正文规则、10 条术语大小写和全角括号配对检查 `docs/` 文章、根目录 Markdown 与示例工程 Markdown。中英文之间要有空格，中文句子用全角标点与全角括号，引号统一 `「」`，省略号与破折号分别写 `……`、`——`，全角标点与括号内侧不留空格，行内代码两侧留空格，术语固定为 AppID、AppSecret、CloudBase、JavaScript、npm、iOS、setData、H5、rpx 与 `wx.<name>`。掩码用私用区字符等长替换，先剥 YAML frontmatter、围栏代码、行内代码、链接地址、HTML 标签、表格分隔行、水平线与引用式链接定义，代码里的半角标点不会误报；全角括号用栈跨行配对。例外行加 `<!-- typography-ignore -->` 并写明原因。check_repo 自测增 16 用例（共 95），变异表增 6 项（共 39/39 捕获）
 - **手绘风章节插图（15 张）**：`tools/gen_handdrawn.py` 新增「暖纸底 + 确定性抖动线条」的铅笔风渲染（与既有产品风示意图互补）。首批 7 张：学习路径全览（蜿蜒路径 + 五面阶段旗 + 终点火箭）、三件套积木、双线程送快递、云开发三抽屉、放大镜找虫子、上线三道闸、随堂测验草稿纸；第二批 8 张：即点即用手机、开发者工具三步、目录树四件套、WXML 骨架、页面生命周期环、组件双向通道、请求往返、支付回调与幂等——每章开头一张，覆盖入门到支付的高频章节。随机性全部来自按图固定的 `random.Random(seed)`，重跑逐字节一致，已纳入 `check_assets_fresh.py` 的五个生成脚本比对
 - **本地电子书导出**：`tools/export_book.py` 把 32 篇文档按教学顺序导出为本地 PDF（Edge 无头打印：封面、版权页、前言、使用说明、带页码详细目录、部分与章分隔页、页眉页脚、「部分 → 章 → 小节」三级书签与元数据；目录页码三遍打印收敛、缺页即报错）与 EPUB 3（纯标准库打包：三级 nav + landmarks、封面与元数据、图片显式宽高；打包后校验 XML 良构、内部链接与锚点全部可达、清单/脊柱覆盖全书）。产物落 `dist/book/`（gitignore，不进版本库）；导出层自测缺 Edge 或 PyMuPDF 时自动跳过 PDF 侧

@@ -89,7 +89,7 @@ flowchart LR
 │   ├── todo-miniprogram/        # 待办清单（云开发实战）
 │   ├── navigation-miniprogram/  # 多页面导航（tabBar + 跳转）
 │   └── product-list-miniprogram/ # 商品列表（搜索 + 列表渲染）
-└── tools/                  # 资产生成（render/gen_animations/gen_statics/gen_diagrams/gen_handdrawn/gen_videos）
+└── tools/                  # 资产生成（render/gen_animations/gen_statics/gen_diagrams/gen_handdrawn/gen_videos/gen_mermaid）
 │                            # 导出：export_book.py（本地 PDF/EPUB）· 发布管线 publish/
 │                            # 校验：check_repo.py + check_assets_fresh.py + 各自的自测
 │                            # data/wx-api-names.txt、wx-api-promise.txt：官方 API 名单（校验真实性/Promise 断言用，脚本抓取）
@@ -105,7 +105,7 @@ python tools/export_book.py              # PDF + EPUB
 python tools/export_book.py --epub-only  # 只要 EPUB
 ```
 
-PDF 含封面、版权页、前言、使用说明、带页码的详细目录、部分与章分隔页、页眉页脚和三级书签；EPUB 3 含封面、三级导航与 landmarks，支持深色模式。PDF 打印需要本机 Microsoft Edge（路径可用 `EDGE_PATH` 覆盖）。导出层的自测：`python tools/test_export_book.py`（缺 Edge 或 PyMuPDF 时自动跳过 PDF 成品校验）。
+PDF 含封面、版权页、前言、使用说明、带页码的详细目录、插图目录、表格目录、部分与章分隔页、页眉页脚和三级书签；EPUB 3 含封面、三级导航与 landmarks，支持深色模式。正文的每张独占图片和「表：」题注都会按章编号（图 14-4、表 9-2），PDF/EPUB 的图录、表录与正文交叉引用都指向同一组编号。Mermaid 图在 GitHub 上直接渲染，电子书使用 `tools/gen_mermaid.py` 预渲染的 PNG——两边只有一份图源。PDF 打印需要本机 Microsoft Edge（路径可用 `EDGE_PATH` 覆盖）。导出层的自测：`python tools/test_export_book.py`（缺 Edge 或 PyMuPDF 时自动跳过 PDF 成品校验）。
 
 ## 参与共建
 
@@ -140,12 +140,12 @@ PDF 含封面、版权页、前言、使用说明、带页码的详细目录、�
 |---|---|
 | 教程文章 | 32 篇（学习路线 3 篇含 FAQ + 入门/基础/进阶/云开发/发布/实战/资源 29 篇教学链） |
 | 随堂测验 | 121 题 / 29 组（每篇教学文章 3~6 道场景选择题，`<details>` 折叠答案） |
-| 视觉资产 | 85 个（38 动画 GIF + 34 示意图 PNG + 13 教学视频 MP4），全部可脚本复现，CI 逐字节比对 |
+| 视觉资产 | 88 个（38 动画 GIF + 37 示意图 PNG + 13 教学视频 MP4），全部可脚本复现，CI 逐字节比对 |
 | 教学视频 | 13 集（`docs/assets/videos/`，720×1280 竖屏 MP4，含字幕帧，由脚本生成） |
 | 示例工程 | `examples/todo-miniprogram`、`examples/navigation-miniprogram`、`examples/product-list-miniprogram`（可运行，对应实战篇） |
 | 学习体验 | [PROGRESS.md](PROGRESS.md) 进度追踪 + [FAQ](docs/00-学习路线/03-FAQ.md) 高频问答 + 知识图谱 |
-| 自动校验 | 链接/元数据/序号/孤儿资产/GIF 与视频体积/MP4 完整性与时长/代码块语言/交叉引用顺序/示例工程结构/实战篇与示例工程逐行一致/**API 真实性 + Promise 断言**/**随堂测验格式 + checkbox 校验**/**进度同步**/**知识图谱引用**/**FAQ 格式**/**架构决策表列名**/**踩坑回顾表列名**/**延伸阅读官方链接**/**深度段落标题校验**/**中文排版一致性（中英文空格、全角标点、引号与省略号、术语大小写）**/**README 指标表数字与仓库实际计数一致**，见 CI（外链 HTTP 校验为本地可选：`python tools/check_repo.py --external`） |
-| 资产复现校验 | `tools/check_assets_fresh.py` 清空 `docs/assets/` 重跑五个生成脚本，要求与 HEAD 逐字节一致（CI 在 windows-latest 上跑，全量重渲约十几分钟） |
+| 自动校验 | 链接/元数据/序号/孤儿资产/GIF 与视频体积/MP4 完整性与时长/代码块语言/交叉引用顺序/示例工程结构/实战篇与示例工程逐行一致/**API 真实性 + Promise 断言**/**随堂测验格式 + checkbox 校验**/**进度同步**/**知识图谱引用**/**FAQ 格式**/**架构决策表列名**/**踩坑回顾表列名**/**延伸阅读官方链接**/**深度段落标题校验**/**中文排版一致性（中英文空格、全角标点、引号与省略号、术语大小写）**/**README 指标表数字与仓库实际计数一致**/**图片 alt 题注与独占行**/**「表：」题注紧邻表格**/**Mermaid 标记与预渲染资产存在**，见 CI（外链 HTTP 校验为本地可选：`python tools/check_repo.py --external`） |
+| 资产复现校验 | `tools/check_assets_fresh.py` 清空 `docs/assets/` 重跑全部生成脚本（含 Mermaid 预渲染），要求与 HEAD 逐字节一致（CI 在 windows-latest 上跑，全量重渲约十几分钟） |
 
 ## 示例工程
 
@@ -157,11 +157,11 @@ PDF 含封面、版权页、前言、使用说明、带页码的详细目录、�
 
 ## 质量保障
 
-- **CI 校验**：每次 push/PR 自动运行 [tools/check_repo.py](tools/check_repo.py)（链接断链、元数据、目录序号、孤儿资产、GIF/视频体积上限、代码块语言、交叉引用顺序、实战篇与示例工程逐行一致、API 真实性、Promise 断言、中文排版一致性）+ 示例工程 JS 语法检查与云函数单元测试，见 [.github/workflows/check.yml](.github/workflows/check.yml)
+- **CI 校验**：每次 push/PR 自动运行 [tools/check_repo.py](tools/check_repo.py)（链接断链、元数据、目录序号、孤儿资产、GIF/视频体积、代码块语言、交叉引用顺序、实战篇与示例工程逐行一致、API 真实性、Promise 断言、中文排版一致性、图表题注与 Mermaid 资产）+ 示例工程 JS 语法检查与云函数单元测试，见 [.github/workflows/check.yml](.github/workflows/check.yml)
 - **API 真实性 / Promise 断言**：正文与示例代码里出现的每个 `wx.<name>` 都要在 [tools/data/wx-api-names.txt](tools/data/wx-api-names.txt)（507 个，抓自官方 API 索引页 + 官方 typings）里，拼错或虚构的接口名直接红——本库曾把一个 npm 包的能力当成 `wx.` 接口收进速查索引；同时对照 [wx-api-promise.txt](tools/data/wx-api-promise.txt)（194 个不传回调即返回 Promise 的接口）检查两件事：不能把支持 Promise 风格的接口说成回调式，不能 `await` 不返回 Promise 的接口
 - **中文排版一致性**：`check_typography()` 校验中英文之间的空格、中文句子的全角标点与全角括号、`「」` 引号、`……` 与 `——`、行内代码两侧的空格、全角括号配对，以及 AppID、AppSecret、CloudBase、JavaScript、npm、iOS、setData、H5、rpx 等术语的固定写法。围栏代码块、行内代码、链接地址、HTML 标签、YAML frontmatter、表格分隔行、水平线与引用式链接定义不参与扫描，避免把代码里的半角标点当成正文。确需保留例外时在该行加 `<!-- typography-ignore -->` 并在附近说明原因
 - **资产复现校验**：另有一个 CI job 清空 `docs/assets/` 重跑全部生成脚本，要求与仓库内容逐字节一致——「改了脚本忘了重跑」或「手工改了 GIF」都会红。跑在 windows 上是因为字体解析（见 [docs/_契约.md](docs/_契约.md)）
-- **校验器自测**：[tools/test_check_repo.py](tools/test_check_repo.py) 用迷你仓库夹具反证校验逻辑本身有效（95 用例）；[tools/test_assets_fresh.py](tools/test_assets_fresh.py) 守护资产比对「以 HEAD 为基准」这一属性（10 用例）；[tools/test_mutations.py](tools/test_mutations.py) 把已知缺陷还原成变异体验证自测确实会变红（39/39 捕获）——防止出现「校验静默失效、CI 依旧全绿」
+- **校验器自测**：[tools/test_check_repo.py](tools/test_check_repo.py) 用迷你仓库夹具反证校验逻辑本身有效（104 用例）；[tools/test_assets_fresh.py](tools/test_assets_fresh.py) 守护资产比对「以 HEAD 为基准」这一属性（10 用例）；[tools/test_mermaid_source.py](tools/test_mermaid_source.py) 守护 Mermaid 标记解析（14 用例）；[tools/test_gen_mermaid.py](tools/test_gen_mermaid.py) 守护渲染命令、扫描范围与路径约束（9 用例）；[tools/test_mutations.py](tools/test_mutations.py) 把已知缺陷还原成变异体验证自测确实会变红（45/45 捕获）——防止出现「校验静默失效、CI 依旧全绿」
 - 本地可随时运行 `python tools/check_repo.py` 自查
 
 ## 教学视频

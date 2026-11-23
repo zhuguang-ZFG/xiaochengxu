@@ -22,6 +22,8 @@ updated: 2026-10-08
 
 小程序的渲染层历史上基于 **WebView**（每个页面一个 WebView 实例）。Skyline 是 2022 年起推出的**自研原生渲染引擎**，不依赖 WebView。
 
+表：WebView 与 Skyline 的能力差异
+
 | 维度 | WebView（默认） | Skyline（可选） |
 |---|---|---|
 | 渲染实现 | 浏览器内核解析渲染 | 自研原生渲染（不依赖 WebView） |

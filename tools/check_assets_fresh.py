@@ -7,7 +7,7 @@
 
 做法：
 1. 先确认 docs/assets 相对 HEAD 是干净的——否则基准不成立
-2. **清空 docs/assets**，再依次重跑四个生成脚本
+2. **清空 docs/assets**，再依次重跑全部生成脚本
 3. `git status` 必须仍然干净；有任何改动就是漂移
 
 第 1 步不能省：若拿「重跑前的工作区」当基准，那么「本地已跑过脚本但忘了提交」
@@ -59,7 +59,8 @@ TOOLS = ROOT / "tools"
 # 下的 MP4（图上那格「N 集视频」），所以 gen_videos 必须排在它前面——
 # 清空后先跑 statics 会把「0 集视频」烤进图里，比对必红（v2.4.3 之后
 # main 的 assets 作业红了一整个月就是这个原因）。其余脚本各写各的文件。
-GENERATORS = ["gen_videos.py", "gen_statics.py", "gen_diagrams.py", "gen_handdrawn.py", "gen_animations.py"]
+GENERATORS = ["gen_videos.py", "gen_statics.py", "gen_diagrams.py",
+              "gen_handdrawn.py", "gen_animations.py", "gen_mermaid.py"]
 
 # 与 .github/workflows/check.yml 的 assets 作业锁定同一套版本——资产就是这套
 # 工具链的产物（Pillow 决定像素，imageio-ffmpeg 决定封装字节）。改 workflow 里

@@ -14,7 +14,7 @@
 多个方向都断言——该报的必须报，不该报的必须不报。
 
 脚本是 git 驱动的，因此每个用例在临时目录里 `git init` 一个迷你仓库，
-把 check_assets_fresh.py 与四个桩生成脚本放进去再跑。
+把 check_assets_fresh.py 与全部桩生成脚本放进去再跑。
 
 用法：python tools/test_assets_fresh.py
 """
@@ -46,7 +46,8 @@ for name, content in {files!r}.items():
 """
 # 与 check_assets_fresh.py 保持同一份顺序（gen_videos 先于 gen_statics：
 # hero 图烤进视频计数，顺序错了会写成 0——见 check_assets_fresh.py 顶部注释）
-GENERATORS = ["gen_videos.py", "gen_statics.py", "gen_diagrams.py", "gen_handdrawn.py", "gen_animations.py"]
+GENERATORS = ["gen_videos.py", "gen_statics.py", "gen_diagrams.py",
+              "gen_handdrawn.py", "gen_animations.py", "gen_mermaid.py"]
 
 # 直接从被测脚本取锁定值：改了 workflow 里的 pin 而没同步，这里立刻失配
 sys.path.insert(0, str(TOOLS))
