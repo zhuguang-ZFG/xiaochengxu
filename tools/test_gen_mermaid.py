@@ -119,6 +119,13 @@ class ConfigTest(unittest.TestCase):
         font = gm.MERMAID_CONFIG["themeVariables"]["fontFamily"]
         self.assertIn("Microsoft YaHei", font)
         self.assertFalse(gm.MERMAID_CONFIG["flowchart"]["htmlLabels"])
+        # 时序图的测量字体默认是 trebuchet/verdana/arial 与 Open Sans，
+        # 不是主题字体；runner 上这些字体的可用性不同会让布局漂移。
+        for key in ("actorFontFamily", "noteFontFamily", "messageFontFamily"):
+            self.assertEqual(gm.MERMAID_CONFIG["sequence"][key], font)
+        config_text = json.dumps(gm.MERMAID_CONFIG).lower()
+        self.assertNotIn("trebuchet", config_text)
+        self.assertNotIn("open sans", config_text)
         # 配置必须能原样序列化，避免 set 之类不可写 JSON 的值混进来
         json.dumps(gm.MERMAID_CONFIG)
 

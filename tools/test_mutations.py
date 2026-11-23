@@ -360,6 +360,18 @@ MUTATIONS = [
     ),
     (
         "gen_mermaid.py",
+        "时序图消息测量退回 Trebuchet/Verdana 默认栈（runner 缺字体即漂移）",
+        "        \"messageFontFamily\": FONT_FAMILY,",
+        "        \"messageFontFamily\": '\"trebuchet ms\", verdana, arial, sans-serif',",
+    ),
+    (
+        "gen_mermaid.py",
+        "时序图角色测量退回 Open Sans 默认栈（runner 字体不同即漂移）",
+        "        \"actorFontFamily\": FONT_FAMILY,",
+        "        \"actorFontFamily\": '\"Open Sans\", sans-serif',",
+    ),
+    (
+        "gen_mermaid.py",
         "测量字体环境变量未传给 mmdc（钩子启动即退出）",
         "    env[SANS_SERIF_ENV] = theme_font_family()",
         "    env[SANS_SERIF_ENV] = \"Arial\"",

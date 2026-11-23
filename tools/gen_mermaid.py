@@ -63,10 +63,12 @@ def source_files(docs_root=DOCS):
 
 # 主题固定成书稿配色；htmlLabels=False 用 SVG 文本，避免 foreignObject
 # 在不同浏览器版本里的排版差异。
+FONT_FAMILY = ("Microsoft YaHei, PingFang SC, Noto Sans CJK SC, "
+               "sans-serif")
 MERMAID_CONFIG = {
     "theme": "base",
     "themeVariables": {
-        "fontFamily": "Microsoft YaHei, PingFang SC, Noto Sans CJK SC, sans-serif",
+        "fontFamily": FONT_FAMILY,
         "fontSize": "16px",
         "primaryColor": "#E8F7EE",
         "primaryTextColor": "#1F2937",
@@ -76,7 +78,14 @@ MERMAID_CONFIG = {
         "tertiaryColor": "#FFFFFF",
     },
     "flowchart": {"htmlLabels": False, "curve": "basis"},
-    "sequence": {"useMaxWidth": False},
+    "sequence": {
+        "useMaxWidth": False,
+        # 时序图的测量字体默认是 Trebuchet MS / Verdana / Arial 与
+        # Open Sans；runner 上这些字体的可用性不同，布局会跟着漂移。
+        "actorFontFamily": FONT_FAMILY,
+        "noteFontFamily": FONT_FAMILY,
+        "messageFontFamily": FONT_FAMILY,
+    },
 }
 
 
