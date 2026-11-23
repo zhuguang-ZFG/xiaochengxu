@@ -51,7 +51,10 @@ TARGETS = {
 DEPS = {
     "check_repo.py": ["mermaid_source.py"],
     "gen_videos.py": ["render.py", "gen_animations.py", "gen_diagrams.py", "gen_statics.py"],
-    "gen_mermaid.py": ["browser.py", "mermaid_source.py"],
+    # 自测会读 package.json / lockfile 核对版本，临时目录里缺了它们，
+    # 每次变异都会因 FileNotFoundError 变红，全绿里全是假捕获。
+    "gen_mermaid.py": ["mermaid_source.py", "mermaid/package.json",
+                       "mermaid/package-lock.json"],
 }
 
 MUTATIONS = [
@@ -332,6 +335,30 @@ MUTATIONS = [
         "if False:\n"
         "    pass",
     ),
+    (
+        "gen_mermaid.py",
+        "渲染退回 PATH 上的 mmdc（不再用 tools/mermaid 锁定的 CLI）",
+        "    return [node_exe(), str(mmdc_js())] + [",
+        "    return [\"mmdc\"] + [",
+    ),
+    (
+        "gen_mermaid.py",
+        "依赖版本不符也继续渲染（lockfile 被绕过时毫无察觉）",
+        "        if got != want:",
+        "        if False:",
+    ),
+    (
+        "gen_mermaid.py",
+        "浏览器发现不再核对版本（任意 Chrome 都能生成资产）",
+        "            if PINNED_BROWSER in candidate.as_posix() and candidate.is_file():",
+        "            if candidate.is_file():",
+    ),
+    (
+        "gen_mermaid.py",
+        "浏览器版本退回 latest（资产随浏览器更新漂移）",
+        'PINNED_BROWSER = "157.0.8103.79"',
+        'PINNED_BROWSER = "latest"',
+    ),
     # ---- mermaid_source.py ----
     (
         "mermaid_source.py",
@@ -376,6 +403,8 @@ def main():
             test_file = TARGETS[target]
             shutil.copy(TOOLS / test_file, td / test_file)
             for dep in DEPS.get(target, []):
+                # 依赖可能在子目录（如 mermaid/package.json），先建父目录
+                (td / dep).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(TOOLS / dep, td / dep)
             r = subprocess.run(
                 [sys.executable, test_file], cwd=td,

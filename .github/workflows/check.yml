@@ -68,8 +68,8 @@ jobs:
     # 比对必然失败。这不是能靠改脚本绕开的差异，只能用同一字体环境。
     runs-on: windows-latest
     env:
-      # 预渲染用 runner 自带的 Edge，不让 Puppeteer 另下 Chromium：
-      # 版本漂移只来自一处，资产比对报红时原因单一。
+      # 浏览器由 npm 脚本按固定版本安装；禁止 Puppeteer 在 npm install
+      # 阶段再下一份版本不明的 Chromium。
       PUPPETEER_SKIP_DOWNLOAD: "1"
       PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "1"
     steps:
@@ -82,9 +82,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
+          cache-dependency-path: tools/mermaid/package-lock.json
+
+      - name: 缓存 Chrome for Testing（版本与 npm 安装脚本一致）
+        uses: actions/cache@v4
+        with:
+          path: tools/mermaid/.browser
+          key: mermaid-browser-${{ runner.os }}-157.0.8103.79
 
       - name: 安装生成依赖（锁定版本——资产就是这套工具链生成的）
-        run: pip install pillow==12.3.0 imageio-ffmpeg==0.6.0
+        run: |
+          pip install pillow==12.3.0 imageio-ffmpeg==0.6.0
+          npm ci --ignore-scripts --prefix tools/mermaid
+          npm run install-browser --prefix tools/mermaid
 
       - name: 重跑生成脚本，确认已提交的资产就是脚本输出
         run: python tools/check_assets_fresh.py

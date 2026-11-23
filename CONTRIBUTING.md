@@ -36,11 +36,11 @@
    - [ ] 没有把支持 Promise 风格的接口说成「回调式 / 要自己包 Promise」，也没有 `await` 不返回 Promise 的接口——CI 对照 `tools/data/wx-api-promise.txt` 检查这两条。拿不准就查官方 API 页顶部的「以 Promise 风格调用」标注
    - [ ] 包含「## 随堂测验」段落（3~5 道场景选择题，`<details>` 折叠答案），位于「常见错误」与「验证」之间
    - [ ] 图片必须独占一行且 alt 写明图意（电子书按独占图片编号，空 alt 会变成无题注的裸图）；表格若需编号，在表格上方空一行写独立的「表：说明」段落，导出层据此生成「表 N-M」
-   - [ ] Mermaid 图用 `<!-- figure: ../assets/diagram-xxx.png | 图题 -->` 标记紧邻代码块，并运行 `python tools/gen_mermaid.py` 生成预渲染 PNG；无标记的 Mermaid 块、未生成的资产都会被 CI 拦下
+   - [ ] Mermaid 图用 `<!-- figure: ../assets/diagram-xxx.png | 图题 -->` 标记紧邻代码块，并运行 `python tools/gen_mermaid.py` 生成预渲染 PNG；无标记的 Mermaid 块、未生成的资产都会被 CI 拦下。首次生成前按第 6 条安装锁定的渲染环境
    - [ ] 中文排版符合契约（中英文之间留空格、中文用全角标点与 `「」`、行内代码两侧留空格；例外行加 `<!-- typography-ignore -->` 并说明原因）——CI 的 `check_typography()` 逐行检查，见[契约「中文排版一致性」](docs/_契约.md#中文排版一致性)
 4. 若改动示例工程：`node --check` 全部 JS 通过，且与实战篇代码保持一致——CI 会逐行比对（见[契约「实战篇与示例工程必须逐行一致」](docs/_契约.md#实战篇与示例工程必须逐行一致)）。只贴要点的代码块须在标题或上文标注「要点/节选」，否则按全文比对会报漂移
 5. 若新增/修改教学视频：`python tools/gen_videos.py` 重新生成，确认单集 ≤3MB、`video-*.mp4` 命名；引用必须用**引用块 + 链接**（`> 📺 配套视频 · 第 N 集：[…](../assets/videos/video-NN-slug.mp4)`），**不要用 `![]()` 内嵌**——GitHub 会过滤 `<video>` 标签，`![]()` 引用 mp4 会显示为坏图
-6. 若改了任何资产生成脚本（`render.py` / `gen_*.py`）：**必须重跑生成并连同资产一起提交**。CI 的 `assets` job 会清空 `docs/assets/` 重跑全部生成脚本（含 Mermaid），然后要求 `git status` 干净——漏提交、手工改过的资产都会红。Mermaid 预渲染需要 Node.js 与本机 Edge，首次运行会下载锁定的 mermaid-cli。本地自查：`python tools/check_assets_fresh.py`（要求工作区干净，会清空并重新生成 `docs/assets/`，可 `git checkout -- docs/assets` 还原）
+6. 若改了任何资产生成脚本（`render.py` / `gen_*.py`）：**必须重跑生成并连同资产一起提交**。CI 的 `assets` job 会清空 `docs/assets/` 重跑全部生成脚本（含 Mermaid），然后要求 `git status` 干净——漏提交、手工改过的资产都会红。Mermaid 预渲染需要 Node.js，并固定使用 Chrome for Testing 157；首次使用先在 `tools/mermaid` 执行 `npm ci --ignore-scripts` 与 `npm run install-browser`，安装锁定的 npm 依赖树与浏览器。本地自查：`python tools/check_assets_fresh.py`（要求工作区干净，会清空并重新生成 `docs/assets/`，可 `git checkout -- docs/assets` 还原）
 7. 可选：`python tools/check_repo.py --external` 全量外链 HTTP 校验
 
 ## 提交信息规范

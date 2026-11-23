@@ -2,10 +2,11 @@
 """gen_mermaid.py 的自测（标准库 unittest + Pillow）。
 
 生成器本身只是「把标记里的源码交给 mermaid-cli，再把结果归一化成可复现
-的 PNG」。这里不跑真正的 npx：CI 的资产比对会真跑。自测守四件事：
+的 PNG」。这里不跑真正的 mmdc：CI 的资产比对会真跑。自测守五件事：
 
-- 命令必须带锁定版本、白底、2x，Windows 上要经 cmd 调 npx；
-- Puppeteer 用本机 Edge，且禁止它顺手下载 Chromium；
+- 命令必须走 tools/mermaid 下锁定的 mmdc，不经 npx 重新解析依赖；
+- mermaid-cli / mermaid / puppeteer 与浏览器版本都由常量与 lockfile 锁定；
+- Puppeteer 只用锁定版本的 Chrome for Testing，且禁止它顺手下载 Chromium；
 - 透明像素合成到白底，同一输入两次输出字节一致；
 - 输出只能落在 docs/assets/，避免标记把文件写到任意位置。
 """
@@ -25,11 +26,14 @@ for _stream in (sys.stdout, sys.stderr):
         except Exception:
             pass
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+TOOLS = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(TOOLS))
 from PIL import Image  # noqa: E402
 
 import gen_mermaid as gm  # noqa: E402
 import mermaid_source as ms  # noqa: E402
+
+MERMAID_DIR = TOOLS / "mermaid"
 
 
 def make_block(tmp, asset="assets/diagram-x.png", source="flowchart LR\n  A --> B",
@@ -58,29 +62,43 @@ class ConsoleEncodingTest(unittest.TestCase):
 
 
 class CommandTest(unittest.TestCase):
-    def test_windows_上经_cmd_调_npx(self):
-        self.assertEqual(gm.npx_prefix(platform="win32"),
-                         ["cmd", "/c", "npx"])
-        self.assertEqual(gm.npx_prefix(platform="linux"), ["npx"])
+    def test_命令走本地锁定的_mmdc_而不是_npx(self):
+        cmd = gm.build_cmd("in.mmd", "out.png", "m.json", "p.json")
+        self.assertTrue(pathlib.Path(cmd[0]).name.lower().startswith("node"))
+        cli = pathlib.Path(cmd[1])
+        self.assertEqual(cli.name, "cli.js")
+        self.assertIn("node_modules", cli.parts)
+        self.assertIn("mermaid-cli", cli.parts)
+        lowered = [part.lower() for part in cmd]
+        self.assertNotIn("npx", lowered)
+        self.assertNotIn("--yes", lowered)
 
-    def test_命令锁定_cli_版本且白底_2x(self):
-        cmd = gm.build_cmd("in.mmd", "out.png", "m.json", "p.json",
-                           platform="linux")
-        self.assertIn(gm.PINNED_CLI, cmd)
-        self.assertEqual(gm.PINNED_CLI, "@mermaid-js/mermaid-cli@11.4.2")
+    def test_依赖与浏览器版本全部精确锁定(self):
+        self.assertEqual(gm.PINNED_MERMAID_CLI, "11.4.2")
+        self.assertEqual(gm.PINNED_MERMAID, "11.17.2")
+        self.assertEqual(gm.PINNED_PUPPETEER, "23.11.1")
+        self.assertEqual(gm.PINNED_BROWSER, "157.0.8103.79")
+        self.assertEqual(gm.PINNED_DEPS, {
+            "@mermaid-js/mermaid-cli": "11.4.2",
+            "mermaid": "11.17.2",
+            "puppeteer": "23.11.1",
+        })
+
+    def test_命令固定白底_2x_与输入输出(self):
+        cmd = gm.build_cmd("in.mmd", "out.png", "m.json", "p.json")
         self.assertEqual(cmd[cmd.index("-b") + 1], "white")
         self.assertEqual(cmd[cmd.index("-s") + 1], "2")
         self.assertEqual(cmd[cmd.index("-i") + 1], "in.mmd")
         self.assertEqual(cmd[cmd.index("-o") + 1], "out.png")
-        self.assertIn("mmdc", cmd)
 
 
 class ConfigTest(unittest.TestCase):
-    def test_puppeteer_用给定_edge_且不下载_chromium(self):
+    def test_puppeteer_用给定_chrome_路径且无头(self):
         with tempfile.TemporaryDirectory() as td:
-            _, ppt = gm.write_configs(td, "C:/Edge/msedge.exe")
+            _, ppt = gm.write_configs(td, "C:/Chrome/chrome.exe")
             data = json.loads(pathlib.Path(ppt).read_text(encoding="utf-8"))
-            self.assertEqual(data["executablePath"], "C:/Edge/msedge.exe")
+            self.assertEqual(data["executablePath"], "C:/Chrome/chrome.exe")
+            self.assertEqual(data["headless"], "new")
             self.assertIn("--no-sandbox", data["args"])
 
     def test_mermaid_主题与字体固定(self):
@@ -90,6 +108,80 @@ class ConfigTest(unittest.TestCase):
         self.assertFalse(gm.MERMAID_CONFIG["flowchart"]["htmlLabels"])
         # 配置必须能原样序列化，避免 set 之类不可写 JSON 的值混进来
         json.dumps(gm.MERMAID_CONFIG)
+
+
+class PinnedEnvironmentTest(unittest.TestCase):
+    def test_package_json_精确锁定依赖(self):
+        data = json.loads(
+            (MERMAID_DIR / "package.json").read_text(encoding="utf-8"))
+        self.assertEqual(data["dependencies"], gm.PINNED_DEPS)
+        for spec in data["dependencies"].values():
+            self.assertRegex(spec, r"^\d+\.\d+\.\d+$")
+
+    def test_package_lock_与_pins_一致(self):
+        data = json.loads(
+            (MERMAID_DIR / "package-lock.json").read_text(encoding="utf-8"))
+        for name, version in gm.PINNED_DEPS.items():
+            entry = data["packages"]["node_modules/" + name]
+            self.assertEqual(entry["version"], version)
+
+    def test_浏览器安装脚本与固定版本一致(self):
+        data = json.loads(
+            (MERMAID_DIR / "package.json").read_text(encoding="utf-8"))
+        script = data["scripts"]["install-browser"]
+        # 必须用 @puppeteer/browsers 的 CLI：puppeteer 自身的 install 命令
+        # 不认 --path，会把浏览器装到用户缓存而不是 tools/mermaid/.browser。
+        self.assertTrue(script.startswith("browsers install chrome@"))
+        self.assertIn(f"chrome@{gm.PINNED_BROWSER}", script)
+        self.assertIn("--path .browser", script)
+        self.assertNotIn("latest", script)
+
+    def test_依赖版本不符时拒绝渲染(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            for name, version in gm.PINNED_DEPS.items():
+                pkg = root / "node_modules" / name / "package.json"
+                pkg.parent.mkdir(parents=True)
+                pkg.write_text(json.dumps({"name": name, "version": version}),
+                               encoding="utf-8")
+            gm.check_pinned_deps(root)
+            pkg = root / "node_modules" / "mermaid" / "package.json"
+            pkg.write_text(json.dumps({"name": "mermaid", "version": "11.0.0"}),
+                           encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                gm.check_pinned_deps(root)
+            self.assertIn("mermaid", str(ctx.exception))
+
+    def test_缺少本地依赖时给出安装命令(self):
+        with tempfile.TemporaryDirectory() as td:
+            with self.assertRaises(SystemExit) as ctx:
+                gm.check_pinned_deps(td)
+            msg = str(ctx.exception)
+            self.assertIn("npm ci --ignore-scripts --prefix tools/mermaid", msg)
+            self.assertIn("npm run install-browser --prefix tools/mermaid", msg)
+
+    def test_浏览器发现只接受锁定版本(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            # 版本号故意排在 157 前面：若发现逻辑不筛版本，会先返回它
+            other = root / "chrome" / "win64-100.0.0" / "chrome-win64" / "chrome.exe"
+            other.parent.mkdir(parents=True)
+            other.write_bytes(b"")
+            pinned = (root / "chrome" / "win64-157.0.8103.79"
+                      / "chrome-win64" / "chrome.exe")
+            pinned.parent.mkdir(parents=True)
+            pinned.write_bytes(b"")
+            self.assertEqual(pathlib.Path(gm.find_pinned_chrome(root, env={})),
+                             pinned)
+
+    def test_浏览器环境变量必须指向锁定版本(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            other = root / "chrome.exe"
+            other.write_bytes(b"")
+            with self.assertRaises(SystemExit):
+                gm.find_pinned_chrome(root, env={"MERMAID_BROWSER_PATH": str(other)})
+            self.assertIsNone(gm.find_pinned_chrome(root, env={}))
 
 
 class NormalizeTest(unittest.TestCase):
@@ -152,7 +244,7 @@ class RenderAllTest(unittest.TestCase):
                 self.assertEqual(mmd.read_text(encoding="utf-8").strip(),
                                  "flowchart LR\n  A --> B")
 
-            gm.render_all([block], td, "C:/Edge/msedge.exe", run=fake_run)
+            gm.render_all([block], td, "C:/Chrome/chrome.exe", run=fake_run)
             self.assertTrue(block.asset_path.is_file())
             with Image.open(block.asset_path) as out:
                 self.assertEqual(out.mode, "RGB")

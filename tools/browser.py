@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""定位本机 Edge，供 PDF 打印与 Mermaid 预渲染共用。"""
+"""定位本机 Edge，供 PDF 打印使用。
+
+Mermaid 预渲染不再用本机 Edge：它固定在 tools/mermaid 的 Chrome for Testing
+版本，见 gen_mermaid.py 与 tools/mermaid/package.json。
+"""
 import os
 import pathlib
 import shutil
