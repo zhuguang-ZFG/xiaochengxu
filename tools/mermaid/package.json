@@ -9,6 +9,6 @@
     "puppeteer": "23.11.1"
   },
   "scripts": {
-    "install-browser": "browsers install chrome@157.0.8103.79 --path .browser"
+    "install-browser": "browsers install chrome@157.0.8103.78 --path .browser"
   }
 }

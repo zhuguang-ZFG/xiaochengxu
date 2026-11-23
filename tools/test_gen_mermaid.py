@@ -77,7 +77,7 @@ class CommandTest(unittest.TestCase):
         self.assertEqual(gm.PINNED_MERMAID_CLI, "11.4.2")
         self.assertEqual(gm.PINNED_MERMAID, "11.17.2")
         self.assertEqual(gm.PINNED_PUPPETEER, "23.11.1")
-        self.assertEqual(gm.PINNED_BROWSER, "157.0.8103.79")
+        self.assertEqual(gm.PINNED_BROWSER, "157.0.8103.78")
         self.assertEqual(gm.PINNED_DEPS, {
             "@mermaid-js/mermaid-cli": "11.4.2",
             "mermaid": "11.17.2",
@@ -167,7 +167,7 @@ class PinnedEnvironmentTest(unittest.TestCase):
             other = root / "chrome" / "win64-100.0.0" / "chrome-win64" / "chrome.exe"
             other.parent.mkdir(parents=True)
             other.write_bytes(b"")
-            pinned = (root / "chrome" / "win64-157.0.8103.79"
+            pinned = (root / "chrome" / "win64-157.0.8103.78"
                       / "chrome-win64" / "chrome.exe")
             pinned.parent.mkdir(parents=True)
             pinned.write_bytes(b"")

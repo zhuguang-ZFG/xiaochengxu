@@ -356,7 +356,7 @@ MUTATIONS = [
     (
         "gen_mermaid.py",
         "浏览器版本退回 latest（资产随浏览器更新漂移）",
-        'PINNED_BROWSER = "157.0.8103.79"',
+        'PINNED_BROWSER = "157.0.8103.78"',
         'PINNED_BROWSER = "latest"',
     ),
     # ---- mermaid_source.py ----

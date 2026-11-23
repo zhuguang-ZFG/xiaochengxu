@@ -27,7 +27,7 @@
 - **「查速查」错别字** → 「要速查」
 - **视频编码跨 CPU 不确定（CI assets 作业红了一个月的另一半根因）**：libx264 默认按 CPU 特性派发 SIMD，CI runner 与开发机编出不同字节，`video-03/04/06` 自 v2.4.3 起每次比对都被误报「仓库里的是旧版本」。编码参数补 `-x264-params cpu-independent=1`（走纯 C，实测与 `noasm=1` 逐字节相同、只慢 ~15%），13 集全量重渲入库；此后字节只由输入帧与参数决定
 - **Mermaid 生成在 Windows 管道下打印中断**：`gen_mermaid.py` 渲染完成后打印中文资产路径时，CI 的 PowerShell 管道按 cp1252 编码，抛 `UnicodeEncodeError` 并以非零码退出——35 分钟的 assets 作业在逐字节比对前中止。补上与其他工具一致的 stdout UTF-8 重设，并新增 cp1252 子进程回归测试与对应变异项（50/50 捕获）
-- **Mermaid 资产随浏览器版本漂移（CI assets 作业逐字节比对失败）**：同一份图源在本机 Edge 158 与 CI Edge 157 下渲染出的两张时序图 PNG 不同——资产是 157 的产物，CI 每次重渲都被判成「仓库里的是旧版本」。根因是渲染器跟着 runner 自带的浏览器走。现在 Mermaid 固定用 Chrome for Testing 157.0.8103.79，`tools/mermaid/package.json` 精确锁定 `@mermaid-js/mermaid-cli@11.4.2` / `mermaid@11.17.2` / `puppeteer@23.11.1`，`package-lock.json` 锁完整依赖树；`gen_mermaid.py` 直接调用本地 `node_modules` 里的 `mmdc`，不再经 `npx` 重新解析版本，运行时还会核对已安装版本与浏览器路径。PDF 打印继续用本机 Edge。新增 8 个用例（共 18）与 4 个变异项（共 50/50 捕获）
+- **Mermaid 资产随浏览器版本漂移（CI assets 作业逐字节比对失败）**：同一份图源在本机 Edge 158 与 CI Edge 157 下渲染出的两张时序图 PNG 不同——资产是 157 的产物，CI 每次重渲都被判成「仓库里的是旧版本」。根因是渲染器跟着 runner 自带的浏览器走。现在 Mermaid 固定用 Chrome for Testing 157.0.8103.78——最初试锁的 .79 不在官方 known-good 清单里，`browsers install` 解析版本时直接 404，改用清单内的 .78 才能由 CI 自动安装。`tools/mermaid/package.json` 精确锁定 `@mermaid-js/mermaid-cli@11.4.2` / `mermaid@11.17.2` / `puppeteer@23.11.1`，`package-lock.json` 锁完整依赖树；`gen_mermaid.py` 直接调用本地 `node_modules` 里的 `mmdc`，不再经 `npx` 重新解析版本，运行时还会核对已安装版本与浏览器路径。PDF 打印继续用本机 Edge。新增 8 个用例（共 18）与 4 个变异项（共 50/50 捕获）
 
 ### 改进
 

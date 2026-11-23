@@ -89,7 +89,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: tools/mermaid/.browser
-          key: mermaid-browser-${{ runner.os }}-157.0.8103.79
+          key: mermaid-browser-${{ runner.os }}-157.0.8103.78
 
       - name: 安装生成依赖（锁定版本——资产就是这套工具链生成的）
         run: |
