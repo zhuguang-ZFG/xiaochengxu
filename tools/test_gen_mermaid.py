@@ -117,12 +117,15 @@ class ConfigTest(unittest.TestCase):
     def test_mermaid_主题与字体固定(self):
         self.assertEqual(gm.MERMAID_CONFIG["theme"], "base")
         font = gm.MERMAID_CONFIG["themeVariables"]["fontFamily"]
+        self.assertEqual(font, gm.FONT_FAMILY)
         self.assertIn("Microsoft YaHei", font)
         self.assertFalse(gm.MERMAID_CONFIG["flowchart"]["htmlLabels"])
-        # 时序图的测量字体默认是 trebuchet/verdana/arial 与 Open Sans，
-        # 不是主题字体；runner 上这些字体的可用性不同会让布局漂移。
+        # 时序图 renderer 的 setConf 收到的是根配置：根级 fontFamily 会把
+        # actor/message/note 三个测量字体一起覆盖，sequence.* 下的同名配置
+        # 是死字段。测量字体必须钉在根级，否则又退回 Trebuchet/Verdana 栈。
+        self.assertEqual(gm.MERMAID_CONFIG["fontFamily"], gm.FONT_FAMILY)
         for key in ("actorFontFamily", "noteFontFamily", "messageFontFamily"):
-            self.assertEqual(gm.MERMAID_CONFIG["sequence"][key], font)
+            self.assertNotIn(key, gm.MERMAID_CONFIG["sequence"])
         config_text = json.dumps(gm.MERMAID_CONFIG).lower()
         self.assertNotIn("trebuchet", config_text)
         self.assertNotIn("open sans", config_text)

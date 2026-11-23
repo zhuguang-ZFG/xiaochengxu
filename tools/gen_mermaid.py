@@ -67,6 +67,10 @@ FONT_FAMILY = ("Microsoft YaHei, PingFang SC, Noto Sans CJK SC, "
                "sans-serif")
 MERMAID_CONFIG = {
     "theme": "base",
+    # 时序图的测量字体取自根级 fontFamily：renderer 的 setConf 收到的是根
+    # 配置，会把 sequence.actorFontFamily 等三个字段整体覆盖。放在根级，
+    # 时序图与流程图才共用同一份固定字体栈。
+    "fontFamily": FONT_FAMILY,
     "themeVariables": {
         "fontFamily": FONT_FAMILY,
         "fontSize": "16px",
@@ -78,14 +82,7 @@ MERMAID_CONFIG = {
         "tertiaryColor": "#FFFFFF",
     },
     "flowchart": {"htmlLabels": False, "curve": "basis"},
-    "sequence": {
-        "useMaxWidth": False,
-        # 时序图的测量字体默认是 Trebuchet MS / Verdana / Arial 与
-        # Open Sans；runner 上这些字体的可用性不同，布局会跟着漂移。
-        "actorFontFamily": FONT_FAMILY,
-        "noteFontFamily": FONT_FAMILY,
-        "messageFontFamily": FONT_FAMILY,
-    },
+    "sequence": {"useMaxWidth": False},
 }
 
 
