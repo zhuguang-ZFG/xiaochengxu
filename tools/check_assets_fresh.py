@@ -7,7 +7,7 @@
 
 做法：
 1. 先确认 docs/assets 相对 HEAD 是干净的——否则基准不成立
-2. **清空 docs/assets**，再依次重跑四个生成脚本
+2. **清空 docs/assets**，再依次重跑全部生成脚本
 3. `git status` 必须仍然干净；有任何改动就是漂移
 
 第 1 步不能省：若拿「重跑前的工作区」当基准，那么「本地已跑过脚本但忘了提交」
@@ -34,6 +34,8 @@ ffmpeg 生成，逐帧解码与脚本输出完全相同（1800 帧，md5 全同�
 不同（272KB vs 284KB），检查却说「仓库里的是旧版本」，把工具链问题报成了
 资产漂移。所以在动 docs/assets 之前，先核对本机 pillow / imageio-ffmpeg 版本，
 与 CI 锁定值（.github/workflows/check.yml 的 assets 作业）不符就直接拒绝。
+Mermaid 侧同理：Node 依赖与浏览器由 tools/mermaid 锁定，gen_mermaid 发现版本
+不符会直接拒绝渲染，不会拿另一套环境产出另一批字节。
 
 用法：python tools/check_assets_fresh.py
 退出码：0 = 全部一致；1 = 存在漂移或工具链不符
@@ -59,11 +61,14 @@ TOOLS = ROOT / "tools"
 # 下的 MP4（图上那格「N 集视频」），所以 gen_videos 必须排在它前面——
 # 清空后先跑 statics 会把「0 集视频」烤进图里，比对必红（v2.4.3 之后
 # main 的 assets 作业红了一整个月就是这个原因）。其余脚本各写各的文件。
-GENERATORS = ["gen_videos.py", "gen_statics.py", "gen_diagrams.py", "gen_handdrawn.py", "gen_animations.py"]
+GENERATORS = ["gen_videos.py", "gen_statics.py", "gen_diagrams.py",
+              "gen_handdrawn.py", "gen_animations.py", "gen_mermaid.py"]
 
 # 与 .github/workflows/check.yml 的 assets 作业锁定同一套版本——资产就是这套
 # 工具链的产物（Pillow 决定像素，imageio-ffmpeg 决定封装字节）。改 workflow 里
 # 的 pin 时必须同步这里，并且重新生成全部资产，否则本检查会把版本差异当成漂移。
+# Mermaid 的 Node 依赖/浏览器另有锁：tools/mermaid/package-lock.json 与
+# gen_mermaid.PINNED_BROWSER，gen_mermaid 自己会在版本不符时拒绝渲染。
 PINNED_TOOLCHAIN = {"pillow": "12.3.0", "imageio-ffmpeg": "0.6.0"}
 
 

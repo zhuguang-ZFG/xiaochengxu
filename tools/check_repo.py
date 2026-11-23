@@ -17,6 +17,8 @@
 12. 知识图谱：在 README 和学习路径总览中被引用
 13. FAQ 格式：FAQ 文档有正确元数据和 Q&A 结构
 14. 中文排版：中英文空格、全角标点、引号/省略号、行内代码间距、全角括号配对、术语大小写
+15. 图文题注：独占图片必须有 alt 题注；「表：」题注必须紧贴表格；
+    Mermaid 块必须有 figure 标记、输出资产必须存在且唯一
 
 用法：python tools/check_repo.py
       python tools/check_repo.py --update-api-list   # 刷新第 9 项的官方名单
@@ -299,6 +301,88 @@ def check_images():
                 continue
             if not (f.parent / target).resolve().exists():
                 errors.append(f"{f.relative_to(ROOT)}: 图片断链 -> {target}")
+
+
+FIGURE_IMAGE_RE = re.compile(
+    r"!\[([^\]]*)\]\(([^)\s]+)(?:\s+[\"'][^\"']*[\"'])?\)")
+FIGURE_LINE_RE = re.compile(r"^" + FIGURE_IMAGE_RE.pattern + r"$")
+TABLE_CAPTION_RE = re.compile(r"^表：(.+?)\s*$")
+TABLE_HEADER_RE = re.compile(r"^\|.*\|\s*$")
+TABLE_RULE_RE = re.compile(r"^\|[\s:|-]+\|\s*$")
+
+
+def _prose_lines(text):
+    """逐行给出围栏代码之外的内容（行内代码已剥掉），保留原行号。"""
+    in_fence = False
+    for lineno, line in enumerate(text.splitlines(), 1):
+        if FENCE_LINE_RE.match(line):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            yield lineno, INLINE_CODE_RE.sub("", line)
+
+
+def check_figure_captions():
+    """独占图片必须有 alt 题注，且必须真的独占一行。
+
+    电子书的图录只扫描独占一行的图片；混在段落里的图片不会编号，
+    alt 为空的图片则没有题注。两者都会让成书出现「裸图」。
+    """
+    for f in md_files():
+        rel = f.relative_to(ROOT)
+        for lineno, line in _prose_lines(f.read_text(encoding="utf-8")):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            for m in FIGURE_IMAGE_RE.finditer(stripped):
+                if not m.group(1).strip():
+                    errors.append(
+                        f"{rel}:{lineno}: 图片缺题注（alt 为空，电子书图录无法编号）")
+            if FIGURE_IMAGE_RE.search(stripped) and not FIGURE_LINE_RE.match(stripped):
+                errors.append(
+                    f"{rel}:{lineno}: 图片必须独占一行（图录按独占图片编号）")
+
+
+def check_table_captions():
+    """「表：」题注必须自成一段，并紧跟表头与分隔行。
+
+    导出脚本靠这段题注给表格编号；题注被并进上一段、或与表格之间隔着
+    正文，表格在电子书里就没有表号。
+    """
+    for f in md_files():
+        rel = f.relative_to(ROOT)
+        lines = list(_prose_lines(f.read_text(encoding="utf-8")))
+        for idx, (lineno, line) in enumerate(lines):
+            if not TABLE_CAPTION_RE.match(line):
+                continue
+            if idx and lines[idx - 1][1].strip():
+                errors.append(
+                    f"{rel}:{lineno}: 「表：」题注前需空一行，否则会并入上一段")
+            j = idx + 1
+            while j < len(lines) and not lines[j][1].strip():
+                j += 1
+            if (j + 1 >= len(lines)
+                    or not TABLE_HEADER_RE.match(lines[j][1])
+                    or not TABLE_RULE_RE.match(lines[j + 1][1])):
+                errors.append(
+                    f"{rel}:{lineno}: 「表：」题注后必须紧跟表格（表头 + 分隔行）")
+
+
+def check_mermaid_figures():
+    """Mermaid 块必须带 figure 标记，输出资产必须已生成且不被重复声明。"""
+    import mermaid_source
+
+    try:
+        blocks = mermaid_source.scan_paths(sorted(md_files()))
+    except mermaid_source.MermaidError as exc:
+        errors.append(f"Mermaid：{exc}")
+        return
+    for block in blocks:
+        rel = block.path.relative_to(ROOT)
+        if not block.asset_path.is_file():
+            errors.append(
+                f"{rel}:{block.line_no}: Mermaid 输出资产不存在 -> {block.asset_rel}"
+                f"（运行 tools/gen_mermaid.py 生成）")
 
 
 def check_links():
@@ -1326,6 +1410,9 @@ def main():
         return
     check_metadata()
     check_images()
+    check_figure_captions()
+    check_table_captions()
+    check_mermaid_figures()
     check_links()
     check_sequence()
     check_orphans()

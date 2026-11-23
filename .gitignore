@@ -15,6 +15,11 @@ __pycache__/
 tools/.cache/
 tools/publish/.cache/
 
+# Mermaid 预渲染：npm 依赖树由 package-lock.json 锁定，浏览器由版本号固定；
+# 两者都可重装，不占版本库
+tools/mermaid/node_modules/
+tools/mermaid/.browser/
+
 # 发布物料：成片/封面/投稿文案体积大，且配音走在线服务、不是逐字节可复现，
 # 所以只提交生成脚本（tools/publish/），产物不进版本库
 dist/

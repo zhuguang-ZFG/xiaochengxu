@@ -1,0 +1,14 @@
+{
+  "name": "needlefish-mermaid",
+  "version": "1.0.0",
+  "private": true,
+  "description": "锁定 Mermaid 预渲染的 npm 依赖树；供 tools/gen_mermaid.py 调用",
+  "dependencies": {
+    "@mermaid-js/mermaid-cli": "11.4.2",
+    "mermaid": "11.17.2",
+    "puppeteer": "23.11.1"
+  },
+  "scripts": {
+    "install-browser": "node install-browser.js 157.0.8103.78"
+  }
+}

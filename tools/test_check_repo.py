@@ -178,6 +178,86 @@ class CheckRepoTest(unittest.TestCase):
         self.assertFalse(any("假的.md" in e for e in errs),
                          f"围栏内的不应报出，实际: {errs}")
 
+    # ---------- 图文题注：电子书图录依赖独占图片与「表：」题注 ----------
+
+    def test_图片缺题注要报(self):
+        self.fixture({
+            "docs/01-入门/01-x.md": "![](../assets/a.png)\n",
+            "docs/assets/a.png": None,
+        })
+        errs = self.run_checks("check_figure_captions")
+        self.assertTrue(any("缺题注" in e for e in errs),
+                        f"alt 为空必须报出，实际: {errs}")
+
+    def test_图片混在段落里要报(self):
+        self.fixture({
+            "docs/01-入门/01-x.md": "正文 ![图](../assets/a.png) 继续\n",
+            "docs/assets/a.png": None,
+        })
+        errs = self.run_checks("check_figure_captions")
+        self.assertTrue(any("独占一行" in e for e in errs),
+                        f"非独占图片不会进图录，必须报出，实际: {errs}")
+
+    def test_独占图片有题注不报(self):
+        self.fixture({
+            "docs/01-入门/01-x.md": "![一张图](../assets/a.png)\n",
+            "docs/assets/a.png": None,
+        })
+        errs = self.run_checks("check_figure_captions")
+        self.assertEqual(errs, [], f"合规图片不应报，实际: {errs}")
+
+    def test_表题后没表格要报(self):
+        self.fixture({
+            "docs/01-入门/01-x.md": "表：没有表格\n\n正文\n",
+        })
+        errs = self.run_checks("check_table_captions")
+        self.assertTrue(any("紧跟表格" in e for e in errs),
+                        f"表题后必须有表格，实际: {errs}")
+
+    def test_表题紧贴表格不报(self):
+        self.fixture({
+            "docs/01-入门/01-x.md": (
+                "表：小表\n\n| 列 |\n|---|\n| 值 |\n"),
+        })
+        errs = self.run_checks("check_table_captions")
+        self.assertEqual(errs, [], f"合规表题不应报，实际: {errs}")
+
+    def test_表题前没空行要报(self):
+        self.fixture({
+            "docs/01-入门/01-x.md": "正文\n表：小表\n\n| 列 |\n|---|\n",
+        })
+        errs = self.run_checks("check_table_captions")
+        self.assertTrue(any("前需空一行" in e for e in errs),
+                        f"题注会并入上一段，必须报出，实际: {errs}")
+
+    def test_mermaid_未标记要报(self):
+        self.fixture({
+            "docs/01-入门/01-x.md": "```mermaid\nflowchart TD\nA --> B\n```\n",
+        })
+        errs = self.run_checks("check_mermaid_figures")
+        self.assertTrue(any("未标记" in e for e in errs),
+                        f"未标记的 Mermaid 块必须报出，实际: {errs}")
+
+    def test_mermaid_资产缺失要报(self):
+        self.fixture({
+            "docs/01-入门/01-x.md": (
+                "<!-- figure: ../assets/diagram-x.png | 示例图 -->\n"
+                "```mermaid\nflowchart TD\nA --> B\n```\n"),
+        })
+        errs = self.run_checks("check_mermaid_figures")
+        self.assertTrue(any("资产不存在" in e for e in errs),
+                        f"未生成的 Mermaid 资产必须报出，实际: {errs}")
+
+    def test_mermaid_标记与资产齐全不报(self):
+        self.fixture({
+            "docs/01-入门/01-x.md": (
+                "<!-- figure: ../assets/diagram-x.png | 示例图 -->\n"
+                "```mermaid\nflowchart TD\nA --> B\n```\n"),
+            "docs/assets/diagram-x.png": None,
+        })
+        errs = self.run_checks("check_mermaid_figures")
+        self.assertEqual(errs, [], f"合规 Mermaid 不应报，实际: {errs}")
+
     # ---------- 围栏语言标注：缩进围栏同样要检查 ----------
 
     def test_缩进围栏未标语言要报(self):

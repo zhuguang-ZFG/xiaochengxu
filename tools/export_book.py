@@ -41,6 +41,8 @@ from urllib.parse import unquote
 from xml.etree import ElementTree
 
 import markdown
+from browser import find_edge
+import mermaid_source
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
@@ -92,6 +94,32 @@ class Heading:
         return self.title
 
 
+@dataclass(frozen=True)
+class Figure:
+    chapter_no: int
+    no: int
+    id: str
+    caption: str
+    source: str
+    path: pathlib.Path
+
+    @property
+    def label(self):
+        return f"图 {self.chapter_no}-{self.no}"
+
+
+@dataclass(frozen=True)
+class Table:
+    chapter_no: int
+    no: int
+    id: str
+    caption: str
+
+    @property
+    def label(self):
+        return f"表 {self.chapter_no}-{self.no}"
+
+
 @dataclass
 class Chapter:
     no: int
@@ -101,6 +129,9 @@ class Chapter:
     h1: str
     headings: list = field(default_factory=list)
     part_title: str = ""
+    body: str = ""
+    figures: list = field(default_factory=list)
+    tables: list = field(default_factory=list)
     _anchor_index: dict = field(default_factory=dict, repr=False)
     _ambiguous: set = field(default_factory=set, repr=False)
 
@@ -151,9 +182,26 @@ class Book:
     chapters: list
     parts: list
     _by_path: dict = field(default_factory=dict, repr=False)
+    _figures_by_id: dict = field(default_factory=dict, repr=False)
+    _figures_by_path: dict = field(default_factory=dict, repr=False)
+    _tables_by_id: dict = field(default_factory=dict, repr=False)
 
     def __post_init__(self):
         self._by_path = {ch.path.resolve(): ch for ch in self.chapters}
+        for ch in self.chapters:
+            for fig in ch.figures:
+                self._figures_by_id[fig.id] = fig
+                self._figures_by_path[fig.path.resolve()] = fig
+            for table in ch.tables:
+                self._tables_by_id[table.id] = table
+
+    @property
+    def figures(self):
+        return [fig for ch in self.chapters for fig in ch.figures]
+
+    @property
+    def tables(self):
+        return [table for ch in self.chapters for table in ch.tables]
 
     def chapter_by_path(self, path):
         key = pathlib.Path(path).resolve()
@@ -163,6 +211,18 @@ class Book:
 
     def get_chapter(self, path):
         return self._by_path.get(pathlib.Path(path).resolve())
+
+    def figure_by_id(self, fig_id):
+        return self._figures_by_id.get(fig_id)
+
+    def figure_for_path(self, path):
+        return self._figures_by_path.get(pathlib.Path(path).resolve())
+
+    def chapter_by_no(self, no):
+        for ch in self.chapters:
+            if ch.no == no:
+                return ch
+        raise KeyError(f"没有第 {no} 章")
 
     def resolve_anchor(self, source, fragment):
         """先在本章找，再在全书找唯一目标。
@@ -282,6 +342,70 @@ def build_anchor_index(headings):
     return index, ambiguous
 
 
+IMAGE_LINE_RE = re.compile(
+    r"""^!\[([^\]]*)\]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)\s*$""")
+TABLE_CAPTION_RE = re.compile(r"^表：(.+?)\s*$")
+TABLE_HEADER_RE = re.compile(r"^\|.*\|\s*$")
+TABLE_RULE_RE = re.compile(r"^\|[\s:|-]+\|\s*$")
+FENCE_LINE_RE = re.compile(r"^\s{0,3}```")
+
+
+def prose_lines(text):
+    """逐行给出围栏代码块之外的 (行号, 内容)。"""
+    in_fence = False
+    for line_no, line in enumerate(text.splitlines(), 1):
+        if FENCE_LINE_RE.match(line):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            yield line_no, line
+
+
+def scan_figures(chapter, body):
+    """按出现顺序登记本章独占图片；题注取 alt，缺题注直接拒绝。"""
+    figures = []
+    for line_no, line in prose_lines(body):
+        m = IMAGE_LINE_RE.match(line)
+        if not m:
+            continue
+        caption = strip_inline_markdown(m.group(1))
+        if not caption:
+            raise ValueError(
+                f"{chapter.path.name}:{line_no} 图片缺少题注（alt）")
+        source = m.group(2)
+        no = len(figures) + 1
+        figures.append(Figure(
+            chapter_no=chapter.no, no=no,
+            id=f"ch{chapter.no:02d}-f{no:02d}", caption=caption,
+            source=source,
+            path=(chapter.path.parent / unquote(source)).resolve()))
+    return figures
+
+
+def scan_tables(chapter, body):
+    """登记带「表：」题注的表格；题注必须紧跟表头与分隔行。"""
+    lines = list(prose_lines(body))
+    tables = []
+    for idx, (line_no, line) in enumerate(lines):
+        m = TABLE_CAPTION_RE.match(line)
+        if not m:
+            continue
+        j = idx + 1
+        while j < len(lines) and not lines[j][1].strip():
+            j += 1
+        if (j + 1 >= len(lines)
+                or not TABLE_HEADER_RE.match(lines[j][1])
+                or not TABLE_RULE_RE.match(lines[j + 1][1])):
+            raise ValueError(
+                f"{chapter.path.name}:{line_no}「表：」题注后必须紧跟表格")
+        no = len(tables) + 1
+        tables.append(Table(
+            chapter_no=chapter.no, no=no,
+            id=f"ch{chapter.no:02d}-t{no:02d}",
+            caption=strip_inline_markdown(m.group(1))))
+    return tables
+
+
 def collect_book():
     """扫描 32 篇文章，组成五部分的书稿模型。
 
@@ -299,12 +423,16 @@ def collect_book():
                 raw = f.read_text(encoding="utf-8")
                 meta = parse_front_matter(raw)
                 body = strip_front_matter(raw)
+                body, _ = mermaid_source.materialize(body, f)
                 h1 = extract_h1(body)
                 title = meta.get("title") or h1 or f.stem
                 headings = parse_headings(body, no)
                 ch = Chapter(no=no, path=f, meta=meta, title=title, h1=h1,
-                             headings=headings, part_title=part_title)
+                             headings=headings, part_title=part_title,
+                             body=body)
                 ch._anchor_index, ch._ambiguous = build_anchor_index(headings)
+                ch.figures = scan_figures(ch, body)
+                ch.tables = scan_tables(ch, body)
                 part_chapters.append(ch)
                 chapters.append(ch)
         parts.append(Part(part_no, part_title, part_desc, part_chapters))
@@ -361,21 +489,84 @@ def apply_outside_code(md_text, func):
     return "".join(p if p.startswith("```") else func(p) for p in parts)
 
 
-def wrap_figures(html_text):
-    """把独占一段的图片包成 figure，并把 alt 变成图注。"""
+def wrap_figures(html_text, figures):
+    """把独占一段的图片包成带图号的 figure。
+
+    图片必须先在扫描阶段登记（图录由 Markdown 的独占图片行生成）；
+    正文里出现未登记的独占图片、或图录里的图片没渲染出来，都直接报错，
+    避免电子书里出现没有编号、无法交叉引用的孤儿图。
+    """
+    by_source = {fig.source: fig for fig in figures}
+    used = set()
+
     def make(m):
         inner = m.group(1)
-        alt_m = re.search(r'alt="([^"]*)"', inner)
-        alt = html_lib.escape(
-            html_lib.unescape(alt_m.group(1)).strip(), quote=False
-        ) if alt_m else ""
-        cap = f"<figcaption>{alt}</figcaption>" if alt else ""
-        return f"<figure>{inner}{cap}</figure>"
+        src_m = re.search(r'\bsrc="([^"]*)"', inner)
+        src = html_lib.unescape(src_m.group(1)) if src_m else ""
+        fig = by_source.get(src)
+        if fig is None:
+            raise ValueError(
+                f"独占图片 {src or '(无 src)'} 不在图录中，请检查图片行是否独占一行")
+        used.add(fig.id)
+        caption = html_lib.escape(fig.caption, quote=False)
+        return (f'<figure id="{fig.id}">{inner}'
+                f'<figcaption><span class="fig-label">{fig.label}</span>'
+                f"　{caption}</figcaption></figure>")
 
     html_text = re.sub(
         r"<p>\s*(<a\b[^>]*>\s*<img\b[^>]*>\s*</a>)\s*</p>", make, html_text,
         flags=re.S)
-    return re.sub(r"<p>\s*(<img\b[^>]*>)\s*</p>", make, html_text, flags=re.S)
+    html_text = re.sub(
+        r"<p>\s*(<img\b[^>]*>)\s*</p>", make, html_text, flags=re.S)
+    missing = [fig.label for fig in figures if fig.id not in used]
+    if missing:
+        raise ValueError(f"图录中的图片没有出现在正文：{'、'.join(missing)}")
+    return html_text
+
+
+TABLE_BLOCK_RE = re.compile(
+    r"<p>\s*表：\s*(.*?)</p>\s*(<table\b.*?</table>)", re.S)
+
+
+def wrap_tables(html_text, tables):
+    """把「表：」题注段落与其后的表格包成带表号的 table-block。"""
+    used = 0
+
+    def make(m):
+        nonlocal used
+        if used >= len(tables):
+            raise ValueError("正文表格多于已登记的表题")
+        table = tables[used]
+        used += 1
+        caption = html_lib.escape(table.caption, quote=False)
+        return (f'<div class="table-block" id="{table.id}">'
+                f'<div class="table-caption"><span class="table-label">'
+                f"{table.label}</span>　{caption}</div>"
+                f"{m.group(2)}</div>")
+
+    out = TABLE_BLOCK_RE.sub(make, html_text)
+    if used < len(tables):
+        table = tables[used]
+        raise ValueError(
+            f"表题多于实际表格：缺少「{table.label}　{table.caption}」")
+    return out
+
+
+def label_figure_links(html_text, book):
+    """图链接前面补上「图 N-M」，读者不必点开才知道指向哪张图。"""
+    def repl(m):
+        attrs, inner = m.group(1), m.group(2)
+        href_m = re.search(r'\bhref="([^"]*)"', attrs)
+        if not href_m or "#" not in href_m.group(1):
+            return m.group(0)
+        fig = book.figure_by_id(href_m.group(1).rpartition("#")[2])
+        if fig is None:
+            return m.group(0)
+        if re.search(r"图\s*\d+\s*-\s*\d+", inner):
+            return m.group(0)
+        return f"<a{attrs}>{fig.label}　{inner}</a>"
+
+    return re.sub(r"<a\b([^>]*)>(.*?)</a>", repl, html_text, flags=re.S)
 
 
 def rewrite_href(href, source, book, mode):
@@ -415,6 +606,12 @@ def rewrite_href(href, source, book, mode):
                     else f"{chapter.epub_file}#{target_id}")
         return f"#{chapter.pdf_anchor}" if mode == "pdf" else chapter.epub_file
 
+    figure = book.figure_for_path(target)
+    if figure is not None:
+        owner = book.chapter_by_no(figure.chapter_no)
+        return (f"#{figure.id}" if mode == "pdf"
+                else f"{owner.epub_file}#{figure.id}")
+
     try:
         rel = target.relative_to(ROOT).as_posix()
     except ValueError:
@@ -438,8 +635,7 @@ def promote_video_note(html_text):
 def render_chapter_body(chapter, book, mode, gif_cache=None, image_sink=None,
                         image_prefix=""):
     """把一章 Markdown 渲染成可直接装进 PDF/EPUB 的正文 HTML。"""
-    raw = chapter.path.read_text(encoding="utf-8")
-    body = strip_front_matter(raw)
+    body = chapter.body
     body = strip_duplicate_h1(body, chapter.title)
     body = apply_outside_code(body, separate_lists)
     body = apply_outside_code(body, convert_checkboxes)
@@ -477,14 +673,19 @@ def render_chapter_body(chapter, book, mode, gif_cache=None, image_sink=None,
     html_text = re.sub(
         r'<a\b([^>]*?)\bhref="([^"]*)"([^>]*)>', rewrite_link, html_text)
 
+    html_text = label_figure_links(html_text, book)
+
     html_text = promote_video_note(html_text)
+
+    html_text = wrap_tables(html_text, chapter.tables)
+    html_text = wrap_figures(html_text, chapter.figures)
 
     html_text, resolved = fix_image_srcs(
         html_text, chapter.path, to_uri=(mode == "pdf"), gif_cache=gif_cache,
         prefix=image_prefix)
     if image_sink is not None:
         image_sink.update(resolved)
-    return wrap_figures(html_text)
+    return html_text
 
 
 def fill_toc_page_numbers(html_text, page_map):
@@ -603,17 +804,16 @@ def build_cover_png(path, size=(1240, 1754)):
 def md_to_html(md_text, expand_details=True):
     """Markdown → HTML。三处预处理：
 
-    - mermaid 围栏浏览器画不了，替换成一行说明；
+    - 残留的 mermaid 围栏直接报错——导出前应先经过 mermaid_source.materialize，
+      悄悄降级成一行说明会让读者丢失整张图；
     - 测验的 <details> 是原始 HTML 块，块内默认不跑 markdown——答案里的
       `**B**.` 不加粗、`<text>` 会被当成真标签（良构 XML 直接报错）。
       所以把每个 details 块抠出来，内层单独过一遍 markdown 再拼回去；
     - 电子书没有「点击展开」，details 在打印/EPUB 里默认收起＝答案丢失，
       默认展开为带边框的答案块。
     """
-    md_text = re.sub(
-        r"```mermaid\n.*?\n```",
-        "> 注：此处是一张 Mermaid 流程图，网页版与仓库中可看到渲染结果，电子书版以文字步骤为准。",
-        md_text, flags=re.S)
+    if re.search(r"^\s{0,3}```mermaid\s*$", md_text, re.M):
+        raise ValueError("正文里还有未处理的 Mermaid 块（标记缺失或未物化）")
 
     def _details(m):
         inner = markdown.markdown(m.group(2).strip(), extensions=MD_EXTENSIONS)
@@ -782,6 +982,34 @@ def _pdf_toc_html(book):
 </section>"""
 
 
+def _pdf_list_line(label, caption, key, href):
+    return (f'<div class="toc-line list-line">'
+            f'<span class="list-label">{_e(label)}</span>'
+            f'<a class="toc-title" href="{href}">{_e(caption)}</a>'
+            f'<span class="toc-dots"></span>'
+            f'<span class="toc-page" data-toc-key="{key}">000</span></div>')
+
+
+def _pdf_lists_html(book):
+    figures = "".join(
+        _pdf_list_line(fig.label, fig.caption, f"fig-{fig.id}", f"#{fig.id}")
+        for fig in book.figures)
+    tables = "".join(
+        _pdf_list_line(table.label, table.caption, f"tab-{table.id}",
+                       f"#{table.id}")
+        for table in book.tables)
+    return f"""<section class="toc figure-list" id="figures-list">
+<h1 class="toc-heading">插图目录</h1>
+<p class="toc-intro">按章顺序列出全书 {len(book.figures)} 张插图；点击标题可跳到对应图。</p>
+{figures}
+</section>
+<section class="toc table-list" id="tables-list">
+<h1 class="toc-heading">表格目录</h1>
+<p class="toc-intro">按章顺序列出全书 {len(book.tables)} 张表格；点击标题可跳到对应表。</p>
+{tables}
+</section>"""
+
+
 def _pdf_part_html(part):
     return f"""<section class="part-page" id="part{part.no}">
 <p class="part-kicker">PART {part.no:02d}</p>
@@ -875,6 +1103,10 @@ a { color: #0b7a45; text-decoration: none; }
             min-width: 8mm; }
 .toc-page { width: 10mm; flex: none; text-align: right; display: inline-block;
             font-variant-numeric: tabular-nums; }
+.figure-list .toc-heading { string-set: chapter "插图目录"; }
+.table-list .toc-heading { string-set: chapter "表格目录"; }
+.list-label { width: 18mm; flex: none; color: #0b7a45; font-weight: 600;
+              font-variant-numeric: tabular-nums; }
 .part-page { break-before: page; padding-top: 68mm; }
 .part-kicker { font-family: "Microsoft YaHei", sans-serif; color: #8a8f8b;
                font-size: 9pt; letter-spacing: 2pt; margin: 0 0 3mm; }
@@ -931,7 +1163,12 @@ th, td { border: 0.5pt solid #d5ddd8; padding: 1.5mm 2mm; text-align: left;
 th { background: #eef8f2; font-family: "Microsoft YaHei", sans-serif; }
 figure { margin: 3mm 0; text-align: center; break-inside: avoid; }
 figure img { max-width: 100%; max-height: 90mm; }
-figcaption { font-size: 9pt; color: #777; margin-top: 1.5mm; text-align: center; }
+figcaption { font-size: 9pt; color: #555; margin-top: 1.5mm; text-align: center; }
+.fig-label, .table-label { font-family: "Microsoft YaHei", sans-serif;
+                           font-weight: bold; color: #0b7a45; }
+.table-block { margin: 3mm 0 4mm; }
+.table-caption { font-size: 9pt; color: #555; margin: 0 0 1.2mm; text-align: center; }
+.table-block table { margin: 0; }
 img { max-width: 100%; }
 hr { border: none; border-top: 0.5pt solid #d5ddd8; margin: 5mm 0; }
 """
@@ -942,7 +1179,7 @@ def build_pdf_html(book, cover_path, gif_cache):
     body = [
         f'<section class="cover"><img src="{cover_uri}" alt="封面" /></section>',
         _title_section(), _copyright_section(), _preface_section(book),
-        _howto_section(book), _pdf_toc_html(book),
+        _howto_section(book), _pdf_toc_html(book), _pdf_lists_html(book),
     ]
     for part in book.parts:
         body.append(_pdf_part_html(part))
@@ -953,24 +1190,6 @@ def build_pdf_html(book, cover_path, gif_cache):
 <title>{_e(BOOK_TITLE)}</title>
 <style>{PDF_CSS}</style></head>
 <body>{''.join(body)}</body></html>"""
-
-
-def find_edge():
-    candidates = [
-        os.environ.get("EDGE_PATH"),
-        shutil.which("msedge"),
-        shutil.which("microsoft-edge"),
-        shutil.which("microsoft-edge-stable"),
-        "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-        "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
-        "/usr/bin/microsoft-edge",
-        "/usr/bin/microsoft-edge-stable",
-        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-    ]
-    for candidate in candidates:
-        if candidate and pathlib.Path(candidate).is_file():
-            return str(candidate)
-    return None
 
 
 def print_pdf(html_path, pdf_path):
@@ -1051,8 +1270,19 @@ def locate_pdf_pages(pdf_path, book):
         if preface is None or toc is None:
             raise ValueError("PDF 里找不到前言或目录页")
 
-        page_map = {"preface": preface + 1, "toc": toc + 1}
-        cursor = toc + 1
+        figures_list = _find_heading_page(
+            heading_lines, "插图目录", toc + 1, total, 17,
+            norm_pages=norm_pages)
+        tables_list = _find_heading_page(
+            heading_lines, "表格目录", (figures_list or toc) + 1, total, 17,
+            norm_pages=norm_pages)
+        if figures_list is None or tables_list is None:
+            raise ValueError("PDF 里找不到插图目录或表格目录")
+
+        page_map = {"preface": preface + 1, "toc": toc + 1,
+                    "figures-list": figures_list + 1,
+                    "tables-list": tables_list + 1}
+        cursor = tables_list + 1
         for part in book.parts:
             part_page = _find_page(norm_pages, f"第{_cn_number(part.no)}部分",
                                    cursor)
@@ -1084,6 +1314,28 @@ def locate_pdf_pages(pdf_path, book):
                     raise ValueError(
                         f"PDF 里找不到第 {ch.no} 章的小节「{heading.title}」")
                 page_map[heading.id] = page + 1
+
+            for fig in ch.figures:
+                page = _find_heading_page(
+                    heading_lines, fig.label, start, end, 8, 9.6,
+                    norm_pages=norm_pages)
+                if page is None:
+                    page = _find_page(norm_pages, fig.label, start, end)
+                if page is None:
+                    raise ValueError(
+                        f"PDF 里找不到第 {ch.no} 章的插图「{fig.label}」")
+                page_map[f"fig-{fig.id}"] = page + 1
+
+            for table in ch.tables:
+                page = _find_heading_page(
+                    heading_lines, table.label, start, end, 8, 9.6,
+                    norm_pages=norm_pages)
+                if page is None:
+                    page = _find_page(norm_pages, table.label, start, end)
+                if page is None:
+                    raise ValueError(
+                        f"PDF 里找不到第 {ch.no} 章的表格「{table.label}」")
+                page_map[f"tab-{table.id}"] = page + 1
         return page_map
     finally:
         doc.close()
@@ -1098,6 +1350,9 @@ def add_pdf_structure(pdf_path, book, page_map):
             toc.append([1, "前言", page_map["preface"]])
         if "toc" in page_map:
             toc.append([1, "目录", page_map["toc"]])
+        for key, title in (("figures-list", "插图目录"), ("tables-list", "表格目录")):
+            if key in page_map:
+                toc.append([1, title, page_map[key]])
         for part in book.parts:
             toc.append([1, f"第{_cn_number(part.no)}部分 {part.title}",
                         page_map[f"part{part.no}"]])
@@ -1197,6 +1452,13 @@ def _epub_chapter_html(ch, book, body):
     return xhtml
 
 
+def _epub_list_body(book, items):
+    rows = "".join(
+        f'<li><a href="ch{item.chapter_no:02d}.xhtml#{item.id}">'
+        f"{item.label}　{_e(item.caption)}</a></li>" for item in items)
+    return f'<ol class="figure-list">{rows}</ol>'
+
+
 def _epub_nav_html(book):
     parts = []
     for part in book.parts:
@@ -1211,10 +1473,14 @@ def _epub_nav_html(book):
         parts.append(
             f'<li><a href="part{part.no:02d}.xhtml">{_e(part.title)}</a>'
             f'<ol>{"".join(chapters)}</ol></li>')
-    body = f"""<nav epub:type="toc" id="toc"><h1>目录</h1><ol>{''.join(parts)}</ol></nav>
+    lists = ('<li><a href="figures.xhtml">插图目录</a></li>'
+             '<li><a href="tables.xhtml">表格目录</a></li>')
+    body = f"""<nav epub:type="toc" id="toc"><h1>目录</h1><ol>{''.join(parts)}{lists}</ol></nav>
 <nav epub:type="landmarks" id="landmarks" hidden="hidden"><h2>导航</h2><ol>
 <li><a epub:type="cover" href="cover.xhtml">封面</a></li>
 <li><a epub:type="toc" href="nav.xhtml">目录</a></li>
+<li><a epub:type="loi" href="figures.xhtml">插图目录</a></li>
+<li><a epub:type="lot" href="tables.xhtml">表格目录</a></li>
 <li><a epub:type="bodymatter" href="part01.xhtml">正文</a></li>
 </ol></nav>"""
     xhtml = _epub_wrap("目录", body)
@@ -1277,7 +1543,14 @@ th, td { border: 1px solid #d5ddd8; padding: 0.3em 0.5em; text-align: left;
 th { background: #eef8f2; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
 figure { margin: 1em 0; text-align: center; page-break-inside: avoid; }
 img { max-width: 100%; height: auto; }
-figcaption { font-size: 0.82em; color: #777; margin-top: 0.3em; }
+figcaption { font-size: 0.82em; color: #555; margin-top: 0.3em; }
+.fig-label, .table-label { font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+                           font-weight: bold; color: #0b7a45; }
+.table-block { margin: 0.8em 0; }
+.table-caption { font-size: 0.82em; color: #555; text-align: center; }
+.table-block table { margin: 0.3em 0 0; }
+.figure-list { padding-left: 1.4em; }
+.figure-list li { margin: 0.35em 0; }
 hr { border: none; border-top: 1px solid #d5ddd8; margin: 1.2em 0; }
 .front { margin: 10% 6%; }
 .front-title { font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
@@ -1371,6 +1644,10 @@ def build_epub(book, out_dir):
     add_doc("howto", "howto.xhtml", "如何使用本书", _howto_section(book))
     files["nav.xhtml"] = _epub_nav_html(book)
     spine.append("nav")
+    add_doc("figures", "figures.xhtml", "插图目录",
+            f"<h1>插图目录</h1>{_epub_list_body(book, book.figures)}", "loi")
+    add_doc("tables", "tables.xhtml", "表格目录",
+            f"<h1>表格目录</h1>{_epub_list_body(book, book.tables)}", "lot")
 
     for part in book.parts:
         part_id = f"part{part.no:02d}"

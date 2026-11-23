@@ -40,6 +40,9 @@ TARGETS = {
     "check_repo.py": "test_check_repo.py",
     "check_assets_fresh.py": "test_assets_fresh.py",
     "gen_videos.py": "test_gen_videos.py",
+    "gen_mermaid.py": "test_gen_mermaid.py",
+    "mermaid_source.py": "test_mermaid_source.py",
+    "mermaid/install-browser.js": "test_gen_mermaid.py",
 }
 
 # 被测脚本 import 的同目录模块（临时目录里没有 site-packages 之外的来源，必须复制）。
@@ -47,7 +50,14 @@ TARGETS = {
 # gen_animations/gen_diagrams/gen_statics，缺一个就是 FileNotFoundError，
 # 于是每次变异都因「自测崩了」变红——25/25 全绿里混着假捕获。
 DEPS = {
+    "check_repo.py": ["mermaid_source.py"],
     "gen_videos.py": ["render.py", "gen_animations.py", "gen_diagrams.py", "gen_statics.py"],
+    # 自测会读 package.json / lockfile 核对版本，临时目录里缺了它们，
+    # 每次变异都会因 FileNotFoundError 变红，全绿里全是假捕获。
+    "gen_mermaid.py": ["mermaid_source.py", "mermaid/package.json",
+                       "mermaid/package-lock.json", "mermaid/pin_sans_serif.mjs"],
+    "mermaid/install-browser.js": ["mermaid/package.json",
+                                   "mermaid/package-lock.json"],
 }
 
 MUTATIONS = [
@@ -233,6 +243,26 @@ MUTATIONS = [
         "        for lineno, line in enumerate(masked.split(\"\\n\"), 1):\n            if ignored(lineno):",
         "        for lineno, line in enumerate(masked.split(\"\\n\"), 1):\n            if False:",
     ),
+    (
+        "check_repo.py",
+        "图片 alt 题注检查形同虚设（空 alt 的裸图漏到电子书）",
+        "                if not m.group(1).strip():",
+        "                if False:",
+    ),
+    (
+        "check_repo.py",
+        "表题后必须紧跟表格的检查形同虚设（孤立表题照样放行）",
+        "            if (j + 1 >= len(lines)\n"
+        "                    or not TABLE_HEADER_RE.match(lines[j][1])\n"
+        "                    or not TABLE_RULE_RE.match(lines[j + 1][1])):",
+        "            if False:",
+    ),
+    (
+        "check_repo.py",
+        "Mermaid 输出资产缺失不报（成书时图位空着）",
+        "        if not block.asset_path.is_file():",
+        "        if False:",
+    ),
     # ---- check_assets_fresh.py ----
     (
         "check_assets_fresh.py",
@@ -289,6 +319,106 @@ MUTATIONS = [
         "           tmp]",
         "           str(out)]",
     ),
+    # ---- gen_mermaid.py ----
+    (
+        "gen_mermaid.py",
+        "写作契约被卷进渲染扫描（契约里的 Mermaid 示例让生成脚本直接崩溃）",
+        "    return sorted(p for p in pathlib.Path(docs_root).rglob(\"*.md\")\n"
+        "                  if p.name != CONTRACT_NAME)",
+        "    return sorted(p for p in pathlib.Path(docs_root).rglob(\"*.md\"))",
+    ),
+    (
+        "gen_mermaid.py",
+        "Windows 管道默认 cp1252，打印中文路径以 UnicodeEncodeError 非零退出",
+        "if hasattr(sys.stdout, \"reconfigure\"):\n"
+        "    try:\n"
+        "        sys.stdout.reconfigure(encoding=\"utf-8\", errors=\"replace\")\n"
+        "    except Exception:\n"
+        "        pass",
+        "if False:\n"
+        "    pass",
+    ),
+    (
+        "gen_mermaid.py",
+        "渲染退回 PATH 上的 mmdc（不再用 tools/mermaid 锁定的 CLI）",
+        "    return [node_exe(), \"--import\", PIN_SANS_SERIF.as_uri(),\n"
+        "            str(mmdc_js())] + [",
+        "    return [\"mmdc\"] + [",
+    ),
+    (
+        "gen_mermaid.py",
+        "字体固定钩子不再预加载（Arial 版本差异重新影响时序图布局）",
+        "    return [node_exe(), \"--import\", PIN_SANS_SERIF.as_uri(),\n"
+        "            str(mmdc_js())] + [",
+        "    return [node_exe(), str(mmdc_js())] + [",
+    ),
+    (
+        "gen_mermaid.py",
+        "钩子拿到整条字体栈而不是首个字体（sans-serif 映射到无效族名）",
+        "    first = family.split(\",\")[0].strip().strip(\"\\\"'\")",
+        "    first = family",
+    ),
+    (
+        "gen_mermaid.py",
+        "根级测量字体缺失（时序图退回 Trebuchet/Verdana 默认栈，runner 缺字体即漂移）",
+        '    "fontFamily": FONT_FAMILY,\n',
+        "",
+    ),
+    (
+        "gen_mermaid.py",
+        "根级测量字体改成固定 Arial（字体栈被绕开时毫无察觉）",
+        '    "fontFamily": FONT_FAMILY,',
+        '    "fontFamily": "Arial",',
+    ),
+    (
+        "gen_mermaid.py",
+        "测量字体放回 sequence 死字段（被根 fontFamily 覆盖，等于没钉）",
+        '    "sequence": {"useMaxWidth": False},',
+        '    "sequence": {"useMaxWidth": False, "messageFontFamily": FONT_FAMILY},',
+    ),
+    (
+        "gen_mermaid.py",
+        "测量字体环境变量未传给 mmdc（钩子启动即退出）",
+        "    env[SANS_SERIF_ENV] = theme_font_family()",
+        "    env[SANS_SERIF_ENV] = \"Arial\"",
+    ),
+    (
+        "gen_mermaid.py",
+        "依赖版本不符也继续渲染（lockfile 被绕过时毫无察觉）",
+        "        if got != want:",
+        "        if False:",
+    ),
+    (
+        "gen_mermaid.py",
+        "浏览器发现不再核对版本（任意 Chrome 都能生成资产）",
+        "            if PINNED_BROWSER in candidate.as_posix() and candidate.is_file():",
+        "            if candidate.is_file():",
+    ),
+    (
+        "gen_mermaid.py",
+        "浏览器版本退回 latest（资产随浏览器更新漂移）",
+        'PINNED_BROWSER = "157.0.8103.78"',
+        'PINNED_BROWSER = "latest"',
+    ),
+    (
+        "mermaid/install-browser.js",
+        "浏览器安装目录退回相对路径（CI 首次解压即失败）",
+        'path.join(dir, ".browser")',
+        '".browser"',
+    ),
+    # ---- mermaid_source.py ----
+    (
+        "mermaid_source.py",
+        "未标记的 Mermaid 块被静默跳过（电子书里只剩一行代码说明）",
+        "        if MERMAID_OPEN_RE.match(line):",
+        "        if False:",
+    ),
+    (
+        "mermaid_source.py",
+        "同一输出资产被多处声明不报（后一个标记覆盖前图，成书图错位）",
+        "            if block.asset_path in seen:",
+        "            if False:",
+    ),
 ]
 
 
@@ -310,6 +440,7 @@ def main():
         with tempfile.TemporaryDirectory() as td:
             td = pathlib.Path(td)
             for name in TARGETS:
+                (td / name).parent.mkdir(parents=True, exist_ok=True)
                 (td / name).write_text(originals[name], encoding="utf-8")
             (td / target).write_text(
                 originals[target].replace(fixed, broken, 1), encoding="utf-8")
@@ -320,6 +451,8 @@ def main():
             test_file = TARGETS[target]
             shutil.copy(TOOLS / test_file, td / test_file)
             for dep in DEPS.get(target, []):
+                # 依赖可能在子目录（如 mermaid/package.json），先建父目录
+                (td / dep).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(TOOLS / dep, td / dep)
             r = subprocess.run(
                 [sys.executable, test_file], cwd=td,
