@@ -56,7 +56,7 @@ Page({
 <button disabled="{{!isVip}}">按钮</button>
 ```
 
-注意：**组件属性值里出现 `{{}}`，整个属性值会被当作绑定表达式解析**。所以布尔值、数字不能省略花括号，`disabled="{{true}}"` 是布尔 true，而 `disabled="true"` 是字符串 "true"。
+注意：**组件属性值里出现 `{{}}`，整个属性值会被当作绑定表达式解析**。所以布尔值、数字不能省略花括号，`disabled="{{true}}"` 是布尔 true，而 `disabled="true"` 是字符串 `"true"`。
 
 ### 绑定运算
 
