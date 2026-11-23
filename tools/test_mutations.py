@@ -321,6 +321,17 @@ MUTATIONS = [
         "                  if p.name != CONTRACT_NAME)",
         "    return sorted(p for p in pathlib.Path(docs_root).rglob(\"*.md\"))",
     ),
+    (
+        "gen_mermaid.py",
+        "Windows 管道默认 cp1252，打印中文路径以 UnicodeEncodeError 非零退出",
+        "if hasattr(sys.stdout, \"reconfigure\"):\n"
+        "    try:\n"
+        "        sys.stdout.reconfigure(encoding=\"utf-8\", errors=\"replace\")\n"
+        "    except Exception:\n"
+        "        pass",
+        "if False:\n"
+        "    pass",
+    ),
     # ---- mermaid_source.py ----
     (
         "mermaid_source.py",

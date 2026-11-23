@@ -11,7 +11,9 @@
 """
 import hashlib
 import json
+import os
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -38,6 +40,21 @@ def make_block(tmp, asset="assets/diagram-x.png", source="flowchart LR\n  A --> 
             f"```mermaid\n{source}\n```\n")
     md.write_text(text, encoding="utf-8")
     return ms.parse_text(text, md)[0]
+
+
+class ConsoleEncodingTest(unittest.TestCase):
+    def test_cp1252_控制台下打印中文不崩(self):
+        """CI 的 Windows runner 用 cp1252 管道；渲染完成后打印中文路径崩过一次。"""
+        env = dict(os.environ, PYTHONIOENCODING="cp1252", PYTHONUTF8="0")
+        code = ("import gen_mermaid\n"
+                "print('  生成 docs/assets/diagram-x.png')\n")
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=pathlib.Path(__file__).resolve().parent,
+            env=env, capture_output=True)
+        self.assertEqual(proc.returncode, 0,
+                         proc.stderr.decode("utf-8", "replace"))
+        self.assertIn("生成", proc.stdout.decode("utf-8"))
 
 
 class CommandTest(unittest.TestCase):

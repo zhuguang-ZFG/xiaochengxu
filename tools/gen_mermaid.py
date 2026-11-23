@@ -23,6 +23,14 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import browser  # noqa: E402
 import mermaid_source  # noqa: E402
 
+# 与 render.py 同一类坑：Windows 管道默认 cp1252，渲染完成后打印中文路径
+# 会抛 UnicodeEncodeError——资产已写好，脚本却以非零码退出。
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 ASSETS = DOCS / "assets"
