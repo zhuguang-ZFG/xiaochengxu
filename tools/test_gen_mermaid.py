@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -129,12 +130,32 @@ class PinnedEnvironmentTest(unittest.TestCase):
         data = json.loads(
             (MERMAID_DIR / "package.json").read_text(encoding="utf-8"))
         script = data["scripts"]["install-browser"]
-        # 必须用 @puppeteer/browsers 的 CLI：puppeteer 自身的 install 命令
-        # 不认 --path，会把浏览器装到用户缓存而不是 tools/mermaid/.browser。
-        self.assertTrue(script.startswith("browsers install chrome@"))
-        self.assertIn(f"chrome@{gm.PINNED_BROWSER}", script)
-        self.assertIn("--path .browser", script)
+        # 必须走包装脚本：@puppeteer/browsers 的解压步骤拒绝相对路径，
+        # 直接把 --path .browser 交给它会在 CI 首次安装时崩掉。
+        self.assertEqual(script, f"node install-browser.js {gm.PINNED_BROWSER}")
         self.assertNotIn("latest", script)
+        wrapper = (MERMAID_DIR / "install-browser.js").read_text(encoding="utf-8")
+        self.assertIn('path.join(dir, ".browser")', wrapper)
+        self.assertIn('"--path"', wrapper)
+        self.assertIn("@puppeteer/browsers", wrapper)
+
+    def test_浏览器安装目录必须解析成绝对路径(self):
+        """browsers 的解压步骤拒绝相对路径：CI 首次安装会直接崩在 extract-zip。"""
+        wrapper = json.dumps(str(MERMAID_DIR / "install-browser.js"))
+        workdir = json.dumps(tempfile.gettempdir())
+        code = (
+            f"const {{browserArgs}} = require({wrapper});"
+            f"const args = browserArgs('{gm.PINNED_BROWSER}', {workdir});"
+            "const i = args.indexOf('--path');"
+            "process.stdout.write(args[i + 1]);"
+        )
+        proc = subprocess.run(
+            [shutil.which("node") or "node", "-e", code],
+            capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        target = pathlib.Path(proc.stdout)
+        self.assertTrue(target.is_absolute(), proc.stdout)
+        self.assertEqual(target.name, ".browser")
 
     def test_依赖版本不符时拒绝渲染(self):
         with tempfile.TemporaryDirectory() as td:

@@ -42,6 +42,7 @@ TARGETS = {
     "gen_videos.py": "test_gen_videos.py",
     "gen_mermaid.py": "test_gen_mermaid.py",
     "mermaid_source.py": "test_mermaid_source.py",
+    "mermaid/install-browser.js": "test_gen_mermaid.py",
 }
 
 # 被测脚本 import 的同目录模块（临时目录里没有 site-packages 之外的来源，必须复制）。
@@ -55,6 +56,8 @@ DEPS = {
     # 每次变异都会因 FileNotFoundError 变红，全绿里全是假捕获。
     "gen_mermaid.py": ["mermaid_source.py", "mermaid/package.json",
                        "mermaid/package-lock.json"],
+    "mermaid/install-browser.js": ["mermaid/package.json",
+                                   "mermaid/package-lock.json"],
 }
 
 MUTATIONS = [
@@ -359,6 +362,12 @@ MUTATIONS = [
         'PINNED_BROWSER = "157.0.8103.78"',
         'PINNED_BROWSER = "latest"',
     ),
+    (
+        "mermaid/install-browser.js",
+        "浏览器安装目录退回相对路径（CI 首次解压即失败）",
+        'path.join(dir, ".browser")',
+        '".browser"',
+    ),
     # ---- mermaid_source.py ----
     (
         "mermaid_source.py",
@@ -393,6 +402,7 @@ def main():
         with tempfile.TemporaryDirectory() as td:
             td = pathlib.Path(td)
             for name in TARGETS:
+                (td / name).parent.mkdir(parents=True, exist_ok=True)
                 (td / name).write_text(originals[name], encoding="utf-8")
             (td / target).write_text(
                 originals[target].replace(fixed, broken, 1), encoding="utf-8")
