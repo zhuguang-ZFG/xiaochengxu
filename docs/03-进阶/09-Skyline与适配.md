@@ -180,7 +180,7 @@ const capsule = wx.getMenuButtonBoundingClientRect();  // 胶囊按钮位置
 
 <details><summary>答案</summary>
 
-**B**. 不同机型 inset 值不同（0/34/44...），写死像素值会让无横条机型空一块；用 `env(safe-area-inset-bottom)` 让系统按设备给值，自适应所有机型。
+**B**. 不同机型 inset 值不同（0/34/44…），写死像素值会让无横条机型空一块；用 `env(safe-area-inset-bottom)` 让系统按设备给值，自适应所有机型。
 
 </details>
 

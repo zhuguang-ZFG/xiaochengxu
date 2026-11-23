@@ -16,6 +16,7 @@
 11. 进度同步：PROGRESS.md 文章列表与 README 教学顺序表一致
 12. 知识图谱：在 README 和学习路径总览中被引用
 13. FAQ 格式：FAQ 文档有正确元数据和 Q&A 结构
+14. 中文排版：中英文空格、全角标点、引号/省略号、行内代码间距、全角括号配对、术语大小写
 
 用法：python tools/check_repo.py
       python tools/check_repo.py --update-api-list   # 刷新第 9 项的官方名单
@@ -83,6 +84,177 @@ def reference_md_files():
 FENCE_RE = re.compile(r"^[ \t]{0,3}```.*?^[ \t]{0,3}```", re.S | re.M)
 FENCE_LINE_RE = re.compile(r"^[ \t]{0,3}```(\S*)\s*$")
 INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+
+# ---- 中文排版校验用的掩码与规则 ----
+# 掩码用私用区字符占位而不是空格：空格会制造「全角括号内夹空格」等假阳性，
+# 也会让中英文间距规则误以为原文本来就有空格。
+TYPO_PUA = "\ue000"
+TYPO_IGNORE = "<!-- typography-ignore -->"
+TYPO_FENCE_RE = re.compile(r"^[ \t]{0,3}```")
+TYPO_TABLE_SEP_RE = re.compile(r"^\s*\|?[\s:|-]+\|?\s*$")
+TYPO_HR_RE = re.compile(r"^\s*([-*_])(?:\s*\1){2,}\s*$")
+TYPO_REF_DEF_RE = re.compile(r"^\s*\[[^\]]+\]:\s+\S+.*$")
+TYPO_INLINE_RE = re.compile(r"(`+)([^\n]*?)\1")
+TYPO_IMG_RE = re.compile(r"!\[([^\]]*)\]\([^)\n]*\)")
+TYPO_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)\n]*\)")
+# 只认真正的 HTML 标签：`< 2MB` 这类比较符不是标签，不能让它吞掉后文。
+TYPO_TAG_RE = re.compile(r"</?[A-Za-z][A-Za-z0-9-]*(?:\s[^>\n]*)?>|<!--.*?-->", re.S)
+# 裸链接止于空白、括号与中文标点；否则结尾的 `）` 会被一起掩掉，配对检查误报。
+TYPO_URL_RE = re.compile(r"(?:https?://|mailto:)[^\s<>()（）【】「」『』《》，。；：！？、]+")
+TYPO_EMPHASIS_RE = re.compile(r"\*\*?|~~")
+TYPO_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+
+TYPO_RULES = [
+    ("中英文之间缺空格", re.compile(r"[\u4e00-\u9fff][A-Za-z0-9]|[A-Za-z0-9][\u4e00-\u9fff]"),
+     "中文与拉丁字母/数字相邻时加空格"),
+    ("中文里用了半角标点", re.compile(r"[\u4e00-\u9fff][,;:?!]|[,;:?!][\u4e00-\u9fff]"),
+     "中文句子用全角，；：！？"),
+    ("中文里用了半角括号", re.compile(r"\([^()\n]*[\u4e00-\u9fff][^()\n]*\)"),
+     "中文内容用全角括号（）"),
+    ("全角括号内夹空格", re.compile(r"[（【「『《][ \u3000]|[ \u3000][）】」』》]"),
+     "全角括号内侧不留空格"),
+    ("全角标点前有空格", re.compile(r"[ \u3000][，。；：！？、）】」』》]"),
+     "全角标点前不留空格"),
+    ("全角标点后有空格", re.compile(r"[，。；：！？、][ \u3000]"),
+     "全角标点后不留空格"),
+    ("省略号写成三个点", re.compile(r"\.\.\."),
+     "用…或……，不要用..."),
+    ("破折号写成双连字符", re.compile(r"--"),
+     "用——，不要用--"),
+    ("直引号", re.compile(r"[\"']"),
+     "中文引用用「」，代码里的引号请放进反引号"),
+    ("中文弯引号", re.compile(r"[“”‘’]"),
+     "本库统一用「」，不用“”"),
+    ("重复全角标点", re.compile(r"[，。；：！？、]{2,}"),
+     "删掉重复的标点"),
+]
+
+TYPO_TERMS = [
+    ("AppID", re.compile(r"\bappid\b|\bAppId\b"), "写 AppID；配置字段名请用 `appid`"),
+    ("AppSecret", re.compile(r"\bappsecret\b|\bAppsecret\b"), "写 AppSecret"),
+    ("CloudBase", re.compile(r"\bcloudbase\b|\bCloudbase\b"), "写 CloudBase"),
+    ("JavaScript", re.compile(r"\bJavascript\b|\bjavascript\b"), "写 JavaScript"),
+    ("npm", re.compile(r"\bNPM\b|\bNpm\b"), "写 npm"),
+    ("iOS", re.compile(r"\bIOS\b|\bios\b"), "写 iOS"),
+    ("setData", re.compile(r"\bSetData\b|\bsetdata\b|\bSetdata\b"), "写 setData"),
+    ("H5", re.compile(r"\bh5\b"), "写 H5"),
+    ("rpx", re.compile(r"\bRPX\b|\bRpx\b"), "写 rpx"),
+    ("wx.", re.compile(r"\bWx\.|\bWX\."), "API 调用写 wx.<name>"),
+]
+
+
+def _mask_span(s):
+    return "".join("\n" if ch == "\n" else TYPO_PUA for ch in s)
+
+
+def _mask_match(m):
+    return _mask_span(m.group(0))
+
+
+def _typography_mask(text):
+    """返回（供排版规则扫描的正文, 行内代码紧贴中文的行号）。
+
+    掩掉 frontmatter、围栏代码、表格分隔行、水平线、引用式链接定义、
+    链接地址、HTML 标签与行内代码；保留正文、链接文字、表格内容与标题。
+    所有掩码都保持换行符与字符长度，行号可直接回指原文。
+    """
+    lines = text.split("\n")
+    front_end = 0
+    if lines and lines[0].strip() == "---":
+        for i in range(1, len(lines)):
+            if lines[i].strip() == "---":
+                front_end = i + 1
+                break
+
+    masked = []
+    in_fence = False
+    for i, line in enumerate(lines):
+        if i < front_end:
+            masked.append(TYPO_PUA * len(line))
+            continue
+        if TYPO_FENCE_RE.match(line):
+            masked.append(TYPO_PUA * len(line))
+            in_fence = not in_fence
+            continue
+        if (in_fence or TYPO_TABLE_SEP_RE.fullmatch(line)
+                or TYPO_HR_RE.fullmatch(line) or TYPO_REF_DEF_RE.match(line)):
+            masked.append(TYPO_PUA * len(line))
+            continue
+        masked.append(line)
+
+    t = "\n".join(masked)
+    t = TYPO_IMG_RE.sub(lambda m: m.group(1), t)
+    t = TYPO_LINK_RE.sub(lambda m: m.group(1), t)
+    t = TYPO_TAG_RE.sub(_mask_match, t)
+
+    adjacent = []
+    for lineno, line in enumerate(t.split("\n"), 1):
+        for m in TYPO_INLINE_RE.finditer(line):
+            before = line[m.start() - 1] if m.start() > 0 else ""
+            after = line[m.end()] if m.end() < len(line) else ""
+            if TYPO_CJK_RE.match(before) or TYPO_CJK_RE.match(after):
+                adjacent.append(lineno)
+                break
+
+    t = TYPO_INLINE_RE.sub(_mask_match, t)
+    t = TYPO_URL_RE.sub(_mask_match, t)
+    t = TYPO_EMPHASIS_RE.sub("", t)
+    return t, sorted(set(adjacent))
+
+
+def _typography_brackets(lines, raw_lines, rel, ignored):
+    pairs = {"）": "（", "】": "【", "」": "「", "》": "《", "』": "『"}
+    opening = set(pairs.values())
+    stack = []
+    for lineno, line in enumerate(lines, 1):
+        if ignored(lineno):
+            continue
+        for ch in line:
+            if ch in opening:
+                stack.append((ch, lineno))
+            elif ch in pairs:
+                if not stack:
+                    errors.append(f"{rel}:{lineno}: 排版：全角括号「{ch}」没有对应的「{pairs[ch]}」"
+                                  f" -> {raw_lines[lineno - 1].strip()[:120]}")
+                elif stack[-1][0] != pairs[ch]:
+                    open_ch, open_ln = stack.pop()
+                    errors.append(f"{rel}:{lineno}: 排版：全角括号「{ch}」与第 {open_ln} 行的"
+                                  f"「{open_ch}」交叉 -> {raw_lines[lineno - 1].strip()[:120]}")
+                else:
+                    stack.pop()
+    for ch, lineno in stack:
+        errors.append(f"{rel}:{lineno}: 排版：全角括号「{ch}」未闭合"
+                      f" -> {raw_lines[lineno - 1].strip()[:120]}")
+
+
+def check_typography():
+    for f in reference_md_files():
+        raw = f.read_text(encoding="utf-8")
+        raw_lines = raw.split("\n")
+        masked, inline_adjacent = _typography_mask(raw)
+        rel = f.relative_to(ROOT)
+
+        def ignored(lineno):
+            return 0 <= lineno - 1 < len(raw_lines) and TYPO_IGNORE in raw_lines[lineno - 1]
+
+        for lineno, line in enumerate(masked.split("\n"), 1):
+            if ignored(lineno):
+                continue
+            snippet = raw_lines[lineno - 1].strip()[:120]
+            for label, rx, hint in TYPO_RULES:
+                if rx.search(line):
+                    errors.append(f"{rel}:{lineno}: 排版：{label}（{hint}）-> {snippet}")
+            for canonical, rx, hint in TYPO_TERMS:
+                if rx.search(line):
+                    errors.append(f"{rel}:{lineno}: 排版：术语应写 {canonical}（{hint}）-> {snippet}")
+
+        for lineno in inline_adjacent:
+            if ignored(lineno):
+                continue
+            errors.append(f"{rel}:{lineno}: 排版：行内代码紧贴中文（代码两侧加空格）"
+                          f" -> {raw_lines[lineno - 1].strip()[:120]}")
+
+        _typography_brackets(masked.split("\n"), raw_lines, rel, ignored)
 
 
 def strip_code(text):
@@ -1178,6 +1350,7 @@ def main():
     check_pitfall_table()
     check_extended_reading()
     check_depth_sections()
+    check_typography()
     if args.external:
         check_external_links()
     if errors:
