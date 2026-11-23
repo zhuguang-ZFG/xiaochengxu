@@ -4,6 +4,8 @@ name: mermaid-probe
 # 完整 assets 作业要跑 30 分钟的视频生成，定位渲染差异时太慢；本流程约 3 分钟。
 on:
   workflow_dispatch:
+  push:
+    branches: [feat/typography-lint]
 
 jobs:
   probe:
