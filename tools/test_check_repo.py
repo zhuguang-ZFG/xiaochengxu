@@ -281,6 +281,44 @@ class CheckRepoTest(unittest.TestCase):
         self.assertTrue(any("未闭合" in e for e in errs),
                         f"未闭合围栏必须报出，实际: {errs}")
 
+    # ---------- 代码状态标注：读者必须知道能不能直接跑 ----------
+
+    def test_源码块缺少状态标注要报(self):
+        self.fixture({"docs/01-入门/01-x.md": "```js\nconst a = 1;\n```\n"})
+        errs = self.run_checks("check_code_status")
+        self.assertTrue(any("缺少代码状态标注" in e for e in errs),
+                        f"缺标注必须报出，实际: {errs}")
+
+    def test_状态标注非法要报(self):
+        self.fixture({
+            "docs/01-入门/01-x.md": "*代码状态：完整*\n\n```js\nconst a = 1;\n```\n",
+        })
+        errs = self.run_checks("check_code_status")
+        self.assertTrue(any("不合法" in e for e in errs),
+                        f"非法状态必须报出，实际: {errs}")
+
+    def test_状态标注与代码块之间要空行(self):
+        self.fixture({
+            "docs/01-入门/01-x.md": "*代码状态：片段*\n```js\nconst a = 1;\n```\n",
+        })
+        errs = self.run_checks("check_code_status")
+        self.assertTrue(any("空一行" in e for e in errs),
+                        f"标注紧贴围栏必须报出，实际: {errs}")
+
+    def test_状态标注齐全不报(self):
+        self.fixture({
+            "docs/01-入门/01-x.md": "*代码状态：片段（含正误对比）*\n\n```js\nconst a = 1;\n```\n",
+        })
+        errs = self.run_checks("check_code_status")
+        self.assertEqual(errs, [], f"合规标注不应报，实际: {errs}")
+
+    def test_非源码块无需状态标注(self):
+        self.fixture({
+            "docs/01-入门/01-x.md": "```text\n目录树\n```\n\n```mermaid\nflowchart TD\n```\n",
+        })
+        errs = self.run_checks("check_code_status")
+        self.assertEqual(errs, [], f"text/mermaid 不应要求标注，实际: {errs}")
+
     # ---------- 视频资产规范 ----------
 
     def test_视频命名不合规要报(self):
@@ -562,6 +600,42 @@ class CheckRepoTest(unittest.TestCase):
         })
         errs = self.run_checks("check_example_sync")
         self.assertEqual(errs, [], f"标注「要点」的节选块应豁免，实际: {errs}")
+
+    def test_标注片段但内容与工程文件一致要报(self):
+        """完整文件被标成「片段」会让同步校验形同虚设。"""
+        self.fixture({
+            "examples/demo/index.js": "const a = 1;\n",
+            "docs/06-实战/01-x.md": (
+                "# 实战\n\n本工程位于 examples/demo。\n\n"
+                "**index.js**\n\n*代码状态：片段*\n\n```js\nconst a = 1;\n```\n"
+            ),
+        })
+        errs = self.run_checks("check_example_sync")
+        self.assertTrue(any("应标「可运行」" in e for e in errs),
+                        f"完整文件标成片段必须报出，实际: {errs}")
+
+    def test_标注可运行但内容漂移要报(self):
+        self.fixture({
+            "examples/demo/index.js": "const a = 1;\n",
+            "docs/06-实战/01-x.md": (
+                "# 实战\n\n本工程位于 examples/demo。\n\n"
+                "**index.js**\n\n*代码状态：可运行*\n\n```js\nconst a = 2;\n```\n"
+            ),
+        })
+        errs = self.run_checks("check_example_sync")
+        self.assertTrue(any("标注「可运行」但与工程文件不一致" in e for e in errs),
+                        f"可运行块的漂移必须报出，实际: {errs}")
+
+    def test_标注可运行且一致不报(self):
+        self.fixture({
+            "examples/demo/index.js": "const a = 1;\n",
+            "docs/06-实战/01-x.md": (
+                "# 实战\n\n本工程位于 examples/demo。\n\n"
+                "**index.js**\n\n*代码状态：可运行*\n\n```js\nconst a = 1;\n```\n"
+            ),
+        })
+        errs = self.run_checks("check_example_sync")
+        self.assertEqual(errs, [], f"可运行且一致不应报，实际: {errs}")
 
     # ---------- 示例工程内的 Markdown 同样在扫描范围 ----------
 
@@ -961,7 +1035,7 @@ class CheckRepoTest(unittest.TestCase):
 
     def test_depth_sections_例外目录(self):
         self.fixture({
-            "docs/07-资源/01-test.md": (
+            "docs/08-资源/01-test.md": (
                 "---\ntitle: t\ndescription: d\ncategory: 资源\ntags: []\ndifficulty: ★☆☆☆☆\nreading_time: 1 min\nupdated: 2026-01-01\n---\n"
                 "# Test\n## 资源列表\nsome content\n"
             ),

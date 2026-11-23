@@ -68,25 +68,25 @@ EPISODE = {
         },
         {
             "say": "看云函数的骨架。一个 todo 函数，用 action 分流增删改查。第一行就 init，"
-                   "接着拿 openid，每个操作都带 openid 条件，别人删不了你的数据。"
-                   "add 里校验 title 长度，集合权限设成不可读写，双保险。",
+                   "接着拿 OPENID，每个操作都带 openid 条件，别人删不了你的数据。"
+                   "add 里校验 title 长度，还用幂等键防止重试重复写入；集合权限设成仅管理端可读写，双保险。",
             "scene": {"kind": "code", "head": "云函数 todo",
                       "caption": "cloudfunctions/todo/index.js",
                       "lines": [["const cloud = require('wx-server-sdk');", "kw"],
                                 ["cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })", "txt"],
                                 ["const { action, payload } = event;", "txt"],
-                                ["const { openid } = cloud.getWXContext();", "kw"],
+                                ["const { OPENID: openid } = cloud.getWXContext();", "kw"],
                                 ["if (!title || title.length > 100) throw", "txt"],
                                 ["todos.where({ _id: id, openid }).remove();", "txt"]]},
         },
         {
             "say": "安全三件事。每个操作都带 openid 条件，toggle 和 remove 用 where 包住 _id 和 openid，"
-                   "别人删不了你的数据；add 要校验 title 长度；集合权限设成所有用户不可读写，"
+                   "别人删不了你的数据；add 要校验 title 长度；集合权限设成仅管理端可读写，"
                    "全部走云函数。",
             "scene": {"kind": "bullets", "head": "安全三件事",
                       "items": [["带 openid", "每个操作都带归属条件"],
                                 ["校验输入", "add 检查 title 长度"],
-                                ["集合权限", "设所有用户不可读写"],
+                                ["集合权限", "设仅管理端可读写"],
                                 ["双保险", "前端被绕过 云函数仍是入口"]]},
         },
         {

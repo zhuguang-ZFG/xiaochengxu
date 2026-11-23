@@ -30,6 +30,8 @@ WXML 用双花括号把 JS 的 `data` 绑定到视图。**任何想动态显示�
 
 **index.js**
 
+*代码状态：片段*
+
 ```js
 Page({
   data: {
@@ -42,6 +44,8 @@ Page({
 
 **index.wxml**
 
+*代码状态：片段*
+
 ```wxml
 <view>{{name}}</view>
 <view>我的分数：{{score}}</view>
@@ -49,6 +53,8 @@ Page({
 ```
 
 ### 绑定属性
+
+*代码状态：片段*
 
 ```wxml
 <image src="{{userAvatar}}" mode="aspectFill"></image>
@@ -61,6 +67,8 @@ Page({
 ### 绑定运算
 
 `{{}}` 内支持有限表达式（不支持语句）：
+
+*代码状态：片段*
 
 ```wxml
 <view>{{score + 1}}</view>
@@ -75,6 +83,8 @@ Page({
 
 ### wx:if / wx:elif / wx:else
 
+*代码状态：片段*
+
 ```wxml
 <view wx:if="{{score >= 90}}">优秀</view>
 <view wx:elif="{{score >= 60}}">及格</view>
@@ -88,6 +98,8 @@ Page({
 `wx:if` vs `hidden` 演示（渲染示意图动画：show 切换时 wx:if 节点销毁重建，hidden 节点始终在 DOM 仅隐藏）：
 
 ![wx:if 与 hidden 对比演示](../assets/demo-ifhidden.gif)
+
+*代码状态：片段*
 
 ```xml
 <view hidden="{{!isVip}}">VIP 专属内容</view>
@@ -113,6 +125,8 @@ Page({
 
 **index.js**
 
+*代码状态：片段*
+
 ```js
 Page({
   data: {
@@ -126,6 +140,8 @@ Page({
 ```
 
 **index.wxml**
+
+*代码状态：片段*
 
 ```wxml
 <view wx:for="{{todos}}" wx:key="id">
@@ -144,6 +160,8 @@ Page({
 
 `wx:key` 给每个列表项一个稳定标识，让渲染层在数据变化时**复用已有节点**而不是全量重建：
 
+*代码状态：片段*
+
 ```wxml
 <view wx:for="{{todos}}" wx:key="id">{{item.text}}</view>
 ```
@@ -154,6 +172,8 @@ Page({
 **不写 wx:key**：列表数据增删/重排时可能复用错误节点，出现渲染错乱，且在 Console 有警告。这是新手最常见的坑。
 
 ### 嵌套列表
+
+*代码状态：片段*
 
 ```wxml
 <view wx:for="{{groups}}" wx:for-item="group" wx:for-index="gIndex" wx:key="id">
@@ -190,6 +210,8 @@ WXML 模板 ──编译期──▶ 模板函数 + 数据绑定映射表
 
 `<block>` 不产生真实节点，只用来包裹条件/循环逻辑：
 
+*代码状态：片段*
+
 ```wxml
 <block wx:if="{{isLogin}}">
   <view>欢迎回来</view>
@@ -209,6 +231,8 @@ WXML 模板 ──编译期──▶ 模板函数 + 数据绑定映射表
 
 **定义模板（如 templates/item.wxml）**
 
+*代码状态：片段*
+
 ```wxml
 <template name="todoItem">
   <view class="todo-item">
@@ -220,6 +244,8 @@ WXML 模板 ──编译期──▶ 模板函数 + 数据绑定映射表
 
 **使用模板**
 
+*代码状态：片段*
+
 ```wxml
 <import src="../../templates/item.wxml" />
 <template is="todoItem" data="{{text: item.text, done: item.done}}" />
@@ -230,6 +256,8 @@ WXML 模板 ──编译期──▶ 模板函数 + 数据绑定映射表
 - `import` 引入模板文件；`template is` 指定名字；`data` 传参（**必须显式传**，模板不能访问页面 data）
 - `import` 有作用域：不能递归引用，且 import 的模板里 import 的模板对当前文件不可见
 - 另一种 `include`：把目标文件的**整个内容**原样展开到当前位置（适合公共头部/底部片段），无作用域概念
+
+*代码状态：片段*
 
 ```wxml
 <!-- header.wxml -->

@@ -50,6 +50,8 @@ WebView 与 Skyline 动画对比（渲染示意图动画：同一小球动画，
 
 ![WebView 与 Skyline 动画流畅度对比](../assets/demo-skyline.gif)
 
+*代码状态：片段*
+
 ```js
 // Skyline：worklet 函数在渲染（UI）线程直接执行，不经过逻辑层
 function moveBox(dx) {
@@ -73,6 +75,8 @@ Skyline 是全新渲染引擎，**不等于 WebView 的超集**，差异是真�
 - **代码量**：Skyline 需引入 skyline 专属包（`skyline/worklet` 等），多一份维护。
 
 **混合架构（推荐路径）**：`app.json` 配置 `renderer: "skyline"` + 页面级 `"renderer": "webview"` 逐页回退，让**核心体验页跑 Skyline、功能复杂页回退 WebView**：
+
+*代码状态：片段*
 
 ```json
 {
@@ -104,6 +108,8 @@ CSS 环境变量 `env(safe-area-inset-top)` / `env(safe-area-inset-bottom)` 由�
 - iPhone X 系列：`inset-bottom ≈ 34px`（横条高度）、`inset-top ≈ 44px`（刘海）
 - 安卓全面屏：底部手势条机型 `inset-bottom` 有值
 
+*代码状态：片段*
+
 ```css
 /* 底部操作栏适配：避开 Home 横条 */
 .footer {
@@ -120,6 +126,8 @@ CSS 环境变量 `env(safe-area-inset-top)` / `env(safe-area-inset-bottom)` 由�
 ### 2.2 顶部适配：自定义导航栏
 
 默认导航栏由系统渲染，会自动避开刘海，无需处理。**一旦用自定义导航**（`navigationStyle: "custom"`，Skyline 自定义导航或追求沉浸式时），顶部内容就裸露在刘海下：
+
+*代码状态：片段*
 
 ```js
 // 获取状态栏高度与胶囊位置（小程序官方提供）

@@ -36,11 +36,12 @@ class BookModelTest(unittest.TestCase):
     def setUpClass(cls):
         cls.book = eb.collect_book()
 
-    def test_32_章按五部分组织(self):
-        self.assertEqual(len(self.book.chapters), 32)
-        self.assertEqual([len(p.chapters) for p in self.book.parts], [3, 4, 4, 12, 9])
+    def test_34_章按七部分组织(self):
+        self.assertEqual(len(self.book.chapters), 34)
+        self.assertEqual([len(p.chapters) for p in self.book.parts], [3, 4, 4, 12, 8, 2, 1])
         self.assertEqual([p.title for p in self.book.parts],
-                         ["开始之前", "认知与准备", "基础", "进阶", "云开发、实战与发布"])
+                         ["开始之前", "认知与准备", "基础", "进阶", "云开发、实战与发布",
+                          "安全与生产", "附录"])
 
     def test_每章标题与_H1_一致(self):
         for ch in self.book.chapters:
@@ -49,12 +50,12 @@ class BookModelTest(unittest.TestCase):
     def test_小节数量与层级(self):
         h2 = sum(1 for ch in self.book.chapters for h in ch.headings if h.level == 2)
         h3 = sum(1 for ch in self.book.chapters for h in ch.headings if h.level == 3)
-        self.assertEqual((h2, h3), (342, 107))
+        self.assertEqual((h2, h3), (364, 113))
         for ch in self.book.chapters:
             ids = [h.id for h in ch.headings]
             self.assertEqual(len(ids), len(set(ids)), f"{ch.path} 有重复 id")
 
-    def test_32_个页内锚点全部能解析(self):
+    def test_42_个页内锚点全部能解析(self):
         count = 0
         for ch in self.book.chapters:
             raw = ch.path.read_text(encoding="utf-8")
@@ -62,17 +63,17 @@ class BookModelTest(unittest.TestCase):
                 found = self.book.resolve_anchor(ch, frag)
                 self.assertIsNotNone(found, f"{ch.path} 的锚点 #{frag} 无目标")
                 count += 1
-        self.assertEqual(count, 32)
+        self.assertEqual(count, 42)
 
     def test_章号与路径稳定(self):
         wxml = self.book.chapter_by_path(eb.DOCS / "02-基础" / "01-WXML数据绑定与渲染.md")
         self.assertEqual(wxml.no, 8)
         self.assertEqual(wxml.title, "WXML 数据绑定与渲染")
 
-    def test_74_张插图按章连续编号(self):
+    def test_76_张插图按章连续编号(self):
         figures = self.book.figures
-        self.assertEqual(len(figures), 74)
-        self.assertEqual(len({f.id for f in figures}), 74)
+        self.assertEqual(len(figures), 76)
+        self.assertEqual(len({f.id for f in figures}), 76)
         for ch in self.book.chapters:
             self.assertEqual([f.no for f in ch.figures],
                              list(range(1, len(ch.figures) + 1)))
@@ -82,13 +83,13 @@ class BookModelTest(unittest.TestCase):
         self.assertEqual(login.label, "图 14-4")
         self.assertEqual(login.caption, "wx.login 登录态全流程")
 
-    def test_十张关键表格有题注编号(self):
+    def test_十六张关键表格有题注编号(self):
         tables = self.book.tables
-        self.assertEqual(len(tables), 10)
+        self.assertEqual(len(tables), 16)
         self.assertEqual(tables[0].label, "表 4-1")
         self.assertEqual(tables[0].caption, "小程序与 H5 的差异")
         self.assertEqual([t.chapter_no for t in tables],
-                         [4, 6, 9, 11, 15, 20, 24, 26, 28, 29])
+                         [4, 6, 9, 11, 15, 20, 24, 26, 28, 29, 32, 32, 33, 33, 33, 33])
 
 
 class SlugTest(unittest.TestCase):
@@ -492,7 +493,7 @@ class PdfBuildTest(unittest.TestCase):
         levels = {}
         for level, _, _ in self.toc:
             levels[level] = levels.get(level, 0) + 1
-        self.assertEqual(levels, {1: 10, 2: 32, 3: 342})
+        self.assertEqual(levels, {1: 12, 2: 34, 3: 364})
 
     def test_书签页码落在范围内且逐章递增(self):
         self.assertTrue(all(1 <= page <= self.doc.page_count

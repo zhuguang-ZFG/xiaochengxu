@@ -217,13 +217,14 @@ def gen_languages():
 
 # ============ diagram-knowledge-graph ============
 def gen_knowledge_graph():
-    """全局概念关系图：29 篇教学文章为节点，5 个阶段分组着色，前置关系为有向边。
+    """全局概念关系图：31 篇教学文章为节点，6 个分组着色，前置关系为有向边。
 
     篇数由节点数推导（`sum(len(x) for …)`），不写死：此前标题手打「29 篇」而图里
     只有 27 个节点——v2.0.0 新增的多页面导航实战、商品列表实战从未进图，
     篇数与图形自此脱钩，也没人发现。
     """
     CARD_W_MIN, CARD_H = 100, 32
+    TEAL = (0, 150, 136)
 
     layout = [
         ("① 认知", BLUE, [(40, ["认识小程序", "编程语言与技术栈"], 120, 60)]),
@@ -235,12 +236,15 @@ def gen_knowledge_graph():
         ]),
         ("⑤ 云开发 · 实战 · 发布", RED, [
             (740, ["云开发入门", "云函数", "云数据库", "云存储", "待办清单实战"], 70, 60),
-            (880, ["多页面导航实战", "商品列表实战", "上线发布", "资源与工具"], 70, 60),
+            (880, ["多页面导航实战", "商品列表实战", "上线发布"], 70, 60),
+        ]),
+        ("⑥ 安全 · 生产 · 附录", TEAL, [
+            (1020, ["安全加固", "线上排障与应急", "资源与工具"], 70, 60),
         ]),
     ]
 
     total = sum(len(labels) for _, _, cols in layout for _, labels, _, _ in cols)
-    c = C(1010, 520)
+    c = C(1140, 520)
     title(c, f"知识图谱：{total} 篇文章的概念关系")
 
     edges = [
@@ -265,7 +269,8 @@ def gen_knowledge_graph():
         ("WXML 数据绑定", "商品列表实战"), ("自定义组件", "商品列表实战"),
         ("待办清单实战", "多页面导航实战"), ("待办清单实战", "商品列表实战"),
         ("多页面导航实战", "上线发布"), ("商品列表实战", "上线发布"),
-        ("上线发布", "资源与工具"),
+        ("上线发布", "安全加固"), ("上线发布", "线上排障与应急"),
+        ("安全加固", "线上排障与应急"), ("线上排障与应急", "资源与工具"),
     ]
 
     # 先算节点位置：边要在卡片之前画，才不会被卡片盖住一段
@@ -297,10 +302,10 @@ def gen_knowledge_graph():
                 c.card((nx, ny, nx + w, ny + h), r=8, border=col)
                 c.t(nx + 10, ny + 8, name, font(12), DARK)
 
-    c.t(40, 400, "阶段分组：", font_b(14), DARK)
+    c.t(40, 400, "分组：", font_b(14), DARK)
     legend = [("① 认知", BLUE), ("② 准备", GREEN), ("③ 基础", ORANGE), ("④ 进阶", PURPLE),
-              ("⑤ 云开发、实战与发布", RED)]
-    lx = 170
+              ("⑤ 云开发、实战与发布", RED), ("⑥ 安全、生产与附录", TEAL)]
+    lx = 110
     for name, col in legend:
         c.d.ellipse([lx * S, 404 * S, (lx + 14) * S, 418 * S], fill=col)
         c.t(lx + 20, 400, name, font(13), DARK)
@@ -471,7 +476,7 @@ def gen_cloud_callchain():
 
     c.card((30, 290, 770, 400), border=RED)
     c.t(50, 305, "安全模型", font_b(16), RED)
-    c.t(50, 338, "· 客户端不能直接操作数据库（除非权限设为「所有用户可读写」）", font(13), DARK)
+    c.t(50, 338, "· 客户端默认不能直接改数据库（除非自定义规则放开写权限）", font(13), DARK)
     c.t(50, 362, "· 云函数内 cloud.getWXContext() 拿到的 openid 是微信服务端签发的，不可伪造", font(13), DARK)
     c.t(50, 386, "· 敏感逻辑（支付/权限判断/数据聚合）一律放云函数", font(13), RED)
 
@@ -665,9 +670,86 @@ def gen_wxkey_diff():
     c.save("diagram-wxkey-diff.png")
 
 
+def gen_security_boundary():
+    """信任边界：客户端输入不可信，身份只由服务端重新确认。"""
+    c = C(800, 520); title(c, "信任边界：客户端输入不可信")
+    TEAL = (0, 150, 136)
+
+    c.card((36, 84, 300, 392), border=RED)
+    c.t(56, 102, "小程序客户端", font_b(18), RED)
+    c.t(56, 132, "默认不可信", font(13), RED)
+    for i, item in enumerate([
+        "event 参数可任意构造",
+        "openid 字段可伪造",
+        "代码包可被下载分析",
+        "本地存储可被改动",
+    ]):
+        c.d.ellipse([(56) * S, (176 + i * 40) * S, (66) * S, (186 + i * 40) * S], fill=RED)
+        c.t(76, 170 + i * 40, item, font(13), DARK)
+    c.t(56, 348, "客户端只是输入来源，", font(13), GRAY)
+    c.t(56, 370, "不是身份凭证来源。", font(13), GRAY)
+
+    for y in range(76, 401, 14):
+        c.d.line([(330) * S, y * S, (330) * S, min(y + 7, 401) * S], fill=RED, width=2 * S)
+    c.t(338, 52, "信任边界", font_b(13), RED)
+    c.arrow((300, 240), (368, 150), GRAY, width=2)
+
+    c.card((370, 84, 764, 196), border=GREEN)
+    c.t(390, 102, "云函数（可信执行环境）", font_b(16), GREEN)
+    c.t(390, 132, "cloud.getWXContext() → OPENID / APPID / UNIONID / ENV", font(12), DARK)
+    c.t(390, 160, "身份只从这里取，event 里的身份字段一律不认", font(13), RED)
+
+    c.card((370, 222, 556, 392), border=ORANGE)
+    c.t(390, 240, "云数据库", font_b(16), ORANGE)
+    c.t(390, 272, "安全规则按 auth.openid", font(12), DARK)
+    c.t(390, 294, "隔离每条记录", font(12), DARK)
+    c.t(390, 326, "查询/更新条件", font(12), DARK)
+    c.t(390, 348, "必须是规则的子集", font(12), DARK)
+
+    c.card((576, 222, 764, 392), border=BLUE)
+    c.t(596, 240, "内容安全", font_b(16), BLUE)
+    c.t(596, 272, "文本 / 图片送审", font(12), DARK)
+    c.t(596, 294, "违规内容自动拦截", font(12), DARK)
+    c.t(596, 326, "控制台可查", font(12), DARK)
+    c.t(596, 348, "审核记录与回滚", font(12), DARK)
+
+    c.card((36, 414, 764, 478), r=10, border=TEAL)
+    c.t(56, 432, "判断准则：来自客户端的数据都要校验；「我是谁」的结论必须由服务端重新得出。", font(13), DARK)
+    c.save("diagram-security-trust-boundary.png")
+
+
+def gen_incident_response():
+    """线上故障应急六步：发现 → 分级 → 止损 → 定位 → 修复 → 复盘。"""
+    c = C(800, 520); title(c, "线上故障应急：先止损，再定位，后复盘")
+
+    steps = [
+        ("发现", ORANGE, "告警 · 用户反馈 · 实时日志，先记录发生时间与影响面"),
+        ("分级", RED, "P0 全量不可用 / P1 核心功能受损 / P2 局部异常"),
+        ("止损", RED, "回滚版本、关闭入口、降级功能——先恢复服务，再找根因"),
+        ("定位", BLUE, "日志时间线 + 版本对比 + 最小复现，证据先行"),
+        ("修复", GREEN, "修复后先灰度验证，再全量发布，观察同一指标"),
+        ("复盘", PURPLE, "时间线 / 根因 / 改进项与负责人，写进文档"),
+    ]
+
+    line_x = 70
+    c.d.line([line_x * S, 92 * S, line_x * S, 430 * S], fill=GRAY_L, width=3 * S)
+    for i, (name, col, body) in enumerate(steps):
+        y = 100 + i * 62
+        c.d.ellipse([(line_x - 10) * S, (y - 10) * S, (line_x + 10) * S, (y + 10) * S], fill=col)
+        c.tc(line_x, y - 8, str(i + 1), font(11), WHITE)
+        c.card((104, y - 26, 764, y + 26), r=9, border=col)
+        c.t(120, y - 13, name, font_b(15), col)
+        c.t(186, y - 11, body, font(12), DARK)
+
+    c.t(40, 458, "顺序不能反：止损优先于解释原因；没有证据的「修复」只是下一次故障的伏笔。",
+        font(13), RED)
+    c.save("diagram-incident-response.png")
+
+
 if __name__ == "__main__":
     gen_compare(); gen_cloud(); gen_resources(); gen_path(); gen_components(); gen_languages()
     gen_knowledge_graph()
+    gen_security_boundary(); gen_incident_response()
     gen_setdata_mechanism(); gen_component_comm(); gen_request_lifecycle()
     gen_cloud_callchain(); gen_shadow_tree()
     gen_api_capability_map()

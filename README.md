@@ -7,11 +7,11 @@
 
 ![小程序开发之路知识库总览](docs/assets/hero-knowledge.png)
 
-本知识库是**开源共建**的微信小程序原生开发教程：从认识小程序、搭建开发环境，到 WXML/WXSS/JS 三件套、组件化、云开发，最后上线发布。每篇文章独立可读，代码可直接复现，事实链接官方文档。
+本知识库是**开源共建**的微信小程序原生开发教程：从认识小程序、搭建开发环境，到 WXML/WXSS/JS 三件套、组件化、云开发，再到上线发布、安全加固与线上排障。每篇文章独立可读，代码可直接复现，事实链接官方文档。
 
 ## 学习路径
 
-按「认知 → 准备 → 基础 → 进阶 → 实战与发布」五个阶段组织，与 [docs/00-学习路线/01-学习路径总览.md](docs/00-学习路线/01-学习路径总览.md) 对应：
+按「认知 → 准备 → 基础 → 进阶 → 实战与发布」五个学习阶段组织，上线之后补一个「安全与生产」加读篇与资源附录，与 [docs/00-学习路线/01-学习路径总览.md](docs/00-学习路线/01-学习路径总览.md) 对应：
 
 ```mermaid
 flowchart LR
@@ -22,11 +22,13 @@ flowchart LR
     E --> F[云开发<br/>云函数·云数据库·云存储]
     F --> G[实战项目<br/>完整案例]
     G --> H[上线发布<br/>体验版·审核·发布]
+    H --> I[安全与生产<br/>信任边界·权限·应急]
+    I --> J[资源与工具<br/>官方文档·社区·工具]
 ```
 
-**概念关系全景图**（29 篇文章的前置关系与知识依赖）：
+**概念关系全景图**（31 篇文章的前置关系与知识依赖）：
 
-![知识图谱：29 篇文章的概念关系](docs/assets/diagram-knowledge-graph.png)
+![知识图谱：31 篇文章的概念关系](docs/assets/diagram-knowledge-graph.png)
 
 | 阶段 | 文章 | 说明 |
 |---|---|---|
@@ -58,14 +60,16 @@ flowchart LR
 | 实战 | [实战项目：待办清单](docs/06-实战/01-待办清单实战.md) | 完整端到端案例 |
 | 实战 | [实战项目：多页面导航](docs/06-实战/02-多页面导航实战.md) | tabBar、页面跳转、数据传递 |
 | 实战 | [实战项目：商品列表](docs/06-实战/03-商品列表实战.md) | 搜索、列表渲染、scroll-view |
-| 资源 | [资源与工具](docs/07-资源/01-资源与工具.md) | 官方文档、社区、常用工具 |
+| 安全与生产 | [安全加固](docs/07-安全与生产/01-安全加固.md) | 信任边界、云函数与数据库权限、内容安全 |
+| 安全与生产 | [线上排障与应急](docs/07-安全与生产/02-线上排障与应急.md) | 日志证据、故障分级、回滚与复盘 |
+| 资源 | [资源与工具](docs/08-资源/01-资源与工具.md) | 官方文档、社区、常用工具 |
 
 ## 如何阅读
 
 - **零基础起步**：按上表从上往下读，每篇末尾的「随堂测验」和「验证」小节做完再进入下一篇。用 [PROGRESS.md](PROGRESS.md) 跟踪你的学习进度。
 - **要速查**：直接看对应分类文章；`内置组件`、`WXSS` 等篇章按速查风格组织；找 API 先看 [API 速查索引](docs/00-学习路线/02-API速查索引.md)。
 - **常见问题**：学习过程中遇到问题先看 [FAQ](docs/00-学习路线/03-FAQ.md)，覆盖各阶段高频问题。
-- **进阶目标**：读完「进阶」十一篇 + 「云开发」四篇后，跟随实战项目做一遍完整上线。
+- **进阶目标**：读完「进阶」十二篇 + 「云开发」四篇后，跟随实战项目做一遍完整上线，再用「安全与生产」两篇补齐上线后的防护与应急能力。
 
 ## 项目结构
 
@@ -82,7 +86,9 @@ flowchart LR
 │   └── workflows/check.yml # CI：仓库一致性校验
 ├── docs/                   # 知识库正文
 │   ├── 00-学习路线/         # 学习路径总览 + API 速查索引 + FAQ
-│   ├── 01-入门/ … 07-资源/  # 教学链 29 篇（教学顺序见 README 表格）
+│   ├── 01-入门/ … 06-实战/  # 教学链 28 篇（按阶段顺序）
+│   ├── 07-安全与生产/       # 安全加固 + 线上排障与应急（生产加读）
+│   ├── 08-资源/             # 资源与工具（教学链收尾）
 │   ├── _契约.md            # 写作契约（元数据/结构/视觉资产/深度要求）
 │   └── assets/             # 视觉资产 + videos/ 教学视频（脚本生成，勿手改）
 ├── examples/
@@ -129,7 +135,7 @@ PDF 含封面、版权页、前言、使用说明、带页码的详细目录、�
 - ✅ 微信小程序**原生开发**（WXML/WXSS/JS + 微信开发者工具）
 - ✅ 云开发（CloudBase：云函数/云数据库/云存储/云托管）
 - ✅ **第三方组件库**（vant-weapp / TDesign，见[进阶篇](docs/03-进阶/10-第三方组件库.md)）
-- ✅ 上线发布与运营基础
+- ✅ 上线发布、安全加固与线上排障（见[安全与生产](docs/07-安全与生产/01-安全加固.md)）
 - ✅ **微信支付**（云开发云调用接入，见[进阶篇](docs/03-进阶/12-微信支付.md)）
 - ❌ 跨端框架（Taro、uni-app 等）不在当前范围（可另行共建）
 - ❌ 微信小游戏不在当前范围
@@ -138,13 +144,13 @@ PDF 含封面、版权页、前言、使用说明、带页码的详细目录、�
 
 | 指标 | 数值 |
 |---|---|
-| 教程文章 | 32 篇（学习路线 3 篇含 FAQ + 入门/基础/进阶/云开发/发布/实战/资源 29 篇教学链） |
-| 随堂测验 | 121 题 / 29 组（每篇教学文章 3~6 道场景选择题，`<details>` 折叠答案） |
-| 视觉资产 | 88 个（38 动画 GIF + 37 示意图 PNG + 13 教学视频 MP4），全部可脚本复现，CI 逐字节比对 |
+| 教程文章 | 34 篇（学习路线 3 篇含 FAQ + 入门/基础/进阶/云开发/发布/实战/安全与生产/资源 31 篇教学链） |
+| 随堂测验 | 131 题 / 31 组（每篇教学文章 3~6 道场景选择题，`<details>` 折叠答案） |
+| 视觉资产 | 90 个（38 动画 GIF + 39 示意图 PNG + 13 教学视频 MP4），全部可脚本复现，CI 逐字节比对 |
 | 教学视频 | 13 集（`docs/assets/videos/`，720×1280 竖屏 MP4，含字幕帧，由脚本生成） |
 | 示例工程 | `examples/todo-miniprogram`、`examples/navigation-miniprogram`、`examples/product-list-miniprogram`（可运行，对应实战篇） |
 | 学习体验 | [PROGRESS.md](PROGRESS.md) 进度追踪 + [FAQ](docs/00-学习路线/03-FAQ.md) 高频问答 + 知识图谱 |
-| 自动校验 | 链接/元数据/序号/孤儿资产/GIF 与视频体积/MP4 完整性与时长/代码块语言/交叉引用顺序/示例工程结构/实战篇与示例工程逐行一致/**API 真实性 + Promise 断言**/**随堂测验格式 + checkbox 校验**/**进度同步**/**知识图谱引用**/**FAQ 格式**/**架构决策表列名**/**踩坑回顾表列名**/**延伸阅读官方链接**/**深度段落标题校验**/**中文排版一致性（中英文空格、全角标点、引号与省略号、术语大小写）**/**README 指标表数字与仓库实际计数一致**/**图片 alt 题注与独占行**/**「表：」题注紧邻表格**/**Mermaid 标记与预渲染资产存在**，见 CI（外链 HTTP 校验为本地可选：`python tools/check_repo.py --external`） |
+| 自动校验 | 链接/元数据/序号/孤儿资产/GIF 与视频体积/MP4 完整性与时长/代码块语言/**源码块状态标注（可运行/片段/示意/反例）与示例工程逐行一致**/交叉引用顺序/示例工程结构/**API 真实性 + Promise 断言**/**随堂测验格式 + checkbox 校验**/**进度同步**/**知识图谱引用**/**FAQ 格式**/**架构决策表列名**/**踩坑回顾表列名**/**延伸阅读官方链接**/**深度段落标题校验**/**中文排版一致性（中英文空格、全角标点、引号与省略号、术语大小写）**/**README 指标表数字与仓库实际计数一致**/**图片 alt 题注与独占行**/**「表：」题注紧邻表格**/**Mermaid 标记与预渲染资产存在**，见 CI（外链 HTTP 校验为本地可选：`python tools/check_repo.py --external`） |
 | 资产复现校验 | `tools/check_assets_fresh.py` 清空 `docs/assets/` 重跑全部生成脚本（含 Mermaid 预渲染），要求与 HEAD 逐字节一致（Mermaid 侧固定 Chrome for Testing 157 与锁定的 npm 依赖树；CI 在 windows-latest 上跑，全量重渲约十几分钟） |
 
 ## 示例工程
@@ -161,7 +167,7 @@ PDF 含封面、版权页、前言、使用说明、带页码的详细目录、�
 - **API 真实性 / Promise 断言**：正文与示例代码里出现的每个 `wx.<name>` 都要在 [tools/data/wx-api-names.txt](tools/data/wx-api-names.txt)（507 个，抓自官方 API 索引页 + 官方 typings）里，拼错或虚构的接口名直接红——本库曾把一个 npm 包的能力当成 `wx.` 接口收进速查索引；同时对照 [wx-api-promise.txt](tools/data/wx-api-promise.txt)（194 个不传回调即返回 Promise 的接口）检查两件事：不能把支持 Promise 风格的接口说成回调式，不能 `await` 不返回 Promise 的接口
 - **中文排版一致性**：`check_typography()` 校验中英文之间的空格、中文句子的全角标点与全角括号、`「」` 引号、`……` 与 `——`、行内代码两侧的空格、全角括号配对，以及 AppID、AppSecret、CloudBase、JavaScript、npm、iOS、setData、H5、rpx 等术语的固定写法。围栏代码块、行内代码、链接地址、HTML 标签、YAML frontmatter、表格分隔行、水平线与引用式链接定义不参与扫描，避免把代码里的半角标点当成正文。确需保留例外时在该行加 `<!-- typography-ignore -->` 并在附近说明原因
 - **资产复现校验**：另有一个 CI job 清空 `docs/assets/` 重跑全部生成脚本，要求与仓库内容逐字节一致——「改了脚本忘了重跑」或「手工改了 GIF」都会红。跑在 windows 上是因为字体解析（见 [docs/_契约.md](docs/_契约.md)）
-- **校验器自测**：[tools/test_check_repo.py](tools/test_check_repo.py) 用迷你仓库夹具反证校验逻辑本身有效（104 用例）；[tools/test_assets_fresh.py](tools/test_assets_fresh.py) 守护资产比对「以 HEAD 为基准」这一属性（10 用例）；[tools/test_mermaid_source.py](tools/test_mermaid_source.py) 守护 Mermaid 标记解析（14 用例）；[tools/test_gen_mermaid.py](tools/test_gen_mermaid.py) 守护锁定依赖与浏览器版本、渲染命令、扫描范围、路径约束、安装目录绝对路径与控制台编码（19 用例）；[tools/test_mutations.py](tools/test_mutations.py) 把已知缺陷还原成变异体验证自测确实会变红（51/51 捕获）——防止出现「校验静默失效、CI 依旧全绿」
+- **校验器自测**：[tools/test_check_repo.py](tools/test_check_repo.py) 用迷你仓库夹具反证校验逻辑本身有效（112 用例）；[tools/test_assets_fresh.py](tools/test_assets_fresh.py) 守护资产比对「以 HEAD 为基准」这一属性（10 用例）；[tools/test_mermaid_source.py](tools/test_mermaid_source.py) 守护 Mermaid 标记解析（14 用例）；[tools/test_gen_mermaid.py](tools/test_gen_mermaid.py) 守护锁定依赖与浏览器版本、渲染命令、扫描范围、路径约束、安装目录绝对路径与控制台编码（22 用例）；[tools/test_mutations.py](tools/test_mutations.py) 把已知缺陷还原成变异体验证自测确实会变红（61/61 捕获）——防止出现「校验静默失效、CI 依旧全绿」
 - 本地可随时运行 `python tools/check_repo.py` 自查
 
 ## 教学视频
@@ -188,7 +194,7 @@ GitHub 渲染仓库 Markdown 时会过滤 `<video>` 标签，因此文章内以*
 
 ## 参考
 
-- 官方文档：[微信开放文档 · 小程序](https://developers.weixin.qq.com/miniprogram/dev/framework/)（深度阅读清单见[资源篇](docs/07-资源/01-资源与工具.md)）
+- 官方文档：[微信开放文档 · 小程序](https://developers.weixin.qq.com/miniprogram/dev/framework/)（深度阅读清单见[资源篇](docs/08-资源/01-资源与工具.md)）
 - 官方源码：[wechat-miniprogram](https://github.com/wechat-miniprogram)（组件扩展、API Promise 化等官方工程）
 - 参考模式：[通往 AGI 之路](https://www.waytoagi.com/) · [WayToAGI_Documents](https://github.com/WayToAGI/WayToAGI_Documents)
 

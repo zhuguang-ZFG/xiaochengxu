@@ -8,14 +8,16 @@
 
 ### 概述
 
-三轮并行的质量轮：正文去 AI 味两轮迭代、新增手绘风章节插图、新增本地 PDF/EPUB 导出，发布管线（tools/publish）脚本首次入库；随后补齐图示系统：Mermaid 预渲染、全库图表编号与电子书图录/表录。
+多轮并行的质量轮：正文去 AI 味、手绘风章节插图、图示系统（Mermaid 预渲染与图表编号）、本地 PDF/EPUB 导出、发布管线脚本入库，以及源码块状态标注与「安全与生产」独立加读篇。
 
 ### 新增
 
-- **图示系统升级（Mermaid + 图表编号 + 图录/表录）**：新增 `tools/mermaid_source.py` 与 `tools/gen_mermaid.py`，把 Markdown 里的 `<!-- figure: ../assets/xxx.png | 图题 -->` 标记与紧随其后的 Mermaid 块绑定，用锁定的 `@mermaid-js/mermaid-cli@11.4.2` + 固定版本的 Chrome for Testing 157 渲染、Pillow 重存为确定性 PNG——GitHub 继续直接渲染 Mermaid，PDF/EPUB 用预渲染图，图源只有一份。首批三张：登录态全流程、支付全链路、上线发布全流程。导出层给每章独占图片与「表：」题注编号（`图 N-M` / `表 N-M`），正文引用自动补号，PDF 增加带页码的插图目录与表格目录，EPUB 增加 loi/lot 页面与 landmarks；10 张关键表格补了独立表题。`check_repo.py` 新增 `check_figure_captions()`（图片必须独占一行且有 alt）、`check_table_captions()`（「表：」题注前空行、后紧邻表头与分隔行）、`check_mermaid_figures()`（Mermaid 标记必须存在、输出资产必须已生成）；`check_assets_fresh.py` 的生成顺序加入 `gen_mermaid`；新增 `test_mermaid_source.py`（14 用例）与 `test_gen_mermaid.py`（19 用例），`test_check_repo.py` 增至 104 用例，变异表增至 51 项并全部捕获
+- **独立「安全与生产」篇（31 篇教学链）**：新增《安全加固》《线上排障与应急》两篇，资源篇顺延到 `08-资源`。安全篇覆盖信任边界、`getWXContext()` 身份、云函数与数据库安全规则、内容安全写入口；生产篇覆盖故障分级、云函数高级日志与实时日志、版本回退限制、云函数灰度与故障复盘。全库随之为 34 篇文档、31 篇教学文章、131 道测验；学习路径、PROGRESS、FAQ、README、写作契约与知识图谱同步更新，电子书结构由 32 章/五部分变为 34 章/七部分（76 图、16 表），导出层测试与书签计数随之校准
+- **源码块状态标注与 CI 强制**：每段 `js/javascript/wxml/xml/css/wxss/json/yaml/bash` 代码块前必须标 `*代码状态：可运行 / 片段 / 示意 / 反例*`（可带括号说明），标注与围栏之间留空行。`check_repo.py` 新增状态词合法性、缺失标注与空行检查，并复用示例工程逐行比对：可运行块必须与工程文件一致，完整文件不得标成片段或示意；补齐对应自测与变异项，防止标注退化成装饰
+- **图示系统升级（Mermaid + 图表编号 + 图录/表录）**：新增 `tools/mermaid_source.py` 与 `tools/gen_mermaid.py`，把 Markdown 里的 `<!-- figure: ../assets/xxx.png | 图题 -->` 标记与紧随其后的 Mermaid 块绑定，用锁定的 `@mermaid-js/mermaid-cli@11.4.2` + 固定版本的 Chrome for Testing 157 渲染、Pillow 重存为确定性 PNG——GitHub 继续直接渲染 Mermaid，PDF/EPUB 用预渲染图，图源只有一份。首批三张：登录态全流程、支付全链路、上线发布全流程。导出层给每章独占图片与「表：」题注编号（`图 N-M` / `表 N-M`），正文引用自动补号，PDF 增加带页码的插图目录与表格目录，EPUB 增加 loi/lot 页面与 landmarks；关键表格补了独立表题（现为 16 张）。`check_repo.py` 新增 `check_figure_captions()`（图片必须独占一行且有 alt）、`check_table_captions()`（「表：」题注前空行、后紧邻表头与分隔行）、`check_mermaid_figures()`（Mermaid 标记必须存在、输出资产必须已生成）；`check_assets_fresh.py` 的生成顺序加入 `gen_mermaid`；新增 `test_mermaid_source.py`（14 用例）与 `test_gen_mermaid.py`（22 用例），`test_check_repo.py` 增至 112 用例，变异表增至 61 项并全部捕获
 - **中文排版一致性校验**：新增 `check_repo.check_typography()`，按 11 条正文规则、10 条术语大小写和全角括号配对检查 `docs/` 文章、根目录 Markdown 与示例工程 Markdown。中英文之间要有空格，中文句子用全角标点与全角括号，引号统一 `「」`，省略号与破折号分别写 `……`、`——`，全角标点与括号内侧不留空格，行内代码两侧留空格，术语固定为 AppID、AppSecret、CloudBase、JavaScript、npm、iOS、setData、H5、rpx 与 `wx.<name>`。掩码用私用区字符等长替换，先剥 YAML frontmatter、围栏代码、行内代码、链接地址、HTML 标签、表格分隔行、水平线与引用式链接定义，代码里的半角标点不会误报；全角括号用栈跨行配对。例外行加 `<!-- typography-ignore -->` 并写明原因。check_repo 自测增 16 用例（共 95），变异表增 6 项（共 39/39 捕获）
 - **手绘风章节插图（15 张）**：`tools/gen_handdrawn.py` 新增「暖纸底 + 确定性抖动线条」的铅笔风渲染（与既有产品风示意图互补）。首批 7 张：学习路径全览（蜿蜒路径 + 五面阶段旗 + 终点火箭）、三件套积木、双线程送快递、云开发三抽屉、放大镜找虫子、上线三道闸、随堂测验草稿纸；第二批 8 张：即点即用手机、开发者工具三步、目录树四件套、WXML 骨架、页面生命周期环、组件双向通道、请求往返、支付回调与幂等——每章开头一张，覆盖入门到支付的高频章节。随机性全部来自按图固定的 `random.Random(seed)`，重跑逐字节一致，已纳入 `check_assets_fresh.py` 的五个生成脚本比对
-- **本地电子书导出**：`tools/export_book.py` 把 32 篇文档按教学顺序导出为本地 PDF（Edge 无头打印：封面、版权页、前言、使用说明、带页码详细目录、部分与章分隔页、页眉页脚、「部分 → 章 → 小节」三级书签与元数据；目录页码三遍打印收敛、缺页即报错）与 EPUB 3（纯标准库打包：三级 nav + landmarks、封面与元数据、图片显式宽高；打包后校验 XML 良构、内部链接与锚点全部可达、清单/脊柱覆盖全书）。产物落 `dist/book/`（gitignore，不进版本库）；导出层自测缺 Edge 或 PyMuPDF 时自动跳过 PDF 侧
+- **本地电子书导出**：`tools/export_book.py` 把 34 篇文档按教学顺序导出为本地 PDF（Edge 无头打印：封面、版权页、前言、使用说明、带页码详细目录、部分与章分隔页、页眉页脚、「部分 → 章 → 小节」三级书签与元数据；目录页码三遍打印收敛、缺页即报错）与 EPUB 3（纯标准库打包：三级 nav + landmarks、封面与元数据、图片显式宽高；打包后校验 XML 良构、内部链接与锚点全部可达、清单/脊柱覆盖全书）。产物落 `dist/book/`（gitignore，不进版本库）；导出层自测缺 Edge 或 PyMuPDF 时自动跳过 PDF 侧
 - **发布管线脚本入库**：`tools/publish/`（13 集发布物的完整管线：`build.py`/`voice.py` 词级时间戳对齐/`scenes.py` 7 类场景渲染器/`engine.py` 逐帧合成/`spec.py` 旁白稿校验/`covers.py`+`pack.py` 封面与投稿文案/`measure.py` 指标验收）此前一直是本地未跟踪目录，现在脚本入库、产物（`dist/`）与 TTS 缓存（`tools/publish/.cache/`）留在版本库外——配音走在线服务，成片不是逐字节可复现的
 
 ### 修复

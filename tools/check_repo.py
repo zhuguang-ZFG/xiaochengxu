@@ -19,6 +19,7 @@
 14. 中文排版：中英文空格、全角标点、引号/省略号、行内代码间距、全角括号配对、术语大小写
 15. 图文题注：独占图片必须有 alt 题注；「表：」题注必须紧贴表格；
     Mermaid 块必须有 figure 标记、输出资产必须存在且唯一
+16. 代码状态：每个源码块上方必须有 `*代码状态：可运行/片段/示意/反例*` 标注
 
 用法：python tools/check_repo.py
       python tools/check_repo.py --update-api-list   # 刷新第 9 项的官方名单
@@ -48,7 +49,8 @@ VIDEO_LIMIT = 3 * 1024 * 1024   # 契约：单集教学视频 ≤ 3MB
 META_FIELDS = ["title", "description", "category", "tags", "difficulty", "reading_time", "updated"]
 CATEGORY_DIR = {
     "00-学习路线": "学习路线", "01-入门": "入门", "02-基础": "基础", "03-进阶": "进阶",
-    "04-云开发": "云开发", "05-发布": "发布", "06-实战": "实战", "07-资源": "资源",
+    "04-云开发": "云开发", "05-发布": "发布", "06-实战": "实战",
+    "07-安全与生产": "安全与生产", "08-资源": "资源",
 }
 
 errors = []
@@ -86,6 +88,11 @@ def reference_md_files():
 FENCE_RE = re.compile(r"^[ \t]{0,3}```.*?^[ \t]{0,3}```", re.S | re.M)
 FENCE_LINE_RE = re.compile(r"^[ \t]{0,3}```(\S*)\s*$")
 INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+
+# 代码状态标注：正文里的源码块必须让读者一眼看出能否直接运行。
+# 只认紧贴代码块上方的斜体行（中间允许空行），避免把正文里的同名词误判为标注。
+CODE_STATUS_RE = re.compile(r"^\*代码状态：(可运行|片段|示意|反例)(?:（[^）\n]*）)?\*$")
+CODE_STATUS_LANGS = {"js", "javascript", "wxml", "xml", "css", "wxss", "json", "yaml", "bash"}
 
 # ---- 中文排版校验用的掩码与规则 ----
 # 掩码用私用区字符占位而不是空格：空格会制造「全角括号内夹空格」等假阳性，
@@ -712,7 +719,12 @@ def check_example_sync():
 
     README 与教程都声称「代码与教程逐行对应」，但此前无任何机制校验，
     实测已出现漂移（app.json 漏 sitemapLocation 等）。此处把该声明变成不变量：
-    教程中未标注「要点/节选」的源码块，必须与工程文件逐行一致（忽略缩进与文件头注释）。
+    标为「可运行」的源码块必须与工程文件逐行一致（忽略缩进与文件头注释）；
+    标为「片段/示意/反例」的块不比对，但若内容恰好与工程文件全同，则说明
+    该块其实是完整文件，必须改标「可运行」，防止用「片段」绕过同步校验。
+
+    没有状态标注的旧文档/工程 README 仍沿用「要点/节选」豁免规则，
+    避免历史文档一次性全部变红。
 
     仅在**确实引用了该示例工程**的文档里生效：入门/基础/进阶各篇也会出现
     `app.json`、`index.js` 等同名代码块，但那是各自独立的教学示例
@@ -785,10 +797,25 @@ def check_example_sync():
                         want_cloud = ("云函数" in section) or ("cloud" in section.lower())
                         cands = [c for c in cands if ("cloudfunctions/" in c) == want_cloud] or cands
                     target = cands[0]
+                    found = _code_status_line_before(lines, start)
+                    status = found[1] if found else None
+                    disk = files[target].read_text(encoding="utf-8")
+                    same = _norm_code("\n".join(buf)) == _norm_code(disk)
+                    if status == "可运行":
+                        if not same:
+                            errors.append(
+                                f"{rel_art}:{start + 1}: 标注「可运行」但与工程文件不一致 -> "
+                                f"examples/{pname}/{target}")
+                        continue
+                    if status in ("片段", "示意", "反例"):
+                        if same:
+                            errors.append(
+                                f"{rel_art}:{start + 1}: 该块与工程文件完全一致，"
+                                f"应标「可运行」而不是「{status}」 -> examples/{pname}/{target}")
+                        continue
                     if EXCERPT_MARK_RE.search(ctx):
                         continue
-                    disk = files[target].read_text(encoding="utf-8")
-                    if _norm_code("\n".join(buf)) != _norm_code(disk):
+                    if not same:
                         errors.append(
                             f"{rel_art}:{start + 1}: 内联代码块与工程文件不一致 -> "
                             f"examples/{pname}/{target}（该块未标注「要点/节选」）")
@@ -868,6 +895,61 @@ def check_fences_language():
                 in_fence = False
         if in_fence:
             errors.append(f"{f.relative_to(ROOT)}: 代码块未闭合")
+
+
+def _code_status_line_before(lines, fence_index):
+    """返回紧邻开围栏的状态标注 (行号, 状态)，没有则 None。
+
+    只跳过空行：标注与代码块之间一旦夹了正文，就不再算「贴着」，防止读者误读。
+    """
+    j = fence_index - 1
+    while j >= 0 and not lines[j].strip():
+        j -= 1
+    if j < 0:
+        return None
+    m = CODE_STATUS_RE.match(lines[j].strip())
+    if not m:
+        return None
+    return j, m.group(1)
+
+
+def check_code_status():
+    """契约：每个源码块上方必须有且只有一条可渲染的状态标注。
+
+    标题里的「（要点）」等词只在作者和校验器之间有效，读者看不到；改成
+    可见的斜体行后，读者不必读完整段就能知道这块代码是完整文件、节选还是伪代码。
+    text（目录树/流程图）与 mermaid（图表源）不是读者照抄的源码，不要求标注。
+    """
+    for f in md_files():
+        lines = f.read_text(encoding="utf-8").splitlines()
+        rel = f.relative_to(ROOT)
+        in_fence = False
+        for i, line in enumerate(lines):
+            m = FENCE_LINE_RE.match(line)
+            if m and not in_fence:
+                in_fence = True
+                if m.group(1) not in CODE_STATUS_LANGS:
+                    continue
+                found = _code_status_line_before(lines, i)
+                if found:
+                    marker_idx, _ = found
+                    if i - marker_idx < 2:
+                        errors.append(f"{rel}:{i+1}: 代码状态标注与代码块之间要空一行")
+                    continue
+                j = i - 1
+                while j >= 0 and not lines[j].strip():
+                    j -= 1
+                prev = lines[j].strip() if j >= 0 else ""
+                if prev.startswith("*代码状态：") or prev.startswith("> 代码状态："):
+                    errors.append(
+                        f"{rel}:{i+1}: 代码状态标注不合法（只能是 可运行/片段/示意/反例，"
+                        f"写成 *代码状态：片段*）")
+                else:
+                    errors.append(
+                        f"{rel}:{i+1}: 源码块缺少代码状态标注"
+                        f"（*代码状态：可运行/片段/示意/反例*）")
+            elif line.strip() == "```" and in_fence:
+                in_fence = False
 
 
 def check_crossref_order():
@@ -1099,7 +1181,8 @@ def check_promise_claims():
 # ---------- 学习体验层校验 ----------
 
 # 教学文章目录（需要随堂测验的），排除元文章目录
-_TEACHING_DIRS = ["01-入门", "02-基础", "03-进阶", "04-云开发", "05-发布", "06-实战", "07-资源"]
+_TEACHING_DIRS = ["01-入门", "02-基础", "03-进阶", "04-云开发", "05-发布", "06-实战",
+                  "07-安全与生产", "08-资源"]
 QUIZ_QUESTION_RE = re.compile(r"^\*\*Q\d+\*\*\s*[：:]", re.M)
 def repo_stats():
     """从仓库里数出来的统计量。README 的指标表和 hero 图上的数字都只从这里取。
@@ -1125,7 +1208,7 @@ def repo_stats():
 
 
 def check_quiz_format():
-    """契约：每篇教学文章（01-入门 至 07-资源）必须有「## 随堂测验」段落。
+    """契约：每篇教学文章（01-入门 至 08-资源）必须有「## 随堂测验」段落。
 
     3~6 道场景选择题，每题有 <details> 折叠答案。00-学习路线 下的元文章
     （学习路径总览、API 速查索引、FAQ）不要求。
@@ -1340,12 +1423,12 @@ def check_extended_reading():
 def check_depth_sections():
     """契约：每篇教学文章必须包含至少一个深度段落标题（原理/为什么/机制/边界/量化）。
 
-    深度要求是契约核心——防止文章停留在 API 用法罗列。例外：00-学习路线 和 07-资源。
+    深度要求是契约核心——防止文章停留在 API 用法罗列。例外：00-学习路线 和 08-资源。
     排除样板标题（如「为什么读这篇」），防止深度校验形同虚设。
     """
     depth_markers = ["原理", "为什么", "机制", "内部", "本质", "边界", "量化", "设计原因"]
     boilerplate = {"为什么读这篇"}
-    exempt_dirs = {"00-学习路线", "07-资源"}
+    exempt_dirs = {"00-学习路线", "08-资源"}
     for d in _TEACHING_DIRS:
         if d in exempt_dirs:
             continue
@@ -1426,6 +1509,7 @@ def main():
     check_json()
     check_js_syntax()
     check_fences_language()
+    check_code_status()
     check_crossref_order()
     check_api_names()
     check_promise_claims()

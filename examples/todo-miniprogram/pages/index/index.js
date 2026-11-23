@@ -1,4 +1,8 @@
 // pages/index/index.js
+function newClientToken() {
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
 Page({
   data: {
     title: '',
@@ -30,15 +34,23 @@ Page({
   },
 
   onInput(e) {
+    this.addToken = '';   // 输入变了，上一次未完成的提交不再复用幂等键
     this.setData({ title: e.detail.value });
   },
 
   async onAdd() {
     const title = this.data.title.trim();
-    if (!title) return;
-    await this.callTodo('add', { title });
-    this.setData({ title: '' });
-    this.fetchList();
+    if (!title || this.submitting) return;
+    this.submitting = true;
+    this.addToken = this.addToken || newClientToken();   // 失败重试复用同一幂等键
+    try {
+      await this.callTodo('add', { title, clientToken: this.addToken });
+      this.addToken = '';
+      this.setData({ title: '' });
+      await this.fetchList();
+    } finally {
+      this.submitting = false;
+    }
   },
 
   async onToggle(e) {

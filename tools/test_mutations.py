@@ -94,9 +94,33 @@ MUTATIONS = [
     ),
     (
         "check_repo.py",
-        "示例工程同步检查形同虚设（永不比对）",
-        'if _norm_code("\\n".join(buf)) != _norm_code(disk):',
-        'if False:',
+        "源码块状态标注检查形同虚设（不标也能过）",
+        'CODE_STATUS_LANGS = {"js", "javascript", "wxml", "xml", "css", "wxss", "json", "yaml", "bash"}',
+        'CODE_STATUS_LANGS = set()',
+    ),
+    (
+        "check_repo.py",
+        "状态标注与代码块之间不再要求空行（标注紧贴围栏也放行）",
+        "                    if i - marker_idx < 2:",
+        "                    if False:",
+    ),
+    (
+        "check_repo.py",
+        "非法状态词被当成缺标注（错误提示指错方向）",
+        '                if prev.startswith("*代码状态：") or prev.startswith("> 代码状态："):',
+        "                if False:",
+    ),
+    (
+        "check_repo.py",
+        "可运行块与工程文件漂移不报（逐行一致校验被绕过）",
+        '                    if status == "可运行":',
+        "                    if False:",
+    ),
+    (
+        "check_repo.py",
+        "完整文件标成片段/示意也放行（用标注逃避同步比对）",
+        '                    if status in ("片段", "示意", "反例"):\n                        if same:',
+        '                    if status in ("片段", "示意", "反例"):\n                        if False:',
     ),
     (
         "check_repo.py",
