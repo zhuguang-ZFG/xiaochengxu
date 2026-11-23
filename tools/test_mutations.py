@@ -196,6 +196,43 @@ MUTATIONS = [
         "        elif tuple(int(x) for x in m.groups()) != want:",
         "        elif False:",
     ),
+    # ---- check_repo.py 中文排版 ----
+    (
+        "check_repo.py",
+        "围栏代码块不屏蔽（代码里的直引号、半角标点被当成正文）",
+        "        if TYPO_FENCE_RE.match(line):",
+        "        if False:",
+    ),
+    (
+        "check_repo.py",
+        "正文排版规则整段跳过（所有违规都不再报）",
+        "            for label, rx, hint in TYPO_RULES:\n                if rx.search(line):",
+        "            for label, rx, hint in TYPO_RULES:\n                if False:",
+    ),
+    (
+        "check_repo.py",
+        "术语大小写规则整段跳过（appid/AppId 不再统一为 AppID）",
+        "            for canonical, rx, hint in TYPO_TERMS:\n                if rx.search(line):",
+        "            for canonical, rx, hint in TYPO_TERMS:\n                if False:",
+    ),
+    (
+        "check_repo.py",
+        "行内代码紧贴中文不再报（代码与中文之间不留空隙）",
+        "            if TYPO_CJK_RE.match(before) or TYPO_CJK_RE.match(after):",
+        "            if False:",
+    ),
+    (
+        "check_repo.py",
+        "未闭合的全角括号不再报（半截括号漏到成书）",
+        "    for ch, lineno in stack:",
+        "    for ch, lineno in []:",
+    ),
+    (
+        "check_repo.py",
+        "忽略标记失效（带 <!-- typography-ignore --> 的行照样被报）",
+        "        for lineno, line in enumerate(masked.split(\"\\n\"), 1):\n            if ignored(lineno):",
+        "        for lineno, line in enumerate(masked.split(\"\\n\"), 1):\n            if False:",
+    ),
     # ---- check_assets_fresh.py ----
     (
         "check_assets_fresh.py",

@@ -912,6 +912,93 @@ class CheckRepoTest(unittest.TestCase):
         chk.check_depth_sections()
         self.assertEqual(chk.errors, [])
 
+    # ---------- 中文排版 ----------
+
+    def _typo_fixture(self, body):
+        self.fixture({
+            "docs/01-入门/01-test.md": (
+                "---\ntitle: t\ndescription: d\ncategory: 入门\ntags: [入门, 测试]\n"
+                "difficulty: ★☆☆☆☆\nreading_time: 1 分钟\nupdated: 2026-01-01\n---\n"
+                "# 测试\n\n" + body
+            ),
+        })
+        return self.run_checks("check_typography")
+
+    def test_typography_合法正文通过(self):
+        errs = self._typo_fixture(
+            "中文与 English 之间留空格，数字 42 也一样。\n\n"
+            "使用 `setData` 更新，引用用「中文引号」，省略号用…。\n\n"
+            "| 列 | 说明 |\n|---|---|\n| `a,b` | 代码里的半角标点不报 |\n"
+        )
+        self.assertEqual(errs, [], errs)
+
+    def test_typography_中英文缺空格要报(self):
+        errs = self._typo_fixture("使用npm安装。\n")
+        self.assertTrue(any("中英文之间缺空格" in e for e in errs), errs)
+
+    def test_typography_中文半角标点要报(self):
+        errs = self._typo_fixture("你好,世界。\n")
+        self.assertTrue(any("半角标点" in e for e in errs), errs)
+
+    def test_typography_半角括号包中文要报(self):
+        errs = self._typo_fixture("说明(中文内容)。\n")
+        self.assertTrue(any("半角括号" in e for e in errs), errs)
+
+    def test_typography_直引号要报(self):
+        errs = self._typo_fixture('他说"你好"。\n')
+        self.assertTrue(any("直引号" in e for e in errs), errs)
+
+    def test_typography_中文弯引号要报(self):
+        errs = self._typo_fixture("他说“你好”。\n")
+        self.assertTrue(any("中文弯引号" in e for e in errs), errs)
+
+    def test_typography_省略号三点要报(self):
+        errs = self._typo_fixture("等等...\n")
+        self.assertTrue(any("省略号" in e for e in errs), errs)
+
+    def test_typography_双连字符要报(self):
+        errs = self._typo_fixture("破折号写成--这样。\n")
+        self.assertTrue(any("双连字符" in e for e in errs), errs)
+
+    def test_typography_全角标点后空格要报(self):
+        errs = self._typo_fixture("第一句。 第二句。\n")
+        self.assertTrue(any("全角标点后有空格" in e for e in errs), errs)
+
+    def test_typography_全角括号内空格要报(self):
+        errs = self._typo_fixture("说明（ 中文 ）\n")
+        self.assertTrue(any("括号内" in e for e in errs), errs)
+
+    def test_typography_重复标点要报(self):
+        errs = self._typo_fixture("真的。。\n")
+        self.assertTrue(any("重复" in e for e in errs), errs)
+
+    def test_typography_括号不配对要报(self):
+        errs = self._typo_fixture("这是（未闭合的说明。\n")
+        self.assertTrue(any("未闭合" in e for e in errs), errs)
+
+    def test_typography_行内代码紧贴中文要报(self):
+        errs = self._typo_fixture("使用`setData`更新。\n")
+        self.assertTrue(any("行内代码" in e for e in errs), errs)
+
+    def test_typography_术语大小写要报(self):
+        errs = self._typo_fixture("在后台配置 appid。\n")
+        self.assertTrue(any("AppID" in e for e in errs), errs)
+
+    def test_typography_代码与链接地址不误报(self):
+        errs = self._typo_fixture(
+            "正文正常，见 [文档](https://example.com/a,b;c)。\n\n"
+            "见（https://example.com/dev/）。\n\n"
+            "```js\n"
+            'const s = "直引号, 半角标点"; // 使用npm安装...\n'
+            "```\n\n"
+            "行内代码 `a,b;c` 与 `appid` 不报。\n"
+        )
+        self.assertEqual(errs, [], errs)
+
+    def test_typography_忽略标记(self):
+        errs = self._typo_fixture('他说"你好"。 <!-- typography-ignore -->\n')
+        self.assertEqual(errs, [], errs)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
