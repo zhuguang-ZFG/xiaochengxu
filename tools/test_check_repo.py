@@ -14,6 +14,8 @@ import pathlib
 import sys
 import tempfile
 import unittest
+import urllib.error
+from unittest import mock
 
 # Windows 控制台默认 GBK，unittest 打印中文用例名会乱码（不影响断言，但本地没法读）。
 # unittest 把用例名写到 stderr 而非 stdout，两个流都要切。
@@ -257,6 +259,28 @@ class CheckRepoTest(unittest.TestCase):
         })
         errs = self.run_checks("check_mermaid_figures")
         self.assertEqual(errs, [], f"合规 Mermaid 不应报，实际: {errs}")
+    # ---------- 外链：HTTP 状态与网络异常必须可区分 ----------
+
+    def test_external_http_error_reports_status(self):
+        self.fixture({"README.md": "[官方](https://example.com/missing)\n"})
+        failure = urllib.error.HTTPError(
+            "https://example.com/missing", 404, "Not Found", {}, None
+        )
+        with mock.patch("urllib.request.urlopen", side_effect=failure):
+            chk.check_external_links()
+        self.assertEqual(len(chk.errors), 1)
+        self.assertIn("HTTP 404", chk.errors[0])
+        self.assertNotIn("HTTP None", chk.errors[0])
+
+    def test_external_network_error_reports_reason(self):
+        self.fixture({"README.md": "[官方](https://example.com/offline)\n"})
+        failure = urllib.error.URLError("dns lookup failed")
+        with mock.patch("urllib.request.urlopen", side_effect=failure):
+            chk.check_external_links()
+        self.assertEqual(len(chk.errors), 1)
+        self.assertIn("URLError", chk.errors[0])
+        self.assertIn("dns lookup failed", chk.errors[0])
+        self.assertNotIn("HTTP None", chk.errors[0])
 
     # ---------- 围栏语言标注：缩进围栏同样要检查 ----------
 

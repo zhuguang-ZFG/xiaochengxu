@@ -19,10 +19,13 @@ Linux Noto）**没有** `✓ ✗ ✅ ❌ 👆 ▶` 这些字形，画上屏幕�
 已提交视频的容器完整性（有没有 moov）由 `check_repo.py` 的 `check_video_assets`
 负责，本文件不重复：那里的用例在临时目录里搭迷你仓库，不依赖真实资产目录。
 """
+import io
 import pathlib
 import re
+import subprocess
 import sys
 import unittest
+from unittest import mock
 
 TOOLS = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(TOOLS))
@@ -196,6 +199,25 @@ class GlyphCoverage(unittest.TestCase):
                 for ch in self.MISSING if ch in node.value]
         self.assertEqual(hits, ["✗"], "字面量扫描没按预期工作")
 
+class _FakeProcess:
+    def __init__(self, stderr):
+        self.stdin = io.BytesIO()
+        self.stderr = stderr
+        self.returncode = 0
+
+    @classmethod
+    def from_popen(cls, *args, **kwargs):
+        stderr = kwargs["stderr"]
+        return cls(io.BytesIO() if stderr == subprocess.PIPE else stderr)
+
+    def communicate(self):
+        self.stdin.close()
+        return None, None
+
+    def wait(self):
+        return self.returncode
+
+
 class AtomicRenderOutput(unittest.TestCase):
     """渲染中途失败，不许在 docs/assets 里留下半成品。
 
@@ -231,6 +253,23 @@ class AtomicRenderOutput(unittest.TestCase):
             return False
         except Exception:
             return True
+
+    def test_render_does_not_use_undrained_stderr_pipe(self):
+        with mock.patch("imageio_ffmpeg.get_ffmpeg_exe", return_value="ffmpeg"), \
+                mock.patch("gen_videos.subprocess.Popen",
+                           side_effect=_FakeProcess.from_popen) as popen:
+            gv.render_mp4(self._frames(1), "video-99-pipe")
+        self.assertIsNot(popen.call_args.kwargs["stderr"], subprocess.PIPE,
+                         "写帧时不排空 stderr 管道，ffmpeg 报错过多会双向阻塞")
+
+    def test_render_closes_stderr_file(self):
+        with mock.patch("imageio_ffmpeg.get_ffmpeg_exe", return_value="ffmpeg"), \
+                mock.patch("gen_videos.subprocess.Popen",
+                           side_effect=_FakeProcess.from_popen) as popen:
+            gv.render_mp4(self._frames(1), "video-99-stderr")
+        stderr = popen.call_args.kwargs["stderr"]
+        self.assertTrue(getattr(stderr, "closed", False),
+                        "ffmpeg stderr 文件必须关闭，不能留到 GC 才报 ResourceWarning")
 
     def test_success_lands_one_complete_file(self):
         gv.render_mp4(self._frames(6), "video-99-ok")

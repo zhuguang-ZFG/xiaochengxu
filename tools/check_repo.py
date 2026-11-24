@@ -1371,7 +1371,7 @@ def check_depth_sections():
 def check_external_links():
     """外链 HTTP 状态校验（默认关闭：CI/第三方站点网络波动不应阻断校验；
     需要时用 --external 显式启用）"""
-    import urllib.request, ssl, concurrent.futures
+    import urllib.request, urllib.error, ssl, concurrent.futures
     ctx = ssl.create_default_context()
     links = {}
     for f in reference_md_files():
@@ -1382,19 +1382,24 @@ def check_external_links():
                 links.setdefault(u, f.relative_to(ROOT))
 
     def check(u):
-        for _ in range(2):  # 失败重试一次
+        for attempt in range(2):  # 网络失败重试一次
             try:
                 req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"})
                 with urllib.request.urlopen(req, timeout=20, context=ctx) as r:
                     return u, r.status
-            except Exception:
-                continue
-        return u, None
+            except urllib.error.HTTPError as exc:
+                return u, exc.code
+            except Exception as exc:
+                if attempt == 1:
+                    return u, f"{type(exc).__name__}: {exc}"
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
-        for u, st in ex.map(check, links):
-            if st is None or st >= 400:
-                errors.append(f"{links[u]}: 外链异常 -> {u} (HTTP {st})")
+        for u, result in ex.map(check, links):
+            if isinstance(result, int):
+                if result >= 400:
+                    errors.append(f"{links[u]}: 外链异常 -> {u} (HTTP {result})")
+            else:
+                errors.append(f"{links[u]}: 外链异常 -> {u} ({result})")
 
 
 def main():

@@ -549,32 +549,30 @@ def render_mp4(frames, name, fps=FPS):
     def abandon():
         tmp_path.unlink(missing_ok=True)
 
-    try:
-        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    except OSError:                      # 可执行文件没了：别让临时文件留在临时目录
-        abandon()
-        raise
-    count = 0
-    failure = None
-    try:
-        for frame in frames:
-            small = frame.resize((W, H), Image.LANCZOS)
-            proc.stdin.write(small.tobytes())
-            count += 1
-    except BrokenPipeError:
-        pass                             # ffmpeg 先退了，交给下面的退出码去报
-    except BaseException as exc:         # Ctrl-C / 生成器抛错
-        failure = exc
-    finally:
+    with tempfile.TemporaryFile() as err_file:
         try:
-            proc.stdin.close()
+            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                                    stdout=subprocess.DEVNULL, stderr=err_file)
+        except OSError:                  # 可执行文件没了：别让临时文件留在临时目录
+            abandon()
+            raise
+        count = 0
+        failure = None
+        try:
+            for frame in frames:
+                small = frame.resize((W, H), Image.LANCZOS)
+                proc.stdin.write(small.tobytes())
+                count += 1
         except BrokenPipeError:
-            pass
-        err = proc.stderr.read().decode("utf-8", "replace")
-        # 必须等 ffmpeg 退出之后再删临时文件：进程还持有句柄时 unlink 会抛
-        # PermissionError（Windows 实测，回归测试 test_interruption_… 抓到的）
-        rc = proc.wait()
+            pass                         # ffmpeg 先退了，交给下面的退出码去报
+        except BaseException as exc:     # Ctrl-C / 生成器抛错
+            failure = exc
+        finally:
+            # stderr 落文件而非管道：写帧期间不排空 PIPE 会让双方互相等死。
+            proc.communicate()           # 关闭 stdin、等待 ffmpeg 退出
+            err_file.seek(0)
+            err = err_file.read().decode("utf-8", "replace")
+            rc = proc.returncode
     if failure is None and rc != 0:
         failure = SystemExit(f"ffmpeg 合成失败（{name}）：\n{err[-2000:]}")
     if failure is not None:
