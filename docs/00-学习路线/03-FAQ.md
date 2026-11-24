@@ -383,4 +383,4 @@ MP 后台 → 版本管理 → 线上版本，点「版本回退」可以回退�
 
 - [学习路径总览](01-学习路径总览.md) — 完整学习路线图
 - [API 速查索引](02-API速查索引.md) — 按能力域分类的 API 速查
-- 官方：[小程序常见问题](https://developers.weixin.qq.com/miniprogram/dev/framework/faq.html)
+- 官方：[小程序开发指南](https://developers.weixin.qq.com/miniprogram/dev/framework/)
