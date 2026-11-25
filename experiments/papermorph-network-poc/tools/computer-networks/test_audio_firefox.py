@@ -3,6 +3,8 @@ from contextlib import redirect_stdout
 import io
 import json
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import tempfile
 import types
@@ -122,6 +124,36 @@ class FirefoxAudioGateTests(unittest.TestCase):
         self.assertEqual(audio_firefox.expected_clip_count(audio_firefox.CHAPTERS), 36)
         self.assertEqual(audio_firefox.expected_clip_count(("ch01",)), 12)
         self.assertEqual(audio_firefox.expected_clip_count(("ch02", "ch03")), 24)
+
+    def test_resume_expression_records_async_rejection_without_returning_promise(self):
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is required for the JavaScript contract test")
+        script = r"""
+const fs = require('node:fs');
+const vm = require('node:vm');
+const expression = fs.readFileSync(0, 'utf8');
+let rejectResume;
+const pending = new Promise((_, reject) => { rejectResume = reject; });
+const probe = {
+  ctx: {state: 'suspended', resume: () => pending},
+  resumeError: null,
+  resumeDone: false,
+};
+const fn = vm.runInNewContext(`(${expression})`, {window: {__audioProbe: probe}});
+if (fn() !== undefined) throw new Error('resume expression returned a promise');
+if (probe.resumeDone !== false) throw new Error('resume expression did not stay pending');
+rejectResume('resume rejected');
+setImmediate(() => {
+  if (probe.resumeDone !== true) throw new Error('resume rejection was not observed');
+  if (probe.resumeError !== 'resume rejected') throw new Error('resume error was lost');
+});
+"""
+        completed = subprocess.run(
+            [node, "-e", script], input=audio_firefox.RESUME_AUDIO,
+            text=True, capture_output=True, timeout=10,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
 
 
 class FirefoxAudioCliTests(unittest.TestCase):
@@ -268,9 +300,18 @@ class FirefoxAudioSamplingTests(IsolatedAsyncioTestCase):
 
 
 class FakeAudioPage:
-    def __init__(self, chapter, hang_final=False):
+    def __init__(
+        self, chapter, hang_final=False, hang_setup=None, hang_context=False,
+        resume_error=None, hang_close=False, cancel_on_close=False,
+    ):
         self.chapter = chapter
         self.hang_final = hang_final
+        self.hang_setup = hang_setup
+        self.hang_context = hang_context
+        self.resume_error = resume_error
+        self.hang_close = hang_close
+        self.cancel_on_close = cancel_on_close
+        self.cancel_clip_count = 0
         self.listeners = {}
 
     def on(self, event, callback):
@@ -280,9 +321,12 @@ class FakeAudioPage:
         pass
 
     async def wait_for_function(self, expression, timeout=None):
-        pass
+        if self.hang_context and "__audioProbe.ctx.state" in expression:
+            await asyncio.sleep(1)
 
     async def evaluate(self, expression, arg=None):
+        if self.hang_setup and self.hang_setup in expression:
+            await asyncio.sleep(1)
         if "BEATS.map" in expression:
             return [
                 {"index": index, "id": f"beat-{index}", "silent": False}
@@ -290,30 +334,67 @@ class FakeAudioPage:
             ]
         if expression == "() => 0" and self.hang_final:
             await asyncio.sleep(1)
+        if expression.startswith("() => ({state:"):
+            return {"state": "running", "error": self.resume_error}
         return None
 
     async def close(self):
-        pass
+        if self.cancel_on_close:
+            asyncio.current_task().cancel()
+        if self.hang_close or self.cancel_on_close:
+            await asyncio.sleep(1)
 
 
 class FirefoxAudioRunTests(IsolatedAsyncioTestCase):
-    async def run_audit(self, chapters, failed_chapter=None, hang_final_chapter=None):
+    async def run_audit(
+        self, chapters, failed_chapter=None, hang_final_chapter=None,
+        hang_setup_chapter=None, hang_setup=None, hang_context_chapter=None,
+        resume_error_chapter=None, hang_close=None, cancel_chapter=None,
+        cancel_after_clips=None, cancel_cleanup=None, capture_cancel=False,
+    ):
         pages = [
-            FakeAudioPage(chapter, hang_final=chapter == hang_final_chapter)
+            FakeAudioPage(
+                chapter,
+                hang_final=chapter == hang_final_chapter,
+                hang_setup=hang_setup if chapter == hang_setup_chapter else None,
+                hang_context=chapter == hang_context_chapter,
+                resume_error="resume rejected" if chapter == resume_error_chapter else None,
+                hang_close=hang_close == f"page:{chapter}",
+                cancel_on_close=cancel_cleanup == f"page:{chapter}",
+            )
             for chapter in chapters
         ]
+
+        async def close_context():
+            if cancel_cleanup == "context":
+                asyncio.current_task().cancel("cleanup cancelled")
+            if hang_close == "context" or cancel_cleanup == "context":
+                await asyncio.sleep(1)
+
+        async def close_browser():
+            if cancel_cleanup == "browser":
+                asyncio.current_task().cancel()
+            if hang_close == "browser" or cancel_cleanup == "browser":
+                await asyncio.sleep(1)
+
+        async def exit_playwright(*args):
+            if cancel_cleanup == "playwright":
+                asyncio.current_task().cancel()
+            if hang_close == "playwright" or cancel_cleanup == "playwright":
+                await asyncio.sleep(1)
+
         context = types.SimpleNamespace(
-            new_page=mock.AsyncMock(side_effect=pages), close=mock.AsyncMock()
+            new_page=mock.AsyncMock(side_effect=pages), close=mock.AsyncMock(side_effect=close_context)
         )
         browser = types.SimpleNamespace(
-            new_context=mock.AsyncMock(return_value=context), close=mock.AsyncMock()
+            new_context=mock.AsyncMock(return_value=context), close=mock.AsyncMock(side_effect=close_browser)
         )
         playwright_api = types.SimpleNamespace(
             firefox=types.SimpleNamespace(launch=mock.AsyncMock(return_value=browser))
         )
         manager = mock.MagicMock()
         manager.__aenter__ = mock.AsyncMock(return_value=playwright_api)
-        manager.__aexit__ = mock.AsyncMock(return_value=False)
+        manager.__aexit__ = mock.AsyncMock(side_effect=exit_playwright)
         async_api = types.ModuleType("playwright.async_api")
         async_api.async_playwright = lambda: manager
         playwright = types.ModuleType("playwright")
@@ -324,6 +405,10 @@ class FirefoxAudioRunTests(IsolatedAsyncioTestCase):
         browsers.missing = lambda page, callback: None
 
         async def fake_measure(page, index, beat):
+            if page.chapter == cancel_chapter:
+                page.cancel_clip_count += 1
+                if cancel_after_clips is None or page.cancel_clip_count >= cancel_after_clips:
+                    raise asyncio.CancelledError("playback cancelled")
             passed = page.chapter != failed_chapter
             return {
                 "beat": beat,
@@ -331,6 +416,7 @@ class FirefoxAudioRunTests(IsolatedAsyncioTestCase):
                 "errors": [] if passed else ["failed clip"],
             }
 
+        cancel_message = None
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "audio.json"
             with mock.patch.dict(sys.modules, {
@@ -339,8 +425,16 @@ class FirefoxAudioRunTests(IsolatedAsyncioTestCase):
                 "browsers": browsers,
             }), mock.patch.object(audio_firefox, "measure_clip", fake_measure), \
                     redirect_stdout(io.StringIO()):
-                status = await audio_firefox.run(out, chapters)
+                try:
+                    status = await audio_firefox.run(out, chapters)
+                except asyncio.CancelledError as exc:
+                    if cancel_chapter is None and cancel_cleanup is None:
+                        raise
+                    status = "cancelled"
+                    cancel_message = str(exc)
             evidence = json.loads(out.read_text(encoding="utf-8"))
+        if capture_cancel:
+            return status, evidence, cancel_message
         return status, evidence
 
     async def test_selected_chapters_aggregate_counts_and_exit_status(self):
@@ -403,6 +497,126 @@ class FirefoxAudioRunTests(IsolatedAsyncioTestCase):
         self.assertEqual(evidence["error_count"], 1)
         self.assertIn("final browser probe", evidence["errors"][0])
         self.assertIn("browser evaluation exceeded", evidence["errors"][0])
+
+    async def test_unresponsive_audio_resume_has_hard_timeout(self):
+        with mock.patch.object(audio_firefox, "EVALUATE_TIMEOUT", 0.01):
+            status, evidence = await asyncio.wait_for(
+                self.run_audit(
+                    ("ch01",), hang_setup_chapter="ch01",
+                    hang_setup="probe.ctx.resume()",
+                ),
+                timeout=0.5,
+            )
+        self.assertEqual(status, 1)
+        self.assertFalse(evidence["passed"])
+        self.assertEqual(evidence["clip_count"], 0)
+        self.assertFalse(evidence["chapters"]["ch01"]["passed"])
+        self.assertEqual(evidence["error_count"], 1)
+        self.assertIn("resume AudioContext", evidence["errors"][0])
+        self.assertIn("browser evaluation exceeded", evidence["errors"][0])
+
+    async def test_unresponsive_probe_install_has_hard_timeout(self):
+        with mock.patch.object(audio_firefox, "EVALUATE_TIMEOUT", 0.01):
+            status, evidence = await asyncio.wait_for(
+                self.run_audit(
+                    ("ch01",), hang_setup_chapter="ch01",
+                    hang_setup=audio_firefox.INSTALL_PROBE,
+                ),
+                timeout=0.5,
+            )
+        self.assertEqual(status, 1)
+        self.assertEqual(evidence["clip_count"], 0)
+        self.assertEqual(evidence["error_count"], 1)
+        self.assertIn("install audio probe", evidence["errors"][0])
+        self.assertIn("browser evaluation exceeded", evidence["errors"][0])
+
+    async def test_suspended_audio_context_has_bounded_wait(self):
+        with mock.patch.object(audio_firefox, "CONTEXT_TIMEOUT", 0.01):
+            status, evidence = await asyncio.wait_for(
+                self.run_audit(("ch01",), hang_context_chapter="ch01"),
+                timeout=0.5,
+            )
+        self.assertEqual(status, 1)
+        self.assertEqual(evidence["clip_count"], 0)
+        self.assertEqual(evidence["error_count"], 1)
+        self.assertIn("AudioContext did not start", evidence["errors"][0])
+        self.assertIn("0.01s", evidence["errors"][0])
+
+    async def test_rejected_audio_resume_fails_even_if_context_reports_running(self):
+        status, evidence = await self.run_audit(
+            ("ch01",), resume_error_chapter="ch01"
+        )
+        self.assertEqual(status, 1)
+        self.assertEqual(evidence["clip_count"], 0)
+        self.assertFalse(evidence["chapters"]["ch01"]["passed"])
+        self.assertEqual(evidence["error_count"], 1)
+        self.assertIn("resume failed", evidence["errors"][0])
+        self.assertIn("resume rejected", evidence["errors"][0])
+
+    async def test_cleanup_timeouts_are_bounded_and_preserve_evidence(self):
+        for resource in ("page:ch01", "context", "browser", "playwright"):
+            with self.subTest(resource=resource):
+                with mock.patch.object(audio_firefox, "CLOSE_TIMEOUT", 0.01, create=True):
+                    status, evidence = await asyncio.wait_for(
+                        self.run_audit(("ch01",), hang_close=resource),
+                        timeout=0.5,
+                    )
+                self.assertEqual(status, 1)
+                self.assertFalse(evidence["passed"])
+                self.assertEqual(evidence["clip_count"], 12)
+                self.assertIn("cleanup", evidence["errors"][0])
+                self.assertIn("0.01s", evidence["errors"][0])
+
+    async def test_cancellation_writes_partial_evidence_and_reraises(self):
+        status, evidence = await asyncio.wait_for(
+            self.run_audit(("ch01", "ch02"), cancel_chapter="ch02"),
+            timeout=0.5,
+        )
+        self.assertEqual(status, "cancelled")
+        self.assertFalse(evidence["passed"])
+        self.assertEqual(evidence["clip_count"], 12)
+        self.assertTrue(evidence["chapters"]["ch01"]["passed"])
+        self.assertFalse(evidence["chapters"]["ch02"]["passed"])
+        self.assertIn("ch02: expected 12 audible clips, found 0", evidence["errors"])
+        self.assertEqual(evidence["errors"][-1], "audio audit cancelled")
+
+    async def test_cancellation_after_partial_clips_preserves_completed_rows(self):
+        status, evidence = await asyncio.wait_for(
+            self.run_audit(("ch01",), cancel_chapter="ch01", cancel_after_clips=3),
+            timeout=0.5,
+        )
+        self.assertEqual(status, "cancelled")
+        self.assertEqual(evidence["clip_count"], 2)
+        self.assertEqual(len(evidence["chapters"]["ch01"]["details"]), 2)
+        self.assertFalse(evidence["chapters"]["ch01"]["passed"])
+        self.assertEqual(evidence["errors"][-1], "audio audit cancelled")
+
+    async def test_cancellation_during_cleanup_still_writes_evidence(self):
+        for resource in ("page:ch01", "context", "browser", "playwright"):
+            with self.subTest(resource=resource):
+                with mock.patch.object(audio_firefox, "CLOSE_TIMEOUT", 0.01):
+                    status, evidence = await asyncio.wait_for(
+                        self.run_audit(("ch01",), cancel_cleanup=resource),
+                        timeout=0.5,
+                    )
+                self.assertEqual(status, "cancelled")
+                self.assertFalse(evidence["passed"])
+                self.assertEqual(evidence["clip_count"], 12)
+                self.assertEqual(evidence["chapters"]["ch01"]["clips"], 12)
+                self.assertTrue(any("cleanup" in error and "cancelled" in error
+                                    for error in evidence["errors"]))
+                self.assertEqual(evidence["errors"][-1], "audio audit cancelled")
+
+    async def test_cleanup_cancellation_does_not_replace_playback_cancellation(self):
+        status, evidence, cancel_message = await self.run_audit(
+            ("ch01", "ch02"), cancel_chapter="ch02", cancel_cleanup="context",
+            capture_cancel=True,
+        )
+        self.assertEqual(status, "cancelled")
+        self.assertEqual(cancel_message, "playback cancelled")
+        self.assertEqual(evidence["clip_count"], 12)
+        self.assertIn("cleanup: browser context cancelled", evidence["errors"])
+        self.assertEqual(evidence["errors"].count("audio audit cancelled"), 1)
 
     async def test_request_tracker_waits_for_late_events(self):
         page = FakePage()

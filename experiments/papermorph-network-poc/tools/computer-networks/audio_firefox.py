@@ -19,6 +19,9 @@ SAMPLE_INTERVAL_MS = 50
 MIN_RMS = 0.0001
 MIN_PEAK = 0.001
 EVALUATE_TIMEOUT = 5
+CONTEXT_TIMEOUT = 10
+PAGE_TIMEOUT = 30
+CLOSE_TIMEOUT = 5
 
 INSTALL_PROBE = r"""() => {
   const ctx = new AudioContext();
@@ -28,6 +31,20 @@ INSTALL_PROBE = r"""() => {
   window.__audioProbe = {
     ctx, analyser, data: new Float32Array(analyser.fftSize), sources: new WeakMap()
   };
+}"""
+
+RESUME_AUDIO = r"""() => {
+  const probe = window.__audioProbe;
+  probe.resumeError = null;
+  if (probe.ctx.state === 'running') {
+    probe.resumeDone = true;
+    return;
+  }
+  probe.resumeDone = false;
+  probe.ctx.resume().then(
+    () => { probe.resumeDone = true; },
+    error => { probe.resumeError = String(error); probe.resumeDone = true; }
+  );
 }"""
 
 START_CLIP = r"""i => {
@@ -154,6 +171,64 @@ async def evaluate_with_timeout(page, expression, arg=None):
         raise TimeoutError(f"browser evaluation exceeded {EVALUATE_TIMEOUT:g}s") from exc
 
 
+async def evaluate_stage(page, chapter, stage, expression, arg=None):
+    print(f"firefox: {chapter}: {stage}", flush=True)
+    try:
+        return await evaluate_with_timeout(page, expression, arg)
+    except Exception as exc:
+        raise RuntimeError(f"{chapter}: {stage} failed: {exc}") from exc
+
+
+async def wait_stage(page, chapter, stage, expression, timeout):
+    print(f"firefox: {chapter}: {stage}", flush=True)
+    try:
+        return await asyncio.wait_for(page.wait_for_function(expression), timeout=timeout)
+    except TimeoutError as exc:
+        raise RuntimeError(f"{chapter}: {stage} exceeded {timeout:g}s") from exc
+    except Exception as exc:
+        raise RuntimeError(f"{chapter}: {stage} failed: {exc}") from exc
+
+
+async def wait_for_audio_context(page, chapter):
+    print(f"firefox: {chapter}: wait for AudioContext", flush=True)
+    try:
+        await asyncio.wait_for(
+            page.wait_for_function(
+                "window.__audioProbe.resumeDone && "
+                "(window.__audioProbe.resumeError !== null || "
+                "window.__audioProbe.ctx.state === 'running')"
+            ),
+            timeout=CONTEXT_TIMEOUT,
+        )
+    except TimeoutError as exc:
+        raise RuntimeError(
+            f"{chapter}: AudioContext did not start within {CONTEXT_TIMEOUT:g}s"
+        ) from exc
+    except Exception as exc:
+        raise RuntimeError(f"{chapter}: wait for AudioContext failed: {exc}") from exc
+    state = await evaluate_stage(
+        page, chapter, "read AudioContext state",
+        "() => ({state: window.__audioProbe.ctx.state, error: window.__audioProbe.resumeError})",
+    )
+    if state["error"] is not None:
+        raise RuntimeError(f"{chapter}: AudioContext resume failed: {state['error']}")
+    if state["state"] != "running":
+        raise RuntimeError(
+            f"{chapter}: AudioContext did not start: state={state['state']}, "
+            f"error={state['error']}"
+        )
+
+
+async def bounded_cleanup(label, operation):
+    try:
+        await asyncio.wait_for(operation, timeout=CLOSE_TIMEOUT)
+    except TimeoutError:
+        return f"cleanup: {label} exceeded {CLOSE_TIMEOUT:g}s"
+    except Exception as exc:
+        return f"cleanup: {label} failed: {exc}"
+    return None
+
+
 async def measure_clip(page, index, beat):
     failure = None
     try:
@@ -237,41 +312,62 @@ async def run(out, chapters=CHAPTERS):
             "PCM sampled every 50 ms proves Firefox rendered audible signal during playback, not human listening quality or real-device speaker output."
         ],
     }
+    page = context = browser = manager = None
+    cancelled = None
     try:
         from playwright.async_api import async_playwright
         sys.path.insert(0, str(ROOT / ".qoder" / "skills" / "papermorph" / "scripts"))
         from browsers import answers, firefox, missing
 
         answers(URL)
-        async with async_playwright() as p:
-            browser = await p.firefox.launch(**firefox())
-            context = await browser.new_context(
-                viewport={"width": 1440, "height": 900}, reduced_motion="reduce"
-            )
-            for chapter in chapters:
-                print(f"firefox: start {chapter} ({EXPECTED_CLIPS[chapter]} audible clips)", flush=True)
-                page = await context.new_page()
-                page_errors, warnings, absent = [], [], []
-                pending = track_requests(page)
-                page.on("pageerror", lambda error: page_errors.append(str(error)))
-                page.on("console", lambda message: page_errors.append(message.text)
-                        if message.type == "error" else warnings.append(message.text)
-                        if message.type == "warning" else None)
-                missing(page, absent.append)
-                await page.goto(URL + chapter + "/")
-                await page.wait_for_function("typeof BEATS !== 'undefined'")
-                await page.evaluate("""() => {
+        manager = async_playwright()
+        p = await manager.__aenter__()
+        browser = await p.firefox.launch(**firefox())
+        context = await browser.new_context(
+            viewport={"width": 1440, "height": 900}, reduced_motion="reduce"
+        )
+        for chapter in chapters:
+            print(f"firefox: start {chapter} ({EXPECTED_CLIPS[chapter]} audible clips)", flush=True)
+            page = await context.new_page()
+            page_errors, warnings, absent = [], [], []
+            pending = track_requests(page)
+            page.on("pageerror", lambda error: page_errors.append(str(error)))
+            page.on("console", lambda message: page_errors.append(message.text)
+                    if message.type == "error" else warnings.append(message.text)
+                    if message.type == "warning" else None)
+            missing(page, absent.append)
+            rows = []
+            chapter_errors = []
+            setup_complete = False
+            try:
+                print(f"firefox: {chapter}: load page", flush=True)
+                try:
+                    await asyncio.wait_for(page.goto(URL + chapter + "/"), timeout=PAGE_TIMEOUT)
+                except TimeoutError as exc:
+                    raise RuntimeError(f"{chapter}: load page exceeded {PAGE_TIMEOUT:g}s") from exc
+                except Exception as exc:
+                    raise RuntimeError(f"{chapter}: load page failed: {exc}") from exc
+                await wait_stage(
+                    page, chapter, "wait for page scripts",
+                    "typeof BEATS !== 'undefined'", PAGE_TIMEOUT,
+                )
+                await evaluate_stage(page, chapter, "set volume", """() => {
                   const volume = document.getElementById('volume');
                   volume.value = '1';
                   volume.dispatchEvent(new Event('input', {bubbles: true}));
                 }""")
-                await page.evaluate(INSTALL_PROBE)
-                await page.evaluate("window.__audioProbe.ctx.resume()")
-                await page.wait_for_function("window.__audioProbe.ctx.state === 'running'")
-                beats = await page.evaluate(
-                    "BEATS.map((b, i) => ({index:i, id:b.id, silent:!!TIMINGS[b.id]?.silent}))"
+                await evaluate_stage(
+                    page, chapter, "install audio probe", INSTALL_PROBE
                 )
-                rows = []
+                await evaluate_stage(
+                    page, chapter, "resume AudioContext", RESUME_AUDIO
+                )
+                await wait_for_audio_context(page, chapter)
+                beats = await evaluate_stage(
+                    page, chapter, "read beats",
+                    "BEATS.map((b, i) => ({index:i, id:b.id, silent:!!TIMINGS[b.id]?.silent}))",
+                )
+                setup_complete = True
                 for beat in beats:
                     if beat["silent"]:
                         continue
@@ -289,7 +385,6 @@ async def run(out, chapters=CHAPTERS):
                         rows.append(row)
                         print(f"firefox: {chapter}/{beat['id']}: {monotonic() - started:.1f}s wall, "
                               f"error={exc}", flush=True)
-                chapter_errors = []
                 if not await wait_for_requests(pending):
                     chapter_errors.append(f"{chapter}: page requests did not settle")
                 try:
@@ -297,32 +392,74 @@ async def run(out, chapters=CHAPTERS):
                 except Exception as exc:
                     chapter_errors.append(f"{chapter}: final browser probe failed: {exc}")
                 await asyncio.sleep(0)
+            except asyncio.CancelledError as exc:
+                cancelled = cancelled or exc
+            except Exception as exc:
+                chapter_errors.append(str(exc))
+            finally:
                 chapter_errors.extend(f"{chapter}: {error}" for error in page_errors + absent)
-                if len(rows) != EXPECTED_CLIPS[chapter]:
+                if setup_complete and len(rows) != EXPECTED_CLIPS[chapter]:
                     chapter_errors.append(
                         f"{chapter}: expected {EXPECTED_CLIPS[chapter]} audible clips, found {len(rows)}"
                     )
+                try:
+                    cleanup_error = await bounded_cleanup(f"{chapter} page", page.close())
+                except asyncio.CancelledError as exc:
+                    cancelled = cancelled or exc
+                    cleanup_error = f"cleanup: {chapter} page cancelled"
+                if cleanup_error:
+                    chapter_errors.append(cleanup_error)
+                page = None
                 result["warnings"].extend(f"{chapter}: {warning}" for warning in warnings)
                 result["errors"].extend(chapter_errors)
                 result["chapters"][chapter] = {
-                    "passed": len(rows) == EXPECTED_CLIPS[chapter] and not chapter_errors
-                              and all(row["passed"] for row in rows),
+                    "passed": setup_complete and len(rows) == EXPECTED_CLIPS[chapter]
+                              and not chapter_errors and all(row["passed"] for row in rows),
                     "clips": len(rows),
                     "details": rows,
                 }
                 result["clip_count"] += len(rows)
-                await page.close()
-            await context.close()
-            await browser.close()
-        result["passed"] = (
-            result["clip_count"] == expected_clip_count(chapters) and not result["errors"]
-            and all(chapter["passed"] for chapter in result["chapters"].values())
-        )
+            if cancelled is not None:
+                raise cancelled
+    except asyncio.CancelledError as exc:
+        cancelled = cancelled or exc
+        result["errors"].append("audio audit cancelled")
+        raise
     except (Exception, SystemExit) as exc:
         result["errors"].append(f"audio audit aborted: {exc}")
-    result["error_count"] = error_count(result)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    finally:
+        cleanup_errors = []
+        cleanup_cancel = None
+        operations = []
+        if page is not None:
+            operations.append(("page", page.close))
+        if context is not None:
+            operations.append(("browser context", context.close))
+        if browser is not None:
+            operations.append(("browser", browser.close))
+        if manager is not None:
+            operations.append(("Playwright", lambda: manager.__aexit__(None, None, None)))
+        for label, close in operations:
+            try:
+                error = await bounded_cleanup(label, close())
+            except asyncio.CancelledError as exc:
+                cleanup_cancel = cleanup_cancel or exc
+                error = f"cleanup: {label} cancelled"
+            if error:
+                cleanup_errors.append(error)
+        result["errors"].extend(cleanup_errors)
+        if cleanup_cancel is not None and "audio audit cancelled" not in result["errors"]:
+            result["errors"].append("audio audit cancelled")
+        result["error_count"] = error_count(result)
+        result["passed"] = (
+            result["clip_count"] == expected_clip_count(chapters) and not result["errors"]
+            and len(result["chapters"]) == len(chapters)
+            and all(chapter["passed"] for chapter in result["chapters"].values())
+        )
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        if cleanup_cancel is not None:
+            raise cancelled if cancelled is not None else cleanup_cancel
     print(f"firefox: {result['clip_count']} clips, {result['error_count']} errors, "
           f"passed={result['passed']}")
     print(f"evidence: {out.relative_to(ROOT) if out.is_relative_to(ROOT) else out}")
