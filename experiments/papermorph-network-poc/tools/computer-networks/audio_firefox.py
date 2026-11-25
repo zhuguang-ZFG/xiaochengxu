@@ -6,7 +6,7 @@ import math
 import os
 from pathlib import Path
 import sys
-import time
+from time import monotonic
 from urllib.parse import urljoin, urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -18,6 +18,7 @@ MIN_SAMPLES = 2
 SAMPLE_INTERVAL_MS = 50
 MIN_RMS = 0.0001
 MIN_PEAK = 0.001
+EVALUATE_TIMEOUT = 5
 
 INSTALL_PROBE = r"""() => {
   const ctx = new AudioContext();
@@ -39,29 +40,13 @@ START_CLIP = r"""i => {
   P.waiting = true;
 }"""
 
-SAMPLE_PCM = r"""async ([interval, minRms, minPeak]) => {
+SAMPLE_PCM = r"""() => {
   const probe = window.__audioProbe, audio = P.audio;
-  const deadline = performance.now() + Math.max(5000, (Number.isFinite(audio.duration) ? audio.duration : 30) * 2000 + 2000);
-  let sampleCount = 0, audibleSamples = 0, maxRms = 0, maxPeak = 0;
-  let firstAudibleTime = null, lastAudibleTime = null, wallTimeout = false;
-  while (!audio.ended) {
-    if (performance.now() >= deadline) { wallTimeout = true; break; }
-    probe.analyser.getFloatTimeDomainData(probe.data);
-    let sum = 0, peak = 0;
-    for (const value of probe.data) {
-      sum += value * value;
-      peak = Math.max(peak, Math.abs(value));
-    }
-    const rms = Math.sqrt(sum / probe.data.length);
-    maxRms = Math.max(maxRms, rms);
-    maxPeak = Math.max(maxPeak, peak);
-    sampleCount += 1;
-    if (rms > minRms && peak > minPeak) {
-      audibleSamples += 1;
-      firstAudibleTime ??= audio.currentTime;
-      lastAudibleTime = audio.currentTime;
-    }
-    await new Promise(resolve => setTimeout(resolve, interval));
+  probe.analyser.getFloatTimeDomainData(probe.data);
+  let sum = 0, peak = 0;
+  for (const value of probe.data) {
+    sum += value * value;
+    peak = Math.max(peak, Math.abs(value));
   }
   return {
     page_url: location.href,
@@ -76,13 +61,8 @@ SAMPLE_PCM = r"""async ([interval, minRms, minPeak]) => {
     sound_note_hidden: document.getElementById('soundNote').hidden,
     context_state: probe.ctx.state,
     playback_completed: audio.ended,
-    wall_timeout: wallTimeout,
-    sample_count: sampleCount,
-    audible_samples: audibleSamples,
-    first_audible_time: firstAudibleTime,
-    last_audible_time: lastAudibleTime,
-    max_rms: maxRms,
-    max_peak: maxPeak,
+    rms: Math.sqrt(sum / probe.data.length),
+    peak,
   };
 }"""
 
@@ -167,19 +147,74 @@ async def wait_for_requests(state, timeout=10):
     return state["pending"] == 0
 
 
-async def measure_clip(page, index, beat):
+async def evaluate_with_timeout(page, expression, arg=None):
     try:
-        await page.evaluate(START_CLIP, index)
+        return await asyncio.wait_for(page.evaluate(expression, arg), timeout=EVALUATE_TIMEOUT)
+    except TimeoutError as exc:
+        raise TimeoutError(f"browser evaluation exceeded {EVALUATE_TIMEOUT:g}s") from exc
+
+
+async def measure_clip(page, index, beat):
+    failure = None
+    try:
+        await evaluate_with_timeout(page, START_CLIP, index)
         await page.wait_for_function(
             "P.audio && !P.audio.paused && P.audio.currentTime > .2", timeout=10000
         )
-        row = await page.evaluate(SAMPLE_PCM, [SAMPLE_INTERVAL_MS, MIN_RMS, MIN_PEAK])
+        sample_count = 0
+        audible_samples = 0
+        max_rms = 0.0
+        max_peak = 0.0
+        first_audible_time = None
+        last_audible_time = None
+        wall_timeout = False
+        deadline = None
+        row = None
+        while True:
+            sample = await evaluate_with_timeout(page, SAMPLE_PCM)
+            if deadline is None:
+                duration = sample["duration"]
+                timeout = max(5.0, (duration if math.isfinite(duration) else 30) * 2 + 2)
+                deadline = monotonic() + timeout
+            sample_count += 1
+            max_rms = max(max_rms, sample["rms"])
+            max_peak = max(max_peak, sample["peak"])
+            if sample["rms"] > MIN_RMS and sample["peak"] > MIN_PEAK:
+                audible_samples += 1
+                if first_audible_time is None:
+                    first_audible_time = sample["current_time"]
+                last_audible_time = sample["current_time"]
+            row = sample
+            if row["playback_completed"]:
+                break
+            if monotonic() >= deadline:
+                wall_timeout = True
+                break
+            await asyncio.sleep(SAMPLE_INTERVAL_MS / 1000)
+        row.update({
+            "wall_timeout": wall_timeout,
+            "sample_count": sample_count,
+            "audible_samples": audible_samples,
+            "first_audible_time": first_audible_time,
+            "last_audible_time": last_audible_time,
+            "max_rms": max_rms,
+            "max_peak": max_peak,
+        })
+        row.pop("rms")
+        row.pop("peak")
         row["beat"] = beat
         row["errors"] = validate(row)
         row["passed"] = not row["errors"]
         return row
+    except BaseException as exc:
+        failure = exc
+        raise
     finally:
-        await page.evaluate("() => { if (P.playing) setPlaying(false); }")
+        try:
+            await evaluate_with_timeout(page, "() => { if (P.playing) setPlaying(false); }")
+        except BaseException:
+            if failure is None:
+                raise
 
 
 async def run(out, chapters=CHAPTERS):
@@ -240,11 +275,11 @@ async def run(out, chapters=CHAPTERS):
                 for beat in beats:
                     if beat["silent"]:
                         continue
-                    started = time.monotonic()
+                    started = monotonic()
                     try:
                         row = await measure_clip(page, beat["index"], beat["id"])
                         rows.append(row)
-                        print(f"firefox: {chapter}/{beat['id']}: {time.monotonic() - started:.1f}s wall, "
+                        print(f"firefox: {chapter}/{beat['id']}: {monotonic() - started:.1f}s wall, "
                               f"passed={row['passed']}", flush=True)
                     except Exception as exc:
                         row = {
@@ -252,12 +287,15 @@ async def run(out, chapters=CHAPTERS):
                             "errors": [f"{chapter}/{beat['id']}: {exc}"],
                         }
                         rows.append(row)
-                        print(f"firefox: {chapter}/{beat['id']}: {time.monotonic() - started:.1f}s wall, "
+                        print(f"firefox: {chapter}/{beat['id']}: {monotonic() - started:.1f}s wall, "
                               f"error={exc}", flush=True)
                 chapter_errors = []
                 if not await wait_for_requests(pending):
                     chapter_errors.append(f"{chapter}: page requests did not settle")
-                await page.evaluate("() => 0")
+                try:
+                    await evaluate_with_timeout(page, "() => 0")
+                except Exception as exc:
+                    chapter_errors.append(f"{chapter}: final browser probe failed: {exc}")
                 await asyncio.sleep(0)
                 chapter_errors.extend(f"{chapter}: {error}" for error in page_errors + absent)
                 if len(rows) != EXPECTED_CLIPS[chapter]:
@@ -272,12 +310,10 @@ async def run(out, chapters=CHAPTERS):
                     "clips": len(rows),
                     "details": rows,
                 }
+                result["clip_count"] += len(rows)
                 await page.close()
             await context.close()
             await browser.close()
-        result["clip_count"] = sum(
-            chapter["clips"] for chapter in result["chapters"].values()
-        )
         result["passed"] = (
             result["clip_count"] == expected_clip_count(chapters) and not result["errors"]
             and all(chapter["passed"] for chapter in result["chapters"].values())

@@ -188,9 +188,89 @@ class FirefoxAudioCliTests(unittest.TestCase):
         self.assertIn("duplicate chapter", stderr.getvalue().lower())
 
 
+class SamplingPage:
+    def __init__(self, samples, hang=False):
+        self.samples = iter(samples)
+        self.hang = hang
+
+    async def wait_for_function(self, expression, timeout=None):
+        pass
+
+    async def evaluate(self, expression, arg=None):
+        if expression == audio_firefox.START_CLIP:
+            return None
+        if expression == audio_firefox.SAMPLE_PCM:
+            if self.hang:
+                await asyncio.sleep(1)
+            return next(self.samples)
+        if expression == "() => { if (P.playing) setPlaying(false); }":
+            return None
+        raise AssertionError(f"unexpected evaluate: {expression}")
+
+
+class FirefoxAudioSamplingTests(IsolatedAsyncioTestCase):
+    def sample(self, **changes):
+        row = audible_row()
+        row.update(rms=row["max_rms"], peak=row["max_peak"], wall_timeout=False)
+        row.update(changes)
+        return row
+
+    async def test_python_sampling_aggregates_until_clip_ends(self):
+        page = SamplingPage([
+            self.sample(
+                current_time=0.3, playback_completed=False,
+                rms=0.1, peak=0.2, max_rms=0.1, max_peak=0.2,
+            ),
+            self.sample(
+                current_time=6.0, playback_completed=False,
+                rms=0.15, peak=0.3, max_rms=0.15, max_peak=0.3,
+            ),
+            self.sample(rms=0.05, peak=0.1, max_rms=0.05, max_peak=0.1),
+        ])
+        with mock.patch.object(audio_firefox, "SAMPLE_INTERVAL_MS", 1):
+            row = await audio_firefox.measure_clip(page, 0, "intro")
+        self.assertTrue(row["passed"], row["errors"])
+        self.assertEqual(row["sample_count"], 3)
+        self.assertEqual(row["audible_samples"], 3)
+        self.assertEqual(row["first_audible_time"], 0.3)
+        self.assertEqual(row["last_audible_time"], 13.392)
+        self.assertEqual(row["max_rms"], 0.15)
+        self.assertEqual(row["max_peak"], 0.3)
+
+    async def test_stalled_media_clock_hits_python_deadline(self):
+        page = SamplingPage([
+            self.sample(current_time=0.3, playback_completed=False),
+        ])
+        with mock.patch.object(audio_firefox, "SAMPLE_INTERVAL_MS", 1), \
+                mock.patch.object(audio_firefox, "monotonic", side_effect=[0.0, 30.0]):
+            row = await audio_firefox.measure_clip(page, 0, "intro")
+        self.assertTrue(row["wall_timeout"])
+        self.assertFalse(row["passed"])
+        self.assertTrue(any("complete" in error for error in row["errors"]))
+
+    async def test_unresponsive_browser_evaluate_has_hard_timeout(self):
+        page = SamplingPage([], hang=True)
+        with mock.patch.object(audio_firefox, "EVALUATE_TIMEOUT", 0.01):
+            with self.assertRaisesRegex(TimeoutError, "browser evaluation exceeded"):
+                await audio_firefox.measure_clip(page, 0, "intro")
+
+    async def test_cleanup_failure_does_not_mask_sampling_failure(self):
+        class FailingSamplingPage(SamplingPage):
+            async def evaluate(self, expression, arg=None):
+                if expression == audio_firefox.SAMPLE_PCM:
+                    raise RuntimeError("sample failed")
+                if expression == "() => { if (P.playing) setPlaying(false); }":
+                    raise RuntimeError("cleanup failed")
+                return await super().evaluate(expression, arg)
+
+        with self.assertRaisesRegex(RuntimeError, "sample failed"):
+            await audio_firefox.measure_clip(FailingSamplingPage([]), 0, "intro")
+
+
 class FakeAudioPage:
-    def __init__(self, chapter):
+    def __init__(self, chapter, hang_final=False):
         self.chapter = chapter
+        self.hang_final = hang_final
         self.listeners = {}
 
     def on(self, event, callback):
@@ -208,6 +288,8 @@ class FakeAudioPage:
                 {"index": index, "id": f"beat-{index}", "silent": False}
                 for index in range(audio_firefox.EXPECTED_CLIPS[self.chapter])
             ]
+        if expression == "() => 0" and self.hang_final:
+            await asyncio.sleep(1)
         return None
 
     async def close(self):
@@ -215,8 +297,11 @@ class FakeAudioPage:
 
 
 class FirefoxAudioRunTests(IsolatedAsyncioTestCase):
-    async def run_audit(self, chapters, failed_chapter=None):
-        pages = [FakeAudioPage(chapter) for chapter in chapters]
+    async def run_audit(self, chapters, failed_chapter=None, hang_final_chapter=None):
+        pages = [
+            FakeAudioPage(chapter, hang_final=chapter == hang_final_chapter)
+            for chapter in chapters
+        ]
         context = types.SimpleNamespace(
             new_page=mock.AsyncMock(side_effect=pages), close=mock.AsyncMock()
         )
@@ -305,6 +390,19 @@ class FirefoxAudioRunTests(IsolatedAsyncioTestCase):
         self.assertFalse(evidence["passed"])
         self.assertEqual(evidence["error_count"], 1)
         self.assertIn("server offline", evidence["errors"][0])
+
+    async def test_unresponsive_final_probe_has_hard_timeout(self):
+        with mock.patch.object(audio_firefox, "EVALUATE_TIMEOUT", 0.01):
+            status, evidence = await self.run_audit(
+                ("ch01",), hang_final_chapter="ch01"
+            )
+        self.assertEqual(status, 1)
+        self.assertFalse(evidence["passed"])
+        self.assertEqual(evidence["clip_count"], 12)
+        self.assertEqual(evidence["chapters"]["ch01"]["clips"], 12)
+        self.assertEqual(evidence["error_count"], 1)
+        self.assertIn("final browser probe", evidence["errors"][0])
+        self.assertIn("browser evaluation exceeded", evidence["errors"][0])
 
     async def test_request_tracker_waits_for_late_events(self):
         page = FakePage()
