@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>存储转发：一跳一跳地等</title>
+<link rel="stylesheet" href="../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render">
+<style>
+  .store-forward-figure { user-select: none; }
+  .store-forward-figure .rate-control { outline: none; }
+  .store-forward-figure .rate-knob { transition: stroke .15s, stroke-width .15s; }
+  .store-forward-figure .rate-control:focus-visible .rate-knob { stroke: #247ba0; stroke-width: 7; }
+  .store-forward-figure.is-live .rate-control { cursor: ew-resize; }
+  #ui > .card.screen.store-practice { pointer-events: none; }
+  #ui > .card.screen.store-practice > * { pointer-events: auto; }
+  .store-practice .head { max-width: 980px; }
+  .store-practice:has(.fb:not(:empty)) .keys { display: none; }
+  .store-practice .state-note { position: absolute; top: 64px; right: 70px; width: 360px; margin: 0; text-align: right; pointer-events: none; }
+  .store-practice .fb { position: absolute; top: 150px; left: 70px; width: min(1080px, calc(var(--sw, 1600px) - 140px)); max-height: 52px; margin: 0; padding: 8px 14px; overflow: auto; border-radius: 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); }
+  @media (prefers-reduced-motion: reduce) {
+    .store-forward-figure .rate-knob { transition: none; }
+  }
+</style>
+</head>
+<body>
+<script src="../lib/engine.js"></script>
+<script src="../lib/store-forward.js"></script>
+<script src="audio/zh/timings.js"></script>
+<script>
+'use strict';
+
+const CHAPTER = { number: 2, title: '存储转发：一跳一跳地等', minutes: 4, language: 'zh', next: '../ch03/' };
+const ORANGE = '#d96c3f';
+const BLUE = '#247ba0';
+
+const text = (p, str, x, y, t0, { size = 30, fill = COL.chalk, anchor = 'start', weight = 500, font } = {}) => {
+  const e = T(p, str, { x, y, size, fill, anchor, weight, font, o: 0 });
+  show(e, t0);
+  return e;
+};
+
+function routeTask(route, target, why, wrong) {
+  return (body, api) => {
+    route.live(true);
+    route.focus();
+    body.append(h('p', 'state-note', '橙色发送段随速率变化；蓝色传播段每跳仍为 2 ms。'));
+    return {
+      check() {
+        const ok = Math.abs(route.v.rate - target) < 1e-9;
+        api.grade(ok, ok ? why : wrong(route.v.rate));
+      },
+      reveal() {
+        route.set({ rate: target });
+        return why;
+      },
+      lock() { route.live(false); },
+      hint: [kbd('←'), kbd('→'), ' 调整 ', kbd('Home'), kbd('End'), ' 端点 ', kbd('Enter'), ' 检查'],
+      key(event) {
+        if (event.shiftKey && ['ArrowRight', 'ArrowUp', 'ArrowLeft', 'ArrowDown'].includes(event.key)) return false;
+        const changes = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1, PageUp: 10, PageDown: -10 };
+        if (event.key === 'Home') route.set({ rate: 1 });
+        else if (event.key === 'End') route.set({ rate: 100 });
+        else if (changes[event.key]) route.nudge(changes[event.key]);
+        else return false;
+        route.focus();
+        return true;
+      },
+    };
+  };
+}
+
+function playgroundAsk(route, done) {
+  const c = card(BAND, 'quiz playground');
+  const head = h('div', 'head', [
+    h('p', 'kicker', '动手试'),
+    h('p', 'prompt', '拖动共用速率，观察三段发送怎样同时变化。'),
+  ]);
+  const body = h('div', 'body', [h('p', 'state-note', '速率越高，橙色发送段越短；每段蓝色传播仍是 2 ms，总时延越接近 6 ms。')]);
+  const next = h('button', 'btn go', ['继续', kbd('Enter')]);
+  const acts = h('div', 'acts', [next]);
+  c.append(mascotEl(108), head, h('div', 'fb'), body, acts);
+  route.live(true);
+  route.focus();
+  next.onclick = () => {
+    route.live(false);
+    c.remove();
+    done();
+  };
+  P.keys = event => {
+    if (event.key === 'Enter') { next.click(); return true; }
+    if (event.shiftKey && ['ArrowRight', 'ArrowUp', 'ArrowLeft', 'ArrowDown'].includes(event.key)) return false;
+    const changes = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1, PageUp: 10, PageDown: -10 };
+    if (event.key === 'Home') route.set({ rate: 1 });
+    else if (event.key === 'End') route.set({ rate: 100 });
+    else if (changes[event.key]) route.nudge(changes[event.key]);
+    else return false;
+    route.focus();
+    return true;
+  };
+  P.cleanup.push(() => { route.live(false); c.remove(); });
+}
+
+function routeMotion(route, hop, at, arrive, sent = null) {
+  const startX = route.centers[hop] + 85;
+  const gap = Math.max(1.2, arrive - at);
+  const propDur = sent == null ? Math.min(1.8, Math.max(.9, gap * .42)) : Math.max(.9, arrive - sent);
+  const txDur = sent == null ? Math.max(.6, gap - propDur) : Math.max(.6, sent - at);
+  prog(() => {
+    put(route.packet, { x: route.centers[hop], o: 1 });
+    put(route.pulse, { x: startX, o: 0 });
+    if (+route.fills[hop].getAttribute('width') !== 0) route.fills[hop].setAttribute('width', '0');
+    route.phase(`hop${hop + 1}-send`);
+  }, at, .01, lin);
+  prog(q => {
+    route.fills[hop].setAttribute('width', (route.linkWidth * q).toFixed(2));
+    route.phase(q >= 1 ? `hop${hop + 1}-propagate` : `hop${hop + 1}-send`);
+  }, at, txDur, lin);
+  prog(q => {
+    put(route.pulse, { x: startX + route.linkWidth * q, o: 1 });
+    route.phase(`hop${hop + 1}-propagate`);
+    if (q >= 1) {
+      put(route.packet, { x: route.centers[hop + 1], o: 1 });
+      put(route.pulse, { o: 0 });
+      route.fills[hop].setAttribute('width', '0');
+      route.phase(`hop${hop + 1}-arrived`);
+    }
+  }, at + txDur, propDur, io);
+  return { txDur, propDur, propAt: at + txDur, end: at + txDur + propDur };
+}
+
+const BEATS = [
+  ['intro', '一个问题', (m, D) => {
+    const p = panel(0);
+    const g = G(p, { o: 0, y: 18 });
+    T(g, '第二章', { x: 800, y: 205, size: 30, fill: COL.dim, anchor: 'middle', weight: 600 });
+    T(g, '存储转发', { x: 800, y: 315, size: 76, fill: COL.chalk, anchor: 'middle', weight: 700 });
+    T(g, '一跳一跳地等', { x: 800, y: 385, size: 40, fill: COL.task, anchor: 'middle', weight: 600 });
+    tw(g, { o: 1, y: 0 }, .2, .8, out);
+    const centers = [160, 600, 1040, 1480];
+    const labels = ['发送', '路由器 1', '路由器 2', '目的端'];
+    centers.forEach((x, i) => {
+      mk('rect', { x: x - 85, y: 475, width: 170, height: 86, rx: 18, fill: COL.panel, stroke: COL.chalk, 'stroke-width': 3 }, p);
+      T(p, labels[i], { x, y: 455, size: 25, fill: COL.chalk, anchor: 'middle', weight: 600 });
+      if (i < 3) mk('line', { x1: x + 85, y1: 518, x2: centers[i + 1] - 85, y2: 518, stroke: COL.chalk, 'stroke-width': 6, 'stroke-linecap': 'round' }, p);
+    });
+    const packet = G(p, { x: 160, y: 518, o: 0 });
+    mk('rect', { x: -52, y: -21, width: 104, height: 42, rx: 10, fill: COL.task }, packet);
+    T(packet, '1500 B', { x: 0, y: 8, size: 22, fill: COL.board, anchor: 'middle', font: MATH, weight: 700 });
+    show(packet, m('route'), .3);
+    prog(q => put(packet, { x: 160 + q * 1320 }), m('route') + .5, 6.2, io);
+    text(p, '一个数据包，三段链路，两台路由器', 800, 700, m('route') + .2, { size: 34, fill: COL.dim, anchor: 'middle' });
+    tw(g, { o: 0, y: -18 }, D - .8, .7);
+  }],
+
+  ['packet', '先统一单位', (m) => {
+    const p = panel(0);
+    text(p, '1500 字节', 420, 250, .2, { size: 58, anchor: 'middle', weight: 700 });
+    text(p, '× 8', 800, 250, 1, { size: 48, fill: COL.task, anchor: 'middle', font: MATH, weight: 700 });
+    text(p, '12 000 比特', 1180, 250, m('bits'), { size: 58, anchor: 'middle', weight: 700 });
+    const arrow = path(p, 'M560 250H690', { stroke: COL.task, 'stroke-width': 5, fill: 'none' }, { d: 0 });
+    draw(arrow, .8, .6);
+    const arrow2 = path(p, 'M910 250H1040', { stroke: COL.task, 'stroke-width': 5, fill: 'none' }, { d: 0 });
+    draw(arrow2, m('bits') - .5, .5);
+    text(p, '1 字节 = 8 比特', 800, 400, 1.4, { size: 32, fill: COL.dim, anchor: 'middle' });
+    text(p, '色块只表示 1 字节 = 8 比特', 800, 590, 1.8, { size: 28, fill: COL.dim, anchor: 'middle' });
+    for (let i = 0; i < 8; i++) {
+      const bit = mk('rect', { x: 560 + i * 70, y: 500, width: 48, height: 48, rx: 8, fill: COL.task, o: 0 }, p);
+      show(bit, 1.8 + i * .09, .25);
+    }
+    text(p, '先统一成比特，再除以速率', 800, 700, m('bits') + .8, { size: 36, anchor: 'middle', weight: 600 });
+  }],
+
+  ['firsthop', '先看一跳', (m) => {
+    const p = panel(0);
+    const route = S.route = storeForward(p, 10, { title: '第一跳：先发送，再传播' });
+    const motion = routeMotion(route, 0, m('send'), m('arrive'), m('sent'));
+    text(p, '橙色：传输 1.2 ms', 500, 745, m('send') + .2, { size: 32, fill: ORANGE, anchor: 'middle', weight: 700 });
+    text(p, '蓝色：传播 2.0 ms', 1100, 745, motion.propAt + .1, { size: 32, fill: BLUE, anchor: 'middle', weight: 700 });
+    text(p, '末 bit 到达，才算这一跳结束', 800, 815, m('arrive') + .2, { size: 30, fill: COL.dim, anchor: 'middle' });
+  }],
+
+  ['store', '完整收包', (m, D) => {
+    const p = panel(0);
+    const route = S.route = storeForward(p, 10, { title: '路由器 1：收完整，才转发' });
+    put(route.packet, { o: 0 });
+    route.phase('waiting-full');
+    const early = G(p, { o: 0 });
+    path(early, 'M700 175H820', { stroke: COL.bad, 'stroke-width': 4, 'stroke-dasharray': '8 8', fill: 'none' }, { d: 0 });
+    mk('path', { d: 'M805 163L820 175L805 187', fill: 'none', stroke: COL.bad, 'stroke-width': 4 }, early);
+    mk('path', { d: 'M748 148L780 180 M780 148L748 180', fill: 'none', stroke: COL.bad, 'stroke-width': 5, 'stroke-linecap': 'round' }, early);
+    show(early, m('full') + .05, .3);
+    prog(q => route.routerFills[0].setAttribute('width', (130 * q).toFixed(2)), m('full'), .18, lin);
+    prog(q => { if (q >= 1) route.phase('full-packet'); }, m('full') + .18, .02, lin);
+    text(p, '不能提前转发', 765, 125, m('full') + .25, { size: 25, fill: COL.bad, anchor: 'middle', weight: 700 });
+    text(p, '完整收包', 600, 335, m('full') + .3, { size: 30, fill: ORANGE, anchor: 'middle', weight: 700 });
+    prog(q => {
+      route.fills[1].setAttribute('width', (route.linkWidth * q).toFixed(2));
+      route.phase('hop2-send');
+    }, m('next'), Math.max(1, D - m('next') - .8), lin);
+    text(p, '才能启动下一跳', 1000, 335, m('next') + .2, { size: 30, fill: BLUE, anchor: 'middle', weight: 700 });
+  }],
+
+  ['repeat', '重复三跳', (m, D) => {
+    const p = panel(0);
+    const route = S.route = storeForward(p, 10, { title: '同样的顺序，再走两跳' });
+    put(route.packet, { x: route.centers[1], o: 1 });
+    routeMotion(route, 1, m('hop2'), m('hop3'));
+    routeMotion(route, 2, m('hop3'), D - .55);
+    text(p, '第 2 跳：路由器 1 → 路由器 2', 800, 745, m('hop2') + .2, { size: 30, fill: COL.dim, anchor: 'middle' });
+    text(p, '第 3 跳：路由器 2 → 目的端', 800, 815, m('hop3') + .2, { size: 30, fill: COL.dim, anchor: 'middle' });
+  }],
+
+  ['q1', '快速检查', () => {
+    const p = panel(0);
+    S.route = storeForward(p, 10, { title: '10 Mbps：把三跳相加', hideTotal: true });
+  }, { ask: done => quiz(BAND, [{
+    id: 'c-three-hop-total',
+    prompt: ['10 Mbps 时，三跳总时延是多少？'],
+    build: blanks([{
+      parts: ['3 × 3.2 = ', { box: '9.6' }, ' ms'],
+      why: '每跳 3.2 ms，所以 3 × 3.2 = 9.6 ms。',
+      hint: '先算一跳：1.2 ms 传输 + 2 ms 传播 = 3.2 ms。',
+    }]),
+  }], done) }],
+
+  ['formula', '命名模型', (m) => {
+    const p = panel(0);
+    S.route = storeForward(p, 10, { title: '一条公式，概括三跳' });
+    text(p, 'total = 3 × (12/R + 2) = 36/R + 6', 800, 745, m('formula'), { size: 42, anchor: 'middle', font: MATH, weight: 700 });
+    text(p, 'R：共用速率（Mbps）；总时延：ms', 800, 690, m('formula') + .1, { size: 24, fill: COL.dim, anchor: 'middle', weight: 600 });
+    text(p, '总时延 ≥ 6 ms', 800, 820, m('floor'), { size: 40, fill: BLUE, anchor: 'middle', font: MATH, weight: 700 });
+  }],
+
+  ['lab', '亲手改变速率', (m) => {
+    const p = panel(0);
+    const route = S.route = storeForward(p, 10, { title: '', slider: true, compact: true });
+    route.to({ rate: 20 }, m('try'), 2.2, io);
+  }, { ask: done => playgroundAsk(S.route, done) }],
+
+  ['q2', '快速检查', () => {
+    const p = panel(0);
+    S.route = storeForward(p, 10, { title: '', slider: true, compact: true });
+  }, { ask: done => quiz(BAND, [{
+    id: 'c-rate-state',
+    prompt: ['把三条链路共用速率调到 20 Mbps，然后检查。'],
+    build: routeTask(S.route, 20,
+      '20 Mbps 时，传输 0.6 ms，每跳 2.6 ms，三跳总时延 7.8 ms。',
+      rate => rate < 20 ? '还低了一些：总时延仍高于 7.8 ms，继续提高共用速率。' : '调过头了：总时延已低于 7.8 ms，把共用速率调低。'),
+  }], done) }],
+
+  ['wrap', '三点总结', (m) => {
+    const p = panel(0);
+    const rows = [
+      ['先收完整包，再启动下一跳', 'one', ORANGE],
+      ['每一跳：先传输，后传播', 'two', BLUE],
+      ['速率只改传输；传播合计 6 ms', 'three', COL.chalk],
+    ];
+    rows.forEach(([label, mark, colour], i) => {
+      const y = 250 + i * 170;
+      const g = G(p, { x: -20, o: 0 });
+      mk('circle', { cx: 360, cy: y, r: 34, fill: colour }, g);
+      T(g, String(i + 1), { x: 360, y: y + 12, size: 32, fill: COL.board, anchor: 'middle', weight: 700 });
+      T(g, label, { x: 440, y: y + 12, size: 38, fill: COL.chalk, weight: 600 });
+      tw(g, { x: 0, o: 1 }, m(mark), .55, out);
+    });
+  }],
+
+  ['final1', '完整练习', () => {
+    const p = panel(0);
+    S.route = storeForward(p, 1, { title: '', slider: true, compact: true, y: 120 });
+  }, { ask: done => {
+    quiz(SCREEN, [{
+      id: 'p-total-rate',
+      prompt: ['调整共用速率，让三跳总时延恰好等于 15.0 ms。'],
+      build: (body, api) => {
+        const task = routeTask(S.route, 4,
+          '15 − 6 = 9 ms，9 ÷ 3 = 3 ms，12 000 bit ÷ 3 ms = 4 Mbps。',
+          rate => rate < 4 ? '总时延仍高于 15.0 ms：继续提高速率。' : '总时延已低于 15.0 ms：把速率调低一些。')(body, api);
+        body.querySelector('.state-note').textContent = '目标 15.0 ms；三段蓝色传播合计固定为 6 ms。';
+        return task;
+      },
+    }], done, '完整练习');
+    document.querySelector('.card.screen.quiz').classList.add('store-practice');
+  } }],
+
+  ['finish', '完成', () => { panel(0); }, { ask: finishCard }],
+];
+
+boot();
+</script>
+</body>
+</html>

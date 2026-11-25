@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>可靠传输：丢了怎么办</title>
+<link rel="stylesheet" href="../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render">
+<style>
+  .reliable-transport-figure { user-select: none; }
+  .reliable-transport-figure .fault-option { outline: none; }
+  .reliable-transport-figure .fault-option:focus-visible > rect:first-child { stroke: #247ba0; stroke-width: 7; }
+  .reliable-rtt .box { height: 104px; }
+  .reliable-rtt .bline { line-height: 104px; }
+  @media (max-width: 600px) {
+    .card.reliable-rtt { top: 696px !important; }
+    .reliable-rtt .box { height: 124px; min-width: 128px; }
+    .reliable-rtt .bline { line-height: 124px; }
+    .reliable-rtt .keys { display: none; }
+    .reliable-rtt .prompt { font-size: 24px; line-height: 1.25; }
+    .reliable-rtt .fb { font-size: 18px; line-height: 1.2; }
+  }
+  #ui > .card.screen.reliable-practice { pointer-events: none; }
+  #ui > .card.screen.reliable-practice > * { pointer-events: auto; }
+  .reliable-practice .head { max-width: 980px; }
+  .reliable-practice .state-note { position: absolute; top: 64px; right: 70px; width: 360px; margin: 0; text-align: right; pointer-events: none; }
+  .reliable-practice:has(.fb:not(:empty)) .keys { display: none; }
+  .reliable-practice .fb { position: absolute; top: 150px; left: 70px; width: min(1080px, calc(var(--sw, 1600px) - 140px)); max-height: 52px; margin: 0; padding: 8px 14px; overflow: auto; border-radius: 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); }
+  @media (prefers-reduced-motion: reduce) {
+    .reliable-transport-figure .fault-option > rect:first-child { transition: none; }
+  }
+</style>
+</head>
+<body>
+<script src="../lib/engine.js"></script>
+<script src="../lib/reliable.js"></script>
+<script src="audio/zh/timings.js"></script>
+<script>
+'use strict';
+
+const CHAPTER = { number: 3, title: '可靠传输：丢了怎么办', minutes: 4, language: 'zh' };
+const ORANGE = '#d96c3f';
+const BLUE = '#247ba0';
+const RED = '#b54a3a';
+
+const text = (p, str, x, y, t0, { size = 30, fill = COL.chalk, anchor = 'start', weight = 500, font } = {}) => {
+  const e = T(p, str, { x, y, size, fill, anchor, weight, font, o: 0 });
+  show(e, t0);
+  return e;
+};
+
+function faultTask(route, target, why, wrong) {
+  return (body, api) => {
+    route.live(true);
+    route.focus();
+    body.append(h('p', 'state-note', '选择故障后，四项结果会一起更新；重复副本不会再次交给应用。'));
+    return {
+      check() {
+        const ok = route.v.fault === target;
+        api.grade(ok, ok ? why : wrong(route.v.fault));
+      },
+      reveal() {
+        route.set(target);
+        return why;
+      },
+      lock() { route.live(false); },
+      hint: [kbd('←'), kbd('→'), ' 选择 ', kbd('Home'), kbd('End'), ' 端点 ', kbd('Enter'), ' 检查'],
+      key(event) {
+        if (event.shiftKey && ['ArrowRight', 'ArrowUp', 'ArrowLeft', 'ArrowDown'].includes(event.key)) return false;
+        if (event.key === 'Home') route.set(0);
+        else if (event.key === 'End') route.set(2);
+        else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') route.nudge(1);
+        else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') route.nudge(-1);
+        else return false;
+        route.focus();
+        return true;
+      },
+    };
+  };
+}
+
+function playgroundAsk(route, done) {
+  const c = card(BAND, 'quiz playground');
+  const head = h('div', 'head', [
+    h('p', 'kicker', '动手试'),
+    h('p', 'prompt', '切换三种故障，比较发送、重复、应用交付与完成时间。'),
+  ]);
+  const body = h('div', 'body', [h('p', 'state-note', '橙色是 DATA，蓝色是 ACK；数据丢失与确认丢失都触发重传，但重复次数不同。')]);
+  const next = h('button', 'btn go', ['继续', kbd('Enter')]);
+  const acts = h('div', 'acts', [next]);
+  c.append(mascotEl(108), head, h('div', 'fb'), body, acts);
+  route.live(true);
+  route.focus();
+  next.onclick = () => {
+    route.live(false);
+    c.remove();
+    done();
+  };
+  P.keys = event => {
+    if (event.key === 'Enter') { next.click(); return true; }
+    if (event.shiftKey && ['ArrowRight', 'ArrowUp', 'ArrowLeft', 'ArrowDown'].includes(event.key)) return false;
+    if (event.key === 'Home') route.set(0);
+    else if (event.key === 'End') route.set(2);
+    else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') route.nudge(1);
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') route.nudge(-1);
+    else return false;
+    route.focus();
+    return true;
+  };
+  P.cleanup.push(() => { route.live(false); c.remove(); });
+}
+
+function protocolClock(route, duration, segments) {
+  const timeAt = t => {
+    let value = segments[0][2];
+    for (const [start, end, fromMs, toMs] of segments) {
+      if (t < start) return value;
+      value = t >= end ? toMs : fromMs + (toMs - fromMs) * (t - start) / (end - start);
+    }
+    return value;
+  };
+  clockRun(t => route.at(timeAt(t)), duration);
+}
+
+const BEATS = [
+  ['intro', '网络并不保证送达', (m, D) => {
+    const p = panel(0);
+    const g = G(p, { o: 0, y: 18 });
+    T(g, '第三章', { x: 800, y: 205, size: 30, fill: COL.dim, anchor: 'middle', weight: 600 });
+    T(g, '可靠传输', { x: 800, y: 315, size: 76, fill: COL.chalk, anchor: 'middle', weight: 700 });
+    T(g, '丢了怎么办', { x: 800, y: 390, size: 42, fill: COL.task, anchor: 'middle', weight: 600 });
+    tw(g, { o: 1, y: 0 }, .2, .8, out);
+    mk('rect', { x: 245, y: 480, width: 180, height: 100, rx: 18, fill: COL.panel, stroke: COL.chalk, 'stroke-width': 3 }, p);
+    mk('rect', { x: 1175, y: 480, width: 180, height: 100, rx: 18, fill: COL.panel, stroke: COL.chalk, 'stroke-width': 3 }, p);
+    T(p, '发送方', { x: 335, y: 535, size: 29, fill: COL.chalk, anchor: 'middle', weight: 600 });
+    T(p, '接收方', { x: 1265, y: 535, size: 29, fill: COL.chalk, anchor: 'middle', weight: 600 });
+    mk('line', { x1: 425, y1: 530, x2: 1175, y2: 530, stroke: COL.chalk, 'stroke-width': 6, 'stroke-linecap': 'round' }, p);
+    const packet = G(p, { x: 455, y: 530, o: 0 });
+    mk('rect', { x: -65, y: -26, width: 130, height: 52, rx: 12, fill: COL.task }, packet);
+    T(packet, 'DATA 0', { x: 0, y: 8, size: 23, fill: COL.board, anchor: 'middle', font: MATH, weight: 700 });
+    show(packet, m('loss') - .5, .2);
+    prog(q => put(packet, { x: 455 + q * 360 }), m('loss') - .4, 1, lin);
+    prog(q => put(packet, { o: 1 - q }), m('loss') + .55, .5, io);
+    const cross = G(p, { x: 850, y: 530, o: 0 });
+    mk('path', { d: 'M-17-17L17 17 M17-17L-17 17', fill: 'none', stroke: COL.bad, 'stroke-width': 6, 'stroke-linecap': 'round' }, cross);
+    show(cross, m('loss') + .45, .2);
+    text(p, '一次只发一个；没有确认，就等待超时', 800, 700, m('loss') + .7, { size: 34, fill: COL.dim, anchor: 'middle' });
+    tw(g, { o: 0, y: -18 }, D - .8, .7);
+  }],
+
+  ['normal', '先看正常往返', (m, D) => {
+    const p = panel(0);
+    const route = S.route = reliableTransport(p, 0, { title: 'DATA 到达后，ACK 原路返回' });
+    protocolClock(route, D, [[m('data'), m('ack'), 0, 20], [m('ack'), m('done'), 20, 40]]);
+    text(p, '20 ms：接收方收到 DATA 0', 800, 770, m('ack'), { size: 30, fill: ORANGE, anchor: 'middle', weight: 700 });
+    text(p, '40 ms：发送方收到 ACK 0', 800, 820, m('done'), { size: 30, fill: BLUE, anchor: 'middle', weight: 700 });
+  }],
+
+  ['q1', '快速检查', () => {
+    const p = panel(0);
+    S.route = reliableTransport(p, 0, { title: '先算第一次确认何时回到发送方', hideTotal: true, compact: true, y: 0 });
+  }, { ask: done => {
+    quiz(BAND, [{
+      id: 'c-rtt',
+      prompt: ['数据 20 ms 到达，确认再走 20 ms。第一次确认何时回到发送方？'],
+      build: blanks([{
+        parts: ['20 + 20 = ', { box: '40' }, ' ms'],
+        why: '数据到达用 20 ms，ACK 返回再用 20 ms，所以第一次确认在 40 ms 回到发送方。',
+        hint: '往返时间 = 单向传播时间 × 2。',
+      }]),
+    }], done);
+    document.querySelector('.card.band.quiz').classList.add('reliable-rtt');
+  } }],
+
+  ['timeout', '等待不能无限', (m, D) => {
+    const p = panel(0);
+    const route = S.route = reliableTransport(p, 1, { title: '60 ms 超时：允许重传，不保证原因' });
+    protocolClock(route, D, [[.2, m('wait'), 0, 10], [m('wait'), m('timeout'), 10, 60]]);
+    text(p, '确认没有按时回来', 800, 770, m('wait'), { size: 32, fill: RED, anchor: 'middle', weight: 700 });
+    text(p, '60 ms：计时器到期', 800, 820, m('timeout'), { size: 32, fill: COL.chalk, anchor: 'middle', weight: 700 });
+  }],
+
+  ['dataLoss', '数据在途中丢失', (m, D) => {
+    const p = panel(0);
+    const route = S.route = reliableTransport(p, 1, { title: '数据丢失：超时后重传同一份 DATA' });
+    protocolClock(route, D, [[.2, m('lost'), 0, 10], [m('lost'), m('resend'), 10, 60], [m('resend'), m('delivered'), 60, 80], [m('delivered'), D - .45, 80, 100]]);
+    text(p, '接收方没见到数据，因此不发 ACK', 800, 770, m('lost'), { size: 30, fill: RED, anchor: 'middle', weight: 700 });
+    text(p, '80 ms：重传数据第一次交给应用', 800, 820, m('delivered'), { size: 30, fill: ORANGE, anchor: 'middle', weight: 700 });
+  }],
+
+  ['ackLoss', '确认在回程丢失', (m, D) => {
+    const p = panel(0);
+    const route = S.route = reliableTransport(p, 2, { title: 'ACK 丢失：数据已交付，但仍会重传' });
+    protocolClock(route, D, [[.2, m('acklost'), 0, 30], [m('acklost'), m('duplicate'), 30, 80], [m('duplicate'), m('discard'), 80, 82], [m('discard'), D - .4, 82, 100]]);
+    text(p, '应用已收到一次新数据', 800, 770, m('acklost'), { size: 30, fill: BLUE, anchor: 'middle', weight: 700 });
+    text(p, '重复副本被丢弃，只重发 ACK 0', 800, 820, m('discard'), { size: 30, fill: RED, anchor: 'middle', weight: 700 });
+  }],
+
+  ['sequence', '序列号阻止重复交付', (m) => {
+    const p = panel(0);
+    const route = S.route = reliableTransport(p, 2, { title: 'seq 0：已经见过，不再交给应用' });
+    route.at(82);
+    text(p, '接收方：seq 0 已见过', 800, 770, m('seq'), { size: 32, fill: ORANGE, anchor: 'middle', weight: 700 });
+    text(p, '应用：新数据仍只收到 1 次', 800, 820, m('once'), { size: 32, fill: BLUE, anchor: 'middle', weight: 700 });
+  }],
+
+  ['lab', '亲手切换故障', () => {
+    const p = panel(0);
+    S.route = reliableTransport(p, 0, { title: '', controls: true, compact: true });
+  }, { ask: done => playgroundAsk(S.route, done) }],
+
+  ['q2', '快速检查', () => {
+    const p = panel(0);
+    S.route = reliableTransport(p, 0, { title: '', controls: true, compact: true });
+  }, { ask: done => quiz(BAND, [{
+    id: 'c-ack-loss',
+    prompt: ['接收方已经见到数据，发送方却没有收到确认。选择对应的故障。'],
+    build: faultTask(S.route, 2,
+      '确认丢失时，DATA 已到达并交给应用，但 ACK 在回程消失；发送方会超时重传。',
+      fault => fault === 1 ? '数据丢失时接收方见不到第一份数据，与应用已交付不符。' : '正常往返会收到 ACK，不会触发重传。'),
+  }], done) }],
+
+  ['wrap', '三步连起来', (m) => {
+    const p = panel(0);
+    const rows = [
+      ['超时发现确认没有按时回来', 'one', RED],
+      ['重传修复数据或确认丢失', 'two', ORANGE],
+      ['序列号阻止重复数据再次交付', 'three', BLUE],
+    ];
+    rows.forEach(([label, mark, colour], i) => {
+      const y = 250 + i * 170;
+      const g = G(p, { x: -20, o: 0 });
+      mk('circle', { cx: 360, cy: y, r: 34, fill: colour }, g);
+      T(g, String(i + 1), { x: 360, y: y + 12, size: 32, fill: COL.board, anchor: 'middle', weight: 700 });
+      T(g, label, { x: 440, y: y + 12, size: 38, fill: COL.chalk, weight: 600 });
+      tw(g, { x: 0, o: 1 }, m(mark), .55, out);
+    });
+  }],
+
+  ['final1', '完整练习', () => {
+    const p = panel(0);
+    S.route = reliableTransport(p, 0, { title: '', controls: true, compact: true, x: 80, y: 180, s: .9 });
+  }, { ask: done => {
+    quiz(SCREEN, [{
+      id: 'p-fault-state',
+      prompt: ['选择“数据丢失”，再检查四项协议结果。'],
+      build: faultTask(S.route, 1,
+        '2 次发送，0 次重复，1 次应用交付，100 ms 完成。',
+        fault => fault === 2 ? '确认丢失会出现 1 次重复副本；数据丢失时接收方从未见过第一份数据。' : '正常往返只发送 1 次，40 ms 就完成。'),
+    }], done, '完整练习');
+    document.querySelector('.card.screen.quiz').classList.add('reliable-practice');
+  } }],
+
+  ['finish', '完成', () => { panel(0); }, { ask: finishCard }],
+];
+
+boot();
+</script>
+</body>
+</html>

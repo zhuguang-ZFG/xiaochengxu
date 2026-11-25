@@ -1,0 +1,33 @@
+Firefox (Playwright), 1512x982, ch03
+load average unknown on this system (Windows): measure when the machine is quiet
+reference ch01:intro@3 @3.0: mean  17.3  p95  16.7  max   33.4  >50ms 0 (before)
+reference ch01:intro@3 @3.0: mean  16.7  p95  16.7  max   16.7  >50ms 0 (after)
+load average unknown on this system (Windows): measure when the machine is quiet
+intro @0.3                   mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @1.45
+intro @6.3                   mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @7.27
+normal @8.0                  mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @8.37
+normal @13.8                 mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @15.22
+timeout @0.3                 mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @0.32
+timeout @10.4                mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @10.79
+timeout @18.7                mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @19.05
+timeout -> next              mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @20.81
+dataLoss @0.3                mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @0.63
+dataLoss @16.4               mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @16.69
+ackLoss @0.3                 mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @0.67
+ackLoss @17.6                mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @18.18
+sequence @0.3                mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @0.68
+sequence @16.2               mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @16.54
+wrap @0.3                    mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @0.65
+wrap @5.2                    mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @5.57
+wrap @8.2                    mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @8.55
+ackLoss -> next              mean  16.8  p95  16.7  max   33.4  >50ms 0  worst @0.00
+sequence @9.2                mean  16.8  p95  16.7  max   33.4  >50ms 0  worst @10.59
+sequence -> next             mean  16.8  p95  16.7  max   33.4  >50ms 0  worst @0.00
+wrap -> next                 mean  16.8  p95  16.7  max   33.4  >50ms 0  worst @0.00
+dataLoss -> next             mean  16.9  p95  16.7  max   33.4  >50ms 0  worst @0.00
+dataLoss @9.3                mean  17.0  p95  16.7  max   33.4  >50ms 0  worst @9.79
+normal @0.3                  mean  17.1  p95  16.7  max   33.4  >50ms 0  worst @2.14
+ackLoss @9.9                 mean  17.4  p95  16.7  max   33.4  >50ms 0  worst @10.48
+intro @10.4                  mean  18.9  p95  33.4  max   33.4  >50ms 0  worst @11.89
+intro -> next                mean  19.0  p95  33.4  max   38.8  >50ms 0  worst @0.00
+normal -> next               mean  17.6  p95  16.7  max   83.4  >50ms 2  worst @0.00

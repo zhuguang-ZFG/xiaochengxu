@@ -1,0 +1,12 @@
+{
+  "created": "2026-11-24",
+  "candidate": "dozentwelve/papermorph@papermorph",
+  "install_method": "skills@1.5.22 --copy from a sparse clone of the official repository",
+  "skill_commit": "839a62cad3c74446944a167faff07c994f33e5b7",
+  "skill_tree_sha256": "f86c81d5ba157fe2062bbaf1adac02310b2a59aa14c9af128faa9b779bb40cd6",
+  "engine_tag": "engine-v2.12",
+  "engine_commit": "8ce1e63b3860999f67e2a2f33cf132bf92c066d3",
+  "engine_tree_sha256": "f4ff885d3fbb8c0da4f65141efdd7871577ceac2eeba2ba95a67e99061465cc5",
+  "runtime_engine_fetch": false,
+  "paid_apis": false
+}

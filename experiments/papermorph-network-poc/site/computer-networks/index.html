@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>计算机网络：三章互动课</title>
+<meta name="description" content="三章原创互动课：调整链路速率、观察存储转发、切换丢包与确认丢失，理解可靠传输。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23f7f3e8'/%3E%3Cpath d='M12 32h40' stroke='%23202b33' stroke-width='4'/%3E%3Cpath d='M12 32h24' stroke='%23d96c3f' stroke-width='6'/%3E%3Cpath d='M36 32h16' stroke='%23247ba0' stroke-width='6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="lib/units.css">
+<link rel="stylesheet" href="lib/contents.css">
+<script src="lib/units.js"></script>
+<script src="lib/contents.js"></script>
+<script src="unit-art.js"></script>
+<link rel="expect" href="#ch01" blocking="render">
+<style>
+:root {
+  --page: #e7dfcf; --board: #f7f3e8; --panel: #fffdf8; --edge: #d8cebb;
+  --chalk: #202b33; --dim: #667078; --faint: #b8ae9b; --task: #d96c3f; --quiz: #247ba0; --good: #2f7d58;
+  --ui: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  --book: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  --top-bg: rgba(247, 243, 232, .92); --top-line: #d8cebb; --lift: rgba(74, 60, 35, .18); color-scheme: light;
+}
+body::before {
+  background:
+    radial-gradient(ellipse at 50% 38%, transparent 52%, rgba(112, 91, 52, .07)),
+    repeating-linear-gradient(0deg, rgba(112, 91, 52, .025) 0 1px, transparent 1px 32px);
+}
+#cover h1 { max-width: 12em; text-wrap: balance; }
+#cover .kicker { color: var(--quiz); letter-spacing: .08em; }
+#cover .lede { max-width: 36em; }
+.chalk span { color: var(--quiz); }
+@keyframes chalk { to { opacity: .11; } }
+</style>
+</head>
+<body>
+<section id="cover">
+  <div class="chalk" aria-hidden="true">
+    <span style="left:7%;top:14%;--d:1.6">12 000 bit</span>
+    <span style="right:8%;top:18%;--d:1.9">10 Mbps</span>
+    <span style="left:5%;bottom:21%;--d:2.2">t = L / R</span>
+    <span style="right:6%;bottom:16%;--d:2.5">超时 → 重传 → 去重</span>
+  </div>
+  <svg class="mascot draw" id="guide" width="210" height="147" aria-hidden="true"></svg>
+  <h1>计算机网络<br>三章互动课</h1>
+  <p class="kicker">三章互动课程 · 原创教学 PoC</p>
+  <p class="lede">从链路速率、存储转发到可靠传输：亲手调整参数、切换故障，观察数据怎样抵达、等待和重传。先建立直觉，再用练习检查理解。</p>
+  <div class="acts">
+    <a class="btn go" href="#contents" data-t="open">打开这本书<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.5 11.5 8 6 13.5 4.6 12.1 8.7 8 4.6 3.9z"/></svg></a>
+    <a class="btn quiet" id="resume" hidden></a>
+  </div>
+  <p class="meta" id="meta"></p>
+</section>
+
+<main id="contents">
+  <header class="top">
+    <a class="home" href="#book" aria-label="返回封面" data-t-label="toCover"><svg class="mascot" id="guideSmall" width="52" height="36" aria-hidden="true"></svg><strong>计算机网络：三章互动课</strong></a>
+    <span class="prog" id="prog"></span>
+  </header>
+  <div id="units"></div>
+</main>
+
+<script>
+Contents.book({
+  start: { unit: 1, chapter: 1 },
+  units: [
+    ['链路与时间', [['链路速率与时延', 4]]],
+    ['逐跳转发', [['存储转发：一跳一跳地等', 4]]],
+    ['可靠传输', [['可靠传输：丢了怎么办', 4]]],
+  ],
+  hues: ['#d96c3f', '#2f7d58', '#247ba0'],
+});
+</script>
+</body>
+</html>

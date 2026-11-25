@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CHAPTER TITLE</title>
+<link rel="stylesheet" href="../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../lib/engine.js"></script>
+<!-- <script src="../lib/math.js"></script>  a chapter that uses the maths helpers (number lines, tiles, planes, sorter, ...) -->
+<!-- <script src="../refs.js"></script>  a book that cites works: the sources for cite(); built by scripts/refs.py -->
+<!-- <script src="items.js"></script>  choice questions for mcq(id); built by scripts/items.py from books/<book>/items/chNN.items.json -->
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// A starting skeleton, not a design. Replace every beat; keep the shape: intro, lesson beats with
+// quick checks between them, a summary, full-screen practice, finish. Beat ids match narration.en.json.
+// <html lang> sets the interface text, language the audio folder: keep both, and the timings path above, in the book's language.
+const CHAPTER = { number: 1, title: 'CHAPTER TITLE', minutes: 8, language: 'en' };   // match the audio folder; set next once the next chapter exists
+
+/* ---------- chapter drawing helpers ---------- */
+const mline = (p, parts, x, y, t0, fill = COL.chalk, size = 48, anchor = 'middle') => { const e = M(p, [].concat(parts), { x, y, size, fill, anchor, o: 0 }); show(e, t0); return e; };
+const text = (p, str, x, y, t0, { size = 30, fill = COL.chalk, anchor = 'start', weight = 500 } = {}) => { const e = T(p, str, { x, y, size, fill, anchor, weight, o: 0 }); show(e, t0); return e; };
+
+/* ---------- beats: [id, title, run(m, D), { ask }?] ---------- */
+const BEATS = [
+  ['intro', 'TOPIC', (m, D) => {
+    const g = G(scene, { o: 0, y: 24 });
+    T(g, 'Unit 1, Chapter 1', { x: 800, y: 330, size: 28, fill: COL.dim, anchor: 'middle' });
+    T(g, 'CHAPTER TITLE', { x: 800, y: 430, size: 88, weight: 600, anchor: 'middle' });
+    tw(g, { o: 1, y: 0 }, .2, 1.1, out);
+    const r = text(scene, 'one line that says what this chapter is for', 800, 600, m('sub'), { size: 34, fill: COL.dim, anchor: 'middle' });
+    tw(g, { o: 0, y: -24 }, D - .9, .8); hide(r, D - .9, .8);
+  }],
+  ['idea', 'FIRST IDEA', (m) => {
+    const p = panel(0);                                  // fades the last picture; put the topic on screen at once
+    mline(p, '3 + 4 = 7', 800, 260, .2, COL.chalk, 64);
+    text(p, 'a note that appears with its word', 800, 380, m('note'), { size: 30, fill: COL.task, anchor: 'middle', weight: 600 });
+  }],
+  ['q1', 'Quick check', () => { panel(0); }, { ask: done => quiz(BAND, [{
+    id: 'c-first', prompt: ['A question about what was just shown.'],
+    build: blanks([{ parts: ['3 + 4 = ', { box: '7' }], why: 'Why the answer is right.', hint: 'A hint aimed at the likely mistake.' }]),
+  }], done) }],
+  ['wrap', 'Summary', (m) => {
+    const p = panel(0);
+    [['First takeaway.', 'w1'], ['Second takeaway.', 'w2']].forEach(([str, mark], i) => {
+      const g = G(p, { x: -16, y: 300 + i * 140, o: 0 });
+      mk('circle', { cx: 200, cy: -12, r: 26, fill: COL.task }, g);
+      T(g, String(i + 1), { x: 200, y: -1, size: 30, fill: COL.board, weight: 700, anchor: 'middle' });
+      T(g, str, { x: 260, size: 34, weight: 600 });
+      tw(g, { o: 1, x: 0 }, m(mark), .6);
+    });
+  }],
+  ['final1', 'Chapter practice', () => { panel(0); }, { ask: done => quiz(SCREEN, [{
+    id: 'p-one', prompt: ['Practice that covers the whole chapter.'],
+    build: choice([['right answer'], ['tempting wrong answer']], 0, 'Why it is right.', [null, 'What this mistake misunderstands.']),
+  }], done, 'Chapter practice') }],
+  ['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+/* ---------- practice data (constants used inside BEATS must be defined above it) ---------- */
+boot();
+</script>
+</body>
+</html>

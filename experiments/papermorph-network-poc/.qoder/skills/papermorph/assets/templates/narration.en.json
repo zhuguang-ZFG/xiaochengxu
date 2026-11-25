@@ -1,0 +1,12 @@
+{
+  "voice": "en-US-AndrewNeural",
+  "rate": "-4%",
+  "beats": {
+    "intro": "Chapter one. [[sub]]One sentence that says what this chapter is for.",
+    "idea": "Say the idea while the picture shows it. [[note]]The mark goes right before the word the animation waits for.",
+    "q1": "Quick check. A few words that name the task.",
+    "wrap": "To sum up. [[w1]]First takeaway. [[w2]]Second takeaway. [[end]]Now try the chapter practice.",
+    "final1": "Chapter practice. Name the task.",
+    "finish": "Well done. That's the end of chapter one."
+  }
+}

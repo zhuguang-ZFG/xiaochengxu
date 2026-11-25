@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "tier": 2,
+  "book": { "title": "Book title", "slug": "physics", "language": "en", "readers": "middle school, first physics course", "pilot": "ch10" },
+  "words": [
+    "The user's own words about the look, verbatim.",
+    "ch10 feedback: later words that changed the bar, with the chapter they came from."
+  ],
+  "look": {
+    "palette": { "board": "#1f2b27", "ink": "#f2efe6", "accent": ["#e5533d", "#3d8be5"] },
+    "meaning": { "force": "#e5533d", "velocity": "#3d8be5" },
+    "fonts": { "text": "system UI", "math": "serif (engine default)" },
+    "notation": "SI units with a space (6 N); round to one decimal; say 'newtons' in narration"
+  },
+  "voice": { "engine": "edge", "voice": "en-US-AndrewNeural", "rate": "-4%" },
+  "pacing": { "minutes": [6, 10], "checks": "one or two quick checks inside the lesson, practice at the end" },
+  "engine": { "source": "DozenTwelve/Papermorph", "ref": "engine-v2.12" },
+  "models": { "extract": "haiku", "narration": "sonnet", "picture": "opus", "checks": "haiku", "review": "sonnet", "rework": "opus", "register": "haiku" },
+  "scenes": {
+    "art": "pixel scenes on a dark board, characters about a third of the stage tall",
+    "cast": [{ "name": "Mia", "look": "short hair, red jacket", "file": "site/physics/img/mia.png" }],
+    "storyboard": "the user reviews the layout sheet before motion in the pilot; later chapters self-check"
+  },
+  "components": [{ "name": "forceArrow", "file": "site/physics/lib/physics.js", "what": "arrow from a contact point, label on the arrow, length = magnitude" }],
+  "images": { "sources": ["drawn in code", "web images under CC0/CC-BY, credited in img/CREDITS.md"] },
+  "approved": [{ "chapter": "ch10", "why": "whole-frame composition; actors perform the push" }]
+}

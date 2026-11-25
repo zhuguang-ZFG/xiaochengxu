@@ -1,0 +1,33 @@
+Firefox (Playwright), 1512x982, ch01
+load average unknown on this system (Windows): measure when the machine is quiet
+reference ch01:intro@3 @3.0: mean  17.1  p95  16.7  max   33.4  >50ms 0 (before)
+reference ch01:intro@3 @3.0: mean  16.8  p95  16.7  max   33.4  >50ms 0 (after)
+load average unknown on this system (Windows): measure when the machine is quiet
+intro @0.3                   mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @1.50
+intro @6.7                   mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @7.93
+intro -> next                mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @13.33
+packet @0.3                  mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @0.65
+packet @9.9                  mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @10.22
+packet @17.6                 mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @17.94
+packet -> next               mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @19.74
+rate @0.3                    mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @0.67
+rate @8.0                    mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @8.30
+rate @13.7                   mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @14.07
+rate -> next                 mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @15.87
+transmit @0.3                mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @0.65
+transmit @9.8                mean  16.7  p95  16.7  max   17.1  >50ms 0  worst @10.59
+transmit @17.3               mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @17.70
+propagate @0.3               mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @0.32
+propagate @9.5               mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @9.91
+propagate @16.9              mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @17.24
+propagate -> next            mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @19.04
+total @0.3                   mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @0.65
+total @10.9                  mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @11.21
+total @19.5                  mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @19.87
+wrap @0.3                    mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @0.72
+wrap @9.7                    mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @10.13
+wrap @17.3                   mean  16.7  p95  16.7  max   16.7  >50ms 0  worst @17.61
+intro @11.2                  mean  16.8  p95  16.7  max   33.4  >50ms 0  worst @12.99
+transmit -> next             mean  16.8  p95  16.7  max   33.4  >50ms 0  worst @0.00
+wrap -> next                 mean  16.9  p95  16.7  max   33.4  >50ms 0  worst @0.00
+total -> next                mean  17.2  p95  16.7  max   50.1  >50ms 1  worst @0.00
