@@ -32,6 +32,31 @@ class ProvenanceTests(unittest.TestCase):
     def test_matching_trees_pass(self):
         self.assertEqual(verify_provenance.verify(self.root, self.record), [])
 
+    def test_crlf_checkout_matches_lf_record(self):
+        (self.skill / "a.txt").write_bytes(b"alpha\r\n")
+        (self.engine / "b.js").write_bytes(b"beta\r\n")
+        self.assertEqual(verify_provenance.verify(self.root, self.record), [])
+
+    def test_binary_crlf_is_not_normalized(self):
+        mixed = self.root / "mixed"
+        mixed.mkdir()
+        (mixed / "a.txt").write_bytes(b"alpha\r\nbeta\n")
+        (mixed / "b.bin").write_bytes(b"\x00alpha\r\n\xff")
+        expected = "d140136135288932d87f85178ec62f6292abc06d59dcfdd7fc66945e020d07f5"
+        self.assertEqual(verify_provenance.tree_hash(mixed), expected)
+        (mixed / "b.bin").write_bytes(b"\x00alpha\n\xff")
+        self.assertNotEqual(verify_provenance.tree_hash(mixed), expected)
+
+    def test_nul_free_binary_crlf_is_not_normalized(self):
+        mixed = self.root / "nul-free-binary"
+        mixed.mkdir()
+        (mixed / "a.txt").write_bytes(b"alpha\r\n")
+        (mixed / "c.dat").write_bytes(b"ASCII\r\n")
+        expected = "ed0fd023972fd4a6f06e30ad82bf5b6042787d8d5eed479d2a23f9e272dacf80"
+        self.assertEqual(verify_provenance.tree_hash(mixed), expected)
+        (mixed / "c.dat").write_bytes(b"ASCII\n")
+        self.assertNotEqual(verify_provenance.tree_hash(mixed), expected)
+
     def test_content_drift_fails(self):
         (self.skill / "a.txt").write_text("changed\n", encoding="utf-8")
         errors = verify_provenance.verify(self.root, self.record)

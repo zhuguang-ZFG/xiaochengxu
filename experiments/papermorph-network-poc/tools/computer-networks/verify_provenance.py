@@ -10,14 +10,20 @@ TREES = (
     ("skill_tree_sha256", Path(".qoder/skills/papermorph")),
     ("engine_tree_sha256", Path("engine")),
 )
+TEXT_SUFFIXES = frozenset({".css", ".html", ".js", ".json", ".md", ".py", ".txt"})
+TEXT_NAMES = frozenset({"LICENSE"})
 
 
 def tree_hash(path):
+    """Hash files in POSIX path order, normalizing line endings only for known text files."""
     digest = hashlib.sha256()
     for file in sorted((p for p in path.rglob("*") if p.is_file()), key=lambda p: p.relative_to(path).as_posix()):
         digest.update(file.relative_to(path).as_posix().encode("utf-8"))
         digest.update(b"\0")
-        digest.update(file.read_bytes())
+        data = file.read_bytes()
+        if (file.suffix.lower() in TEXT_SUFFIXES or file.name in TEXT_NAMES) and b"\0" not in data:
+            data = data.replace(b"\r\n", b"\n")
+        digest.update(data)
         digest.update(b"\0")
     return digest.hexdigest()
 
