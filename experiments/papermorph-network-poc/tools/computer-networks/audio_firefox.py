@@ -179,6 +179,18 @@ async def evaluate_stage(page, chapter, stage, expression, arg=None):
         raise RuntimeError(f"{chapter}: {stage} failed: {exc}") from exc
 
 
+async def activate_audio(page, chapter):
+    print(f"firefox: {chapter}: activate audio", flush=True)
+    try:
+        await asyncio.wait_for(page.keyboard.press("Shift"), timeout=EVALUATE_TIMEOUT)
+    except TimeoutError as exc:
+        raise RuntimeError(
+            f"{chapter}: audio activation exceeded {EVALUATE_TIMEOUT:g}s"
+        ) from exc
+    except Exception as exc:
+        raise RuntimeError(f"{chapter}: audio activation failed: {exc}") from exc
+
+
 async def wait_stage(page, chapter, stage, expression, timeout):
     print(f"firefox: {chapter}: {stage}", flush=True)
     try:
@@ -359,6 +371,7 @@ async def run(out, chapters=CHAPTERS):
                 await evaluate_stage(
                     page, chapter, "install audio probe", INSTALL_PROBE
                 )
+                await activate_audio(page, chapter)
                 await evaluate_stage(
                     page, chapter, "resume AudioContext", RESUME_AUDIO
                 )

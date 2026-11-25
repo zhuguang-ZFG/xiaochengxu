@@ -303,6 +303,7 @@ class FakeAudioPage:
     def __init__(
         self, chapter, hang_final=False, hang_setup=None, hang_context=False,
         resume_error=None, hang_close=False, cancel_on_close=False,
+        needs_activation=False,
     ):
         self.chapter = chapter
         self.hang_final = hang_final
@@ -311,8 +312,12 @@ class FakeAudioPage:
         self.resume_error = resume_error
         self.hang_close = hang_close
         self.cancel_on_close = cancel_on_close
+        self.needs_activation = needs_activation
+        self.activated = False
+        self.resume_pending = False
         self.cancel_clip_count = 0
         self.listeners = {}
+        self.keyboard = types.SimpleNamespace(press=mock.AsyncMock(side_effect=self.press))
 
     def on(self, event, callback):
         self.listeners.setdefault(event, []).append(callback)
@@ -320,13 +325,20 @@ class FakeAudioPage:
     async def goto(self, url):
         pass
 
+    async def press(self, key):
+        self.activated = True
+
     async def wait_for_function(self, expression, timeout=None):
         if self.hang_context and "__audioProbe.ctx.state" in expression:
+            await asyncio.sleep(1)
+        if "resumeDone" in expression and self.resume_pending:
             await asyncio.sleep(1)
 
     async def evaluate(self, expression, arg=None):
         if self.hang_setup and self.hang_setup in expression:
             await asyncio.sleep(1)
+        if expression == audio_firefox.RESUME_AUDIO:
+            self.resume_pending = self.needs_activation and not self.activated
         if "BEATS.map" in expression:
             return [
                 {"index": index, "id": f"beat-{index}", "silent": False}
@@ -351,6 +363,7 @@ class FirefoxAudioRunTests(IsolatedAsyncioTestCase):
         hang_setup_chapter=None, hang_setup=None, hang_context_chapter=None,
         resume_error_chapter=None, hang_close=None, cancel_chapter=None,
         cancel_after_clips=None, cancel_cleanup=None, capture_cancel=False,
+        needs_activation_chapter=None,
     ):
         pages = [
             FakeAudioPage(
@@ -361,6 +374,7 @@ class FirefoxAudioRunTests(IsolatedAsyncioTestCase):
                 resume_error="resume rejected" if chapter == resume_error_chapter else None,
                 hang_close=hang_close == f"page:{chapter}",
                 cancel_on_close=cancel_cleanup == f"page:{chapter}",
+                needs_activation=chapter == needs_activation_chapter,
             )
             for chapter in chapters
         ]
@@ -552,6 +566,15 @@ class FirefoxAudioRunTests(IsolatedAsyncioTestCase):
         self.assertEqual(evidence["error_count"], 1)
         self.assertIn("resume failed", evidence["errors"][0])
         self.assertIn("resume rejected", evidence["errors"][0])
+
+    async def test_audio_context_resume_requires_browser_activation(self):
+        with mock.patch.object(audio_firefox, "CONTEXT_TIMEOUT", 0.01):
+            status, evidence = await self.run_audit(
+                ("ch01",), needs_activation_chapter="ch01",
+            )
+        self.assertEqual(status, 0)
+        self.assertTrue(evidence["passed"])
+        self.assertEqual(evidence["clip_count"], 12)
 
     async def test_cleanup_timeouts_are_bounded_and_preserve_evidence(self):
         for resource in ("page:ch01", "context", "browser", "playwright"):
