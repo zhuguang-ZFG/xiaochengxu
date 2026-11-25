@@ -70,6 +70,8 @@ jobs:
       fail-fast: false
       matrix:
         chapter: [ch01, ch02, ch03]
+    env:
+      PULSE_SINK: papermorph
     steps:
       - uses: actions/checkout@v4
 
@@ -80,8 +82,14 @@ jobs:
       - name: Install pinned Playwright
         run: python -m pip install playwright==1.65.2
 
-      - name: Install Firefox and system dependencies
-        run: python -m playwright install --with-deps firefox
+      - name: Install Firefox, system dependencies, and a headless audio sink
+        run: |
+          python -m playwright install --with-deps firefox
+          sudo apt-get install -y pulseaudio pulseaudio-utils
+          pulseaudio --start --exit-idle-time=-1 --log-target=stderr
+          pactl load-module module-null-sink sink_name=papermorph
+          pactl set-default-sink papermorph
+          pactl info
 
       - name: Verify Firefox narration renders audible PCM
         run: |

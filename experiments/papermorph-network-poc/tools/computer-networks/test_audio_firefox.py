@@ -317,7 +317,7 @@ class FakeAudioPage:
         self.resume_pending = False
         self.cancel_clip_count = 0
         self.listeners = {}
-        self.keyboard = types.SimpleNamespace(press=mock.AsyncMock(side_effect=self.press))
+        self.mouse = types.SimpleNamespace(click=mock.AsyncMock(side_effect=self.click))
 
     def on(self, event, callback):
         self.listeners.setdefault(event, []).append(callback)
@@ -325,8 +325,9 @@ class FakeAudioPage:
     async def goto(self, url):
         pass
 
-    async def press(self, key):
-        self.activated = True
+    async def click(self, x, y):
+        if (x, y) == (2, 2):
+            self.activated = True
 
     async def wait_for_function(self, expression, timeout=None):
         if self.hang_context and "__audioProbe.ctx.state" in expression:
@@ -346,8 +347,14 @@ class FakeAudioPage:
             ]
         if expression == "() => 0" and self.hang_final:
             await asyncio.sleep(1)
-        if expression.startswith("() => ({state:"):
-            return {"state": "running", "error": self.resume_error}
+        if expression == audio_firefox.AUDIO_ACTIVATION:
+            return {"active": self.activated, "sticky": self.activated}
+        if expression == audio_firefox.AUDIO_CONTEXT_STATE:
+            return {
+                "state": "suspended" if self.resume_pending else "running",
+                "resumeDone": not self.resume_pending,
+                "error": self.resume_error,
+            }
         return None
 
     async def close(self):

@@ -47,6 +47,17 @@ RESUME_AUDIO = r"""() => {
   );
 }"""
 
+AUDIO_ACTIVATION = """() => ({
+  active: navigator.userActivation.isActive,
+  sticky: navigator.userActivation.hasBeenActive,
+})"""
+
+AUDIO_CONTEXT_STATE = """() => ({
+  state: window.__audioProbe.ctx.state,
+  resumeDone: window.__audioProbe.resumeDone,
+  error: window.__audioProbe.resumeError,
+})"""
+
 START_CLIP = r"""i => {
   seek(i, false);
   const probe = window.__audioProbe, audio = P.audio;
@@ -182,13 +193,20 @@ async def evaluate_stage(page, chapter, stage, expression, arg=None):
 async def activate_audio(page, chapter):
     print(f"firefox: {chapter}: activate audio", flush=True)
     try:
-        await asyncio.wait_for(page.keyboard.press("Shift"), timeout=EVALUATE_TIMEOUT)
+        await asyncio.wait_for(page.mouse.click(2, 2), timeout=EVALUATE_TIMEOUT)
     except TimeoutError as exc:
         raise RuntimeError(
             f"{chapter}: audio activation exceeded {EVALUATE_TIMEOUT:g}s"
         ) from exc
     except Exception as exc:
         raise RuntimeError(f"{chapter}: audio activation failed: {exc}") from exc
+    activation = await evaluate_stage(
+        page, chapter, "read user activation", AUDIO_ACTIVATION
+    )
+    print(f"firefox: {chapter}: user activation active={activation['active']} "
+          f"sticky={activation['sticky']}", flush=True)
+    if not activation["active"]:
+        raise RuntimeError(f"{chapter}: browser did not report active user activation")
 
 
 async def wait_stage(page, chapter, stage, expression, timeout):
@@ -213,14 +231,18 @@ async def wait_for_audio_context(page, chapter):
             timeout=CONTEXT_TIMEOUT,
         )
     except TimeoutError as exc:
+        state = await evaluate_stage(
+            page, chapter, "read stalled AudioContext", AUDIO_CONTEXT_STATE
+        )
         raise RuntimeError(
-            f"{chapter}: AudioContext did not start within {CONTEXT_TIMEOUT:g}s"
+            f"{chapter}: AudioContext did not start within {CONTEXT_TIMEOUT:g}s: "
+            f"state={state['state']}, resume_done={state['resumeDone']}, "
+            f"error={state['error']}"
         ) from exc
     except Exception as exc:
         raise RuntimeError(f"{chapter}: wait for AudioContext failed: {exc}") from exc
     state = await evaluate_stage(
-        page, chapter, "read AudioContext state",
-        "() => ({state: window.__audioProbe.ctx.state, error: window.__audioProbe.resumeError})",
+        page, chapter, "read AudioContext state", AUDIO_CONTEXT_STATE
     )
     if state["error"] is not None:
         raise RuntimeError(f"{chapter}: AudioContext resume failed: {state['error']}")
