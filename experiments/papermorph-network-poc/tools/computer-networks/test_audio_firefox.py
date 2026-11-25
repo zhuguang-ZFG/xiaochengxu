@@ -303,7 +303,7 @@ class FakeAudioPage:
     def __init__(
         self, chapter, hang_final=False, hang_setup=None, hang_context=False,
         resume_error=None, hang_close=False, cancel_on_close=False,
-        needs_activation=False,
+        needs_activation=False, activation_blocked=False,
     ):
         self.chapter = chapter
         self.hang_final = hang_final
@@ -313,6 +313,7 @@ class FakeAudioPage:
         self.hang_close = hang_close
         self.cancel_on_close = cancel_on_close
         self.needs_activation = needs_activation
+        self.activation_blocked = activation_blocked
         self.activated = False
         self.resume_pending = False
         self.cancel_clip_count = 0
@@ -327,7 +328,7 @@ class FakeAudioPage:
 
     async def click(self, x, y):
         if (x, y) == (2, 2):
-            self.activated = True
+            self.activated = not self.activation_blocked
 
     async def wait_for_function(self, expression, timeout=None):
         if self.hang_context and "__audioProbe.ctx.state" in expression:
@@ -370,7 +371,7 @@ class FirefoxAudioRunTests(IsolatedAsyncioTestCase):
         hang_setup_chapter=None, hang_setup=None, hang_context_chapter=None,
         resume_error_chapter=None, hang_close=None, cancel_chapter=None,
         cancel_after_clips=None, cancel_cleanup=None, capture_cancel=False,
-        needs_activation_chapter=None,
+        needs_activation_chapter=None, activation_blocked_chapter=None,
     ):
         pages = [
             FakeAudioPage(
@@ -382,6 +383,7 @@ class FirefoxAudioRunTests(IsolatedAsyncioTestCase):
                 hang_close=hang_close == f"page:{chapter}",
                 cancel_on_close=cancel_cleanup == f"page:{chapter}",
                 needs_activation=chapter == needs_activation_chapter,
+                activation_blocked=chapter == activation_blocked_chapter,
             )
             for chapter in chapters
         ]
@@ -582,6 +584,20 @@ class FirefoxAudioRunTests(IsolatedAsyncioTestCase):
         self.assertEqual(status, 0)
         self.assertTrue(evidence["passed"])
         self.assertEqual(evidence["clip_count"], 12)
+
+    async def test_activation_uses_blank_click_not_modifier_key(self):
+        page = FakeAudioPage("ch01")
+        await audio_firefox.activate_audio(page, "ch01")
+        page.mouse.click.assert_awaited_once_with(2, 2)
+
+    async def test_missing_user_activation_fails_before_playback(self):
+        status, evidence = await self.run_audit(
+            ("ch01",), activation_blocked_chapter="ch01",
+        )
+        self.assertEqual(status, 1)
+        self.assertFalse(evidence["passed"])
+        self.assertEqual(evidence["clip_count"], 0)
+        self.assertIn("browser did not report active user activation", evidence["errors"][0])
 
     async def test_cleanup_timeouts_are_bounded_and_preserve_evidence(self):
         for resource in ("page:ch01", "context", "browser", "playwright"):
