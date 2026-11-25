@@ -540,6 +540,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", type=Path, default=ROOT / "tools/computer-networks/evidence/delivery.json")
     a = ap.parse_args()
+    a.out = a.out.resolve()
     try:
         return audit(a)
     except Exception as exc:

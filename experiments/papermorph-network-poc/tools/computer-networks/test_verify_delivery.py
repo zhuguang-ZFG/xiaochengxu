@@ -2,6 +2,7 @@ import contextlib
 from decimal import Decimal
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -46,6 +47,23 @@ class DeliveryAuditTests(unittest.TestCase):
                 contextlib.redirect_stdout(stdout):
             status = delivery.main()
         return status, stdout.getvalue(), output
+
+    def test_relative_output_path_is_resolved(self):
+        site = self.copied_site()
+        output = site.parent / "relative-delivery.json"
+        previous = Path.cwd()
+        try:
+            os.chdir(site.parent)
+            with patch.object(delivery, "SITE", site), \
+                    patch.object(sys, "argv", [
+                        "verify_delivery.py", "--out", "relative-delivery.json",
+                    ]), contextlib.redirect_stdout(io.StringIO()):
+                status = delivery.main()
+        finally:
+            os.chdir(previous)
+        self.assertEqual(status, 0)
+        self.assertTrue(output.is_file())
+        self.assertTrue(json.loads(output.read_text(encoding="utf-8"))["passed"])
 
     def test_timing_requires_decimal_exact_match(self):
         root = self.temporary_directory()

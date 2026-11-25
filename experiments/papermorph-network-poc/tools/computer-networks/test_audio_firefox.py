@@ -118,8 +118,164 @@ class FirefoxAudioGateTests(unittest.TestCase):
         }
         self.assertEqual(audio_firefox.error_count(result), 3)
 
+    def test_expected_clip_count_tracks_selected_chapters(self):
+        self.assertEqual(audio_firefox.expected_clip_count(audio_firefox.CHAPTERS), 36)
+        self.assertEqual(audio_firefox.expected_clip_count(("ch01",)), 12)
+        self.assertEqual(audio_firefox.expected_clip_count(("ch02", "ch03")), 24)
+
+
+class FirefoxAudioCliTests(unittest.TestCase):
+    def test_chapter_option_limits_the_run(self):
+        captured = {}
+
+        async def fake_run(out, chapters):
+            captured.update(out=out, chapters=chapters)
+            return 0
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "ch02.json"
+            with mock.patch.object(audio_firefox, "run", fake_run), mock.patch.object(
+                sys, "argv", ["audio_firefox.py", "--chapter", "ch02", "--out", str(out)]
+            ):
+                self.assertEqual(audio_firefox.main(), 0)
+        self.assertEqual(captured, {"out": out, "chapters": ("ch02",)})
+
+    def test_default_run_keeps_all_chapters(self):
+        captured = {}
+
+        async def fake_run(out, chapters):
+            captured.update(out=out, chapters=chapters)
+            return 0
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "all.json"
+            with mock.patch.object(audio_firefox, "run", fake_run), mock.patch.object(
+                sys, "argv", ["audio_firefox.py", "--out", str(out)]
+            ):
+                self.assertEqual(audio_firefox.main(), 0)
+        self.assertEqual(captured, {"out": out, "chapters": audio_firefox.CHAPTERS})
+
+    def test_distinct_chapter_options_preserve_order(self):
+        captured = {}
+
+        async def fake_run(out, chapters):
+            captured.update(chapters=chapters)
+            return 0
+
+        argv = [
+            "audio_firefox.py", "--chapter", "ch03", "--chapter", "ch01",
+            "--out", "selected.json",
+        ]
+        with mock.patch.object(audio_firefox, "run", fake_run), \
+                mock.patch.object(sys, "argv", argv):
+            self.assertEqual(audio_firefox.main(), 0)
+        self.assertEqual(captured["chapters"], ("ch03", "ch01"))
+
+    def test_duplicate_chapter_option_is_rejected(self):
+        async def fake_run(out, chapters):
+            self.fail("duplicate chapter selection reached the audio run")
+
+        argv = [
+            "audio_firefox.py", "--chapter", "ch01", "--chapter", "ch01",
+            "--out", "duplicate.json",
+        ]
+        with mock.patch.object(audio_firefox, "run", fake_run), \
+                mock.patch.object(sys, "argv", argv), \
+                mock.patch.object(sys, "stderr", io.StringIO()) as stderr:
+            with self.assertRaises(SystemExit) as raised:
+                audio_firefox.main()
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("duplicate chapter", stderr.getvalue().lower())
+
+
+class FakeAudioPage:
+    def __init__(self, chapter):
+        self.chapter = chapter
+        self.listeners = {}
+
+    def on(self, event, callback):
+        self.listeners.setdefault(event, []).append(callback)
+
+    async def goto(self, url):
+        pass
+
+    async def wait_for_function(self, expression, timeout=None):
+        pass
+
+    async def evaluate(self, expression, arg=None):
+        if "BEATS.map" in expression:
+            return [
+                {"index": index, "id": f"beat-{index}", "silent": False}
+                for index in range(audio_firefox.EXPECTED_CLIPS[self.chapter])
+            ]
+        return None
+
+    async def close(self):
+        pass
+
 
 class FirefoxAudioRunTests(IsolatedAsyncioTestCase):
+    async def run_audit(self, chapters, failed_chapter=None):
+        pages = [FakeAudioPage(chapter) for chapter in chapters]
+        context = types.SimpleNamespace(
+            new_page=mock.AsyncMock(side_effect=pages), close=mock.AsyncMock()
+        )
+        browser = types.SimpleNamespace(
+            new_context=mock.AsyncMock(return_value=context), close=mock.AsyncMock()
+        )
+        playwright_api = types.SimpleNamespace(
+            firefox=types.SimpleNamespace(launch=mock.AsyncMock(return_value=browser))
+        )
+        manager = mock.MagicMock()
+        manager.__aenter__ = mock.AsyncMock(return_value=playwright_api)
+        manager.__aexit__ = mock.AsyncMock(return_value=False)
+        async_api = types.ModuleType("playwright.async_api")
+        async_api.async_playwright = lambda: manager
+        playwright = types.ModuleType("playwright")
+        playwright.async_api = async_api
+        browsers = types.ModuleType("browsers")
+        browsers.answers = lambda url: None
+        browsers.firefox = lambda: {}
+        browsers.missing = lambda page, callback: None
+
+        async def fake_measure(page, index, beat):
+            passed = page.chapter != failed_chapter
+            return {
+                "beat": beat,
+                "passed": passed,
+                "errors": [] if passed else ["failed clip"],
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "audio.json"
+            with mock.patch.dict(sys.modules, {
+                "playwright": playwright,
+                "playwright.async_api": async_api,
+                "browsers": browsers,
+            }), mock.patch.object(audio_firefox, "measure_clip", fake_measure), \
+                    redirect_stdout(io.StringIO()):
+                status = await audio_firefox.run(out, chapters)
+            evidence = json.loads(out.read_text(encoding="utf-8"))
+        return status, evidence
+
+    async def test_selected_chapters_aggregate_counts_and_exit_status(self):
+        status, evidence = await self.run_audit(("ch02", "ch03"))
+        self.assertEqual(status, 0)
+        self.assertTrue(evidence["passed"])
+        self.assertEqual(evidence["clip_count"], 24)
+        self.assertEqual(tuple(evidence["chapters"]), ("ch02", "ch03"))
+        self.assertEqual(evidence["chapters"]["ch02"]["clips"], 12)
+        self.assertEqual(evidence["chapters"]["ch03"]["clips"], 12)
+
+    async def test_failed_chapter_makes_run_fail(self):
+        status, evidence = await self.run_audit(("ch02", "ch03"), failed_chapter="ch03")
+        self.assertEqual(status, 1)
+        self.assertFalse(evidence["passed"])
+        self.assertEqual(evidence["clip_count"], 24)
+        self.assertTrue(evidence["chapters"]["ch02"]["passed"])
+        self.assertFalse(evidence["chapters"]["ch03"]["passed"])
+        self.assertEqual(evidence["error_count"], 12)
+
     async def test_preflight_exit_writes_failed_evidence(self):
         async_api = types.ModuleType("playwright.async_api")
         async_api.async_playwright = lambda: None

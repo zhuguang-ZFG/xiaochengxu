@@ -19,13 +19,14 @@ concurrency:
   group: papermorph-network-poc-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    working-directory: experiments/papermorph-network-poc
+
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: experiments/papermorph-network-poc
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -33,16 +34,12 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install FFmpeg and pinned Playwright
+      - name: Install FFmpeg
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
-          python -m pip install playwright==1.65.2
 
-      - name: Install Firefox and system dependencies
-        run: python -m playwright install --with-deps firefox
-
-      - name: Run audio and provenance regressions
+      - name: Run audio-gate and provenance regressions
         run: |
           python -B tools/computer-networks/test_audio_firefox.py
           python -B tools/computer-networks/test_verify_provenance.py
@@ -50,12 +47,43 @@ jobs:
       - name: Run delivery regressions and audit
         run: |
           python -B tools/computer-networks/test_verify_delivery.py
-          python -B tools/computer-networks/verify_delivery.py
+          python -B tools/computer-networks/verify_delivery.py \
+            --out tools/computer-networks/evidence/ci-delivery.json
 
       - name: Verify pinned Skill and engine trees
         run: python -B tools/computer-networks/verify_provenance.py
 
-      - name: Verify all Firefox narration renders audible PCM
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: papermorph-network-poc-evidence
+          path: experiments/papermorph-network-poc/tools/computer-networks/evidence/ci-delivery.json
+          if-no-files-found: error
+          retention-days: 14
+
+  audio:
+    name: audio (${{ matrix.chapter }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        chapter: [ch01, ch02, ch03]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pinned Playwright
+        run: python -m pip install playwright==1.65.2
+
+      - name: Install Firefox and system dependencies
+        run: python -m playwright install --with-deps firefox
+
+      - name: Verify Firefox narration renders audible PCM
         run: |
           set -euo pipefail
           python .qoder/skills/papermorph/scripts/serve.py 8765 site > /tmp/papermorph-serve.log 2>&1 &
@@ -73,14 +101,14 @@ jobs:
             cat /tmp/papermorph-serve.log
             exit 1
           fi
-          URL=http://127.0.0.1:8765/computer-networks/ python -B tools/computer-networks/audio_firefox.py
+          URL=http://127.0.0.1:8765/computer-networks/ python -u tools/computer-networks/audio_firefox.py \
+            --chapter '${{ matrix.chapter }}' \
+            --out tools/computer-networks/evidence/ci-firefox-${{ matrix.chapter }}.json
 
-      - name: Upload verification evidence
+      - name: Upload audio evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: papermorph-network-poc-evidence
-          path: |
-            experiments/papermorph-network-poc/tools/computer-networks/evidence/delivery.json
-            experiments/papermorph-network-poc/tools/computer-networks/evidence/firefox-audio.json
+          name: papermorph-network-poc-audio-${{ matrix.chapter }}
+          path: experiments/papermorph-network-poc/tools/computer-networks/evidence/ci-firefox-${{ matrix.chapter }}.json
           retention-days: 14

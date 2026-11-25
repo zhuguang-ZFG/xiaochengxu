@@ -6,11 +6,13 @@ import math
 import os
 from pathlib import Path
 import sys
+import time
 from urllib.parse import urljoin, urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 SITE = ROOT / "site" / "computer-networks"
 CHAPTERS = ("ch01", "ch02", "ch03")
+EXPECTED_CLIPS = {chapter: 12 for chapter in CHAPTERS}
 URL = os.environ.get("URL", "http://localhost:8765/computer-networks/").rstrip("/") + "/"
 MIN_SAMPLES = 2
 SAMPLE_INTERVAL_MS = 50
@@ -88,6 +90,10 @@ SAMPLE_PCM = r"""async ([interval, minRms, minPeak]) => {
 def source_id(value):
     parsed = urlsplit(value)
     return parsed.scheme, parsed.netloc, parsed.path
+
+
+def expected_clip_count(chapters):
+    return sum(EXPECTED_CLIPS[chapter] for chapter in chapters)
 
 
 def validate(row):
@@ -176,7 +182,7 @@ async def measure_clip(page, index, beat):
         await page.evaluate("() => { if (P.playing) setPlaying(false); }")
 
 
-async def run(out):
+async def run(out, chapters=CHAPTERS):
     result = {
         "schema": 1,
         "browser": "firefox",
@@ -207,7 +213,8 @@ async def run(out):
             context = await browser.new_context(
                 viewport={"width": 1440, "height": 900}, reduced_motion="reduce"
             )
-            for chapter in CHAPTERS:
+            for chapter in chapters:
+                print(f"firefox: start {chapter} ({EXPECTED_CLIPS[chapter]} audible clips)", flush=True)
                 page = await context.new_page()
                 page_errors, warnings, absent = [], [], []
                 pending = track_requests(page)
@@ -233,25 +240,34 @@ async def run(out):
                 for beat in beats:
                     if beat["silent"]:
                         continue
+                    started = time.monotonic()
                     try:
-                        rows.append(await measure_clip(page, beat["index"], beat["id"]))
+                        row = await measure_clip(page, beat["index"], beat["id"])
+                        rows.append(row)
+                        print(f"firefox: {chapter}/{beat['id']}: {time.monotonic() - started:.1f}s wall, "
+                              f"passed={row['passed']}", flush=True)
                     except Exception as exc:
-                        rows.append({
+                        row = {
                             "beat": beat["id"], "passed": False,
                             "errors": [f"{chapter}/{beat['id']}: {exc}"],
-                        })
+                        }
+                        rows.append(row)
+                        print(f"firefox: {chapter}/{beat['id']}: {time.monotonic() - started:.1f}s wall, "
+                              f"error={exc}", flush=True)
                 chapter_errors = []
                 if not await wait_for_requests(pending):
                     chapter_errors.append(f"{chapter}: page requests did not settle")
                 await page.evaluate("() => 0")
                 await asyncio.sleep(0)
                 chapter_errors.extend(f"{chapter}: {error}" for error in page_errors + absent)
-                if len(rows) != 12:
-                    chapter_errors.append(f"{chapter}: expected 12 audible clips, found {len(rows)}")
+                if len(rows) != EXPECTED_CLIPS[chapter]:
+                    chapter_errors.append(
+                        f"{chapter}: expected {EXPECTED_CLIPS[chapter]} audible clips, found {len(rows)}"
+                    )
                 result["warnings"].extend(f"{chapter}: {warning}" for warning in warnings)
                 result["errors"].extend(chapter_errors)
                 result["chapters"][chapter] = {
-                    "passed": len(rows) == 12 and not chapter_errors
+                    "passed": len(rows) == EXPECTED_CLIPS[chapter] and not chapter_errors
                               and all(row["passed"] for row in rows),
                     "clips": len(rows),
                     "details": rows,
@@ -263,7 +279,7 @@ async def run(out):
             chapter["clips"] for chapter in result["chapters"].values()
         )
         result["passed"] = (
-            result["clip_count"] == 36 and not result["errors"]
+            result["clip_count"] == expected_clip_count(chapters) and not result["errors"]
             and all(chapter["passed"] for chapter in result["chapters"].values())
         )
     except (Exception, SystemExit) as exc:
@@ -283,7 +299,15 @@ def main():
         "--out", type=Path,
         default=ROOT / "tools/computer-networks/evidence/firefox-audio.json",
     )
-    return asyncio.run(run(parser.parse_args().out))
+    parser.add_argument(
+        "--chapter", action="append", choices=CHAPTERS,
+        help="run only the selected chapter; repeat to select more than one",
+    )
+    args = parser.parse_args()
+    chapters = tuple(args.chapter or CHAPTERS)
+    if len(set(chapters)) != len(chapters):
+        parser.error("duplicate chapter selections are not allowed")
+    return asyncio.run(run(args.out, chapters))
 
 
 if __name__ == "__main__":
