@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "papermorph": {
+      "source": "./upstream",
+      "sourceType": "local",
+      "computedHash": "798c25d5bde2fd5363a9bcfeaf56f4fc058002404ced21584a392ab48d6adabd"
+    }
+  }
+}

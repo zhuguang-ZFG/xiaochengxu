@@ -1,0 +1,705 @@
+{
+  "site": "site/computer-networks",
+  "files": 57,
+  "bytes": 3622668,
+  "by_extension": {
+    ".css": 5,
+    ".html": 4,
+    ".js": 12,
+    ".mp3": 36
+  },
+  "audio_bytes": 3249936,
+  "static_code_and_markup_bytes": 372732,
+  "chapters": {
+    "ch01": {
+      "clips": 12,
+      "seconds": 178.872,
+      "bytes": 1073232,
+      "details": [
+        {
+          "beat": "intro",
+          "duration": 13.392,
+          "bytes": 80352,
+          "mean_volume_db": -19.6,
+          "sha256": "2bcd3e60623efeee6f577162caa67f3365dd709b768f9eb15d3070c5558f1c86"
+        },
+        {
+          "beat": "packet",
+          "duration": 19.776,
+          "bytes": 118656,
+          "mean_volume_db": -20.3,
+          "sha256": "af168d73dcf5dc806838ce70477b506203593c6f009c9aa655632724357ec7e6"
+        },
+        {
+          "beat": "rate",
+          "duration": 15.936,
+          "bytes": 95616,
+          "mean_volume_db": -19.6,
+          "sha256": "b817b2030ac3aa5f66fde7fe1bd961f241b2dd6b2d7a5b30af16295fae9ee6a2"
+        },
+        {
+          "beat": "transmit",
+          "duration": 19.536,
+          "bytes": 117216,
+          "mean_volume_db": -20.0,
+          "sha256": "ca8ba4aab94951008651b880f5bb179e7fef8ad51aff32660b2cd6e138ffa6af"
+        },
+        {
+          "beat": "q1",
+          "duration": 7.32,
+          "bytes": 43920,
+          "mean_volume_db": -20.0,
+          "sha256": "9841c86db6bed5f6cee08565838216c7cd6b342472d7e905508a370b21772aec"
+        },
+        {
+          "beat": "propagate",
+          "duration": 19.056,
+          "bytes": 114336,
+          "mean_volume_db": -19.5,
+          "sha256": "0b7ccd04202de77f1d8e4bc45abf537c6cf7831894089efa9fe0d60b286a3fec"
+        },
+        {
+          "beat": "total",
+          "duration": 21.72,
+          "bytes": 130320,
+          "mean_volume_db": -19.8,
+          "sha256": "ae693d89fbca8d01bb4777bfefd304ab66c683375e3da653b14a7f20391ba1dc"
+        },
+        {
+          "beat": "lab",
+          "duration": 14.712,
+          "bytes": 88272,
+          "mean_volume_db": -19.6,
+          "sha256": "f4780729f125c1b253d9551e2cabeb145f1518fd672a8c8fcd3274da3a915bf8"
+        },
+        {
+          "beat": "q2",
+          "duration": 6.36,
+          "bytes": 38160,
+          "mean_volume_db": -20.5,
+          "sha256": "c5b85bf4f14ca1a72b60567a112ba3fa7416cb9b606ca6830f3aaf4315253e5a"
+        },
+        {
+          "beat": "wrap",
+          "duration": 19.464,
+          "bytes": 116784,
+          "mean_volume_db": -19.8,
+          "sha256": "6a5109f2c0b7646724c952fc36586f53bca43156e84fb3dac42b780e3276693e"
+        },
+        {
+          "beat": "final1",
+          "duration": 13.68,
+          "bytes": 82080,
+          "mean_volume_db": -19.8,
+          "sha256": "1d6a3ee195cd4e278d502f707e3b638d775c223a70eb3b4dc82488b4f7d71d58"
+        },
+        {
+          "beat": "finish",
+          "duration": 7.92,
+          "bytes": 47520,
+          "mean_volume_db": -19.2,
+          "sha256": "d1ec43616e36a585a34cd53877eb0e2b86f6a85b6b4afe51e3f58793a5e433c3"
+        }
+      ]
+    },
+    "ch02": {
+      "clips": 12,
+      "seconds": 197.256,
+      "bytes": 1183536,
+      "details": [
+        {
+          "beat": "intro",
+          "duration": 20.304,
+          "bytes": 121824,
+          "mean_volume_db": -19.6,
+          "sha256": "967652675931881876b0df0067c172f467b515731e8e17cd5833ef0842cf1e7f"
+        },
+        {
+          "beat": "packet",
+          "duration": 19.392,
+          "bytes": 116352,
+          "mean_volume_db": -19.9,
+          "sha256": "9332771a11e13aa1a2ac139114c5ee85bdcbe08f90dd104c2b1aeafb4f2d3fa9"
+        },
+        {
+          "beat": "firsthop",
+          "duration": 22.992,
+          "bytes": 137952,
+          "mean_volume_db": -19.9,
+          "sha256": "65dc986675aa5fefd70b754429395026469d20582170b9bfc10e0e6d353ae84e"
+        },
+        {
+          "beat": "store",
+          "duration": 24.888,
+          "bytes": 149328,
+          "mean_volume_db": -19.8,
+          "sha256": "f736fc069d38d016da7f15e04a76a56b69f3108294d519852faedb034f5d582e"
+        },
+        {
+          "beat": "repeat",
+          "duration": 22.056,
+          "bytes": 132336,
+          "mean_volume_db": -19.8,
+          "sha256": "c16274b0b46120d799569e8bc16e9215d1e356f4c9bcaf7a07b37ee5eaf8b16d"
+        },
+        {
+          "beat": "q1",
+          "duration": 5.328,
+          "bytes": 31968,
+          "mean_volume_db": -21.0,
+          "sha256": "402fec38990c6ebe38f695634b5070d1dcc97c28428fe597a5b6b6bf09a410f2"
+        },
+        {
+          "beat": "formula",
+          "duration": 22.584,
+          "bytes": 135504,
+          "mean_volume_db": -19.6,
+          "sha256": "72d0f73b578533dc7c44ed827238a48443833b2f77b5326684e1b0459e8f1b8d"
+        },
+        {
+          "beat": "lab",
+          "duration": 19.392,
+          "bytes": 116352,
+          "mean_volume_db": -19.5,
+          "sha256": "6b637b94cf2af099e7adb41a2c9e83e0444cefe1679180bcab2e6f81055d0e59"
+        },
+        {
+          "beat": "q2",
+          "duration": 4.968,
+          "bytes": 29808,
+          "mean_volume_db": -19.9,
+          "sha256": "26447d5041bca8ec28f6354336d278761b4067bb5cdcc37eeb2b2417dd36a116"
+        },
+        {
+          "beat": "wrap",
+          "duration": 19.056,
+          "bytes": 114336,
+          "mean_volume_db": -19.9,
+          "sha256": "9eab79340da1660614b766b77aaa95b18df38525665c18c5f950617cfdb4e364"
+        },
+        {
+          "beat": "final1",
+          "duration": 6.768,
+          "bytes": 40608,
+          "mean_volume_db": -20.0,
+          "sha256": "337c556e7abf97f15787936e2a06561609a9b6e37da1dd0e34f2cb31f6aa5bba"
+        },
+        {
+          "beat": "finish",
+          "duration": 9.528,
+          "bytes": 57168,
+          "mean_volume_db": -19.6,
+          "sha256": "3f9b223ab480d4148afe0b8176a7d6caf380143eeb4fdb3500b5d80d25acec60"
+        }
+      ]
+    },
+    "ch03": {
+      "clips": 12,
+      "seconds": 165.528,
+      "bytes": 993168,
+      "details": [
+        {
+          "beat": "intro",
+          "duration": 12.6,
+          "bytes": 75600,
+          "mean_volume_db": -19.4,
+          "sha256": "a973de2e69723e08e5753bc9fead3a98fafa7bda3211538d8d3c9e66dfcea795"
+        },
+        {
+          "beat": "normal",
+          "duration": 16.032,
+          "bytes": 96192,
+          "mean_volume_db": -19.8,
+          "sha256": "24e48dbd841f1b0a3b56de5017db28b9170b0e41a26b9b566e2cbb79698e5131"
+        },
+        {
+          "beat": "q1",
+          "duration": 6.264,
+          "bytes": 37584,
+          "mean_volume_db": -20.3,
+          "sha256": "5defa5180adb5b824e1c16d5a02b294e945a639b27885bdddd7d25f00cd2d196"
+        },
+        {
+          "beat": "timeout",
+          "duration": 20.88,
+          "bytes": 125280,
+          "mean_volume_db": -19.9,
+          "sha256": "24295ca4256281016759d9963cb6445d91f373a2e0c898d36bc31345ba947e1f"
+        },
+        {
+          "beat": "dataLoss",
+          "duration": 18.552,
+          "bytes": 111312,
+          "mean_volume_db": -20.0,
+          "sha256": "54c9c4e815a8dc77ed3735f46fe8082a124dd54db58dd944b3fb306fe13180f4"
+        },
+        {
+          "beat": "ackLoss",
+          "duration": 19.8,
+          "bytes": 118800,
+          "mean_volume_db": -20.0,
+          "sha256": "561ba5f174eca717218503f20951f24680318a7457daa14cb0d4d1310fa9963a"
+        },
+        {
+          "beat": "sequence",
+          "duration": 18.408,
+          "bytes": 110448,
+          "mean_volume_db": -19.5,
+          "sha256": "d6e4abdbe3569b03f7d00dfa133bd8e8e24adce6a3d18dfe19ff5cd5812bdc07"
+        },
+        {
+          "beat": "lab",
+          "duration": 18.744,
+          "bytes": 112464,
+          "mean_volume_db": -19.4,
+          "sha256": "8c37ba3b8ba58b5d575d2c30db0b827990192d29893d1c9d0a08c66492bf6363"
+        },
+        {
+          "beat": "q2",
+          "duration": 7.368,
+          "bytes": 44208,
+          "mean_volume_db": -20.1,
+          "sha256": "d38c93e3ad1caf5ccf7f584504a844cb3e71ee4a95b652bdcdb0069c572f52f8"
+        },
+        {
+          "beat": "wrap",
+          "duration": 10.368,
+          "bytes": 62208,
+          "mean_volume_db": -20.3,
+          "sha256": "db8eafe82c23de344683d9cc53842d1782ba73c92baab697d9f542ab1916371c"
+        },
+        {
+          "beat": "final1",
+          "duration": 5.592,
+          "bytes": 33552,
+          "mean_volume_db": -19.7,
+          "sha256": "a6e2b98d1964b54b3b1be3d5f0eeea1766e0407c6bd743af6080a127bcab93c7"
+        },
+        {
+          "beat": "finish",
+          "duration": 10.92,
+          "bytes": 65520,
+          "mean_volume_db": -19.6,
+          "sha256": "1103a960f43dfd8316f34072f17ce5086763565a45566f3e877c78b207db1ff0"
+        }
+      ]
+    }
+  },
+  "html_and_css_references": [
+    {
+      "source": "site/computer-networks/ch01/index.html",
+      "attribute": "link.href",
+      "target": "../lib/engine.css",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/ch01/index.html",
+      "attribute": "script.src",
+      "target": "../lib/engine.js",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/ch01/index.html",
+      "attribute": "script.src",
+      "target": "../lib/network.js",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/ch01/index.html",
+      "attribute": "script.src",
+      "target": "audio/zh/timings.js",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/ch02/index.html",
+      "attribute": "link.href",
+      "target": "../lib/engine.css",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/ch02/index.html",
+      "attribute": "script.src",
+      "target": "../lib/engine.js",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/ch02/index.html",
+      "attribute": "script.src",
+      "target": "../lib/store-forward.js",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/ch02/index.html",
+      "attribute": "script.src",
+      "target": "audio/zh/timings.js",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/ch03/index.html",
+      "attribute": "link.href",
+      "target": "../lib/engine.css",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/ch03/index.html",
+      "attribute": "script.src",
+      "target": "../lib/engine.js",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/ch03/index.html",
+      "attribute": "script.src",
+      "target": "../lib/reliable.js",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/ch03/index.html",
+      "attribute": "script.src",
+      "target": "audio/zh/timings.js",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/index.html",
+      "attribute": "link.href",
+      "target": "lib/units.css",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/index.html",
+      "attribute": "link.href",
+      "target": "lib/contents.css",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/index.html",
+      "attribute": "script.src",
+      "target": "lib/units.js",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/index.html",
+      "attribute": "script.src",
+      "target": "lib/contents.js",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/index.html",
+      "attribute": "script.src",
+      "target": "unit-art.js",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/lib/engine.css",
+      "attribute": "css.url",
+      "target": "volume.css",
+      "occurrences": 1
+    },
+    {
+      "source": "site/computer-networks/lib/engine.css",
+      "attribute": "css.url",
+      "target": "book.css",
+      "occurrences": 1
+    }
+  ],
+  "runtime_fetches": [
+    {
+      "source": "site/computer-networks/lib/engine.js",
+      "kind": "script",
+      "target": "volume.js"
+    },
+    {
+      "source": "site/computer-networks/lib/engine.js",
+      "kind": "fetch",
+      "target": "audio/sfx/${name}.mp3"
+    }
+  ],
+  "manifest": [
+    {
+      "path": "site/computer-networks/ch01/audio/zh/final1.mp3",
+      "bytes": 82080,
+      "sha256": "1d6a3ee195cd4e278d502f707e3b638d775c223a70eb3b4dc82488b4f7d71d58"
+    },
+    {
+      "path": "site/computer-networks/ch01/audio/zh/finish.mp3",
+      "bytes": 47520,
+      "sha256": "d1ec43616e36a585a34cd53877eb0e2b86f6a85b6b4afe51e3f58793a5e433c3"
+    },
+    {
+      "path": "site/computer-networks/ch01/audio/zh/intro.mp3",
+      "bytes": 80352,
+      "sha256": "2bcd3e60623efeee6f577162caa67f3365dd709b768f9eb15d3070c5558f1c86"
+    },
+    {
+      "path": "site/computer-networks/ch01/audio/zh/lab.mp3",
+      "bytes": 88272,
+      "sha256": "f4780729f125c1b253d9551e2cabeb145f1518fd672a8c8fcd3274da3a915bf8"
+    },
+    {
+      "path": "site/computer-networks/ch01/audio/zh/packet.mp3",
+      "bytes": 118656,
+      "sha256": "af168d73dcf5dc806838ce70477b506203593c6f009c9aa655632724357ec7e6"
+    },
+    {
+      "path": "site/computer-networks/ch01/audio/zh/propagate.mp3",
+      "bytes": 114336,
+      "sha256": "0b7ccd04202de77f1d8e4bc45abf537c6cf7831894089efa9fe0d60b286a3fec"
+    },
+    {
+      "path": "site/computer-networks/ch01/audio/zh/q1.mp3",
+      "bytes": 43920,
+      "sha256": "9841c86db6bed5f6cee08565838216c7cd6b342472d7e905508a370b21772aec"
+    },
+    {
+      "path": "site/computer-networks/ch01/audio/zh/q2.mp3",
+      "bytes": 38160,
+      "sha256": "c5b85bf4f14ca1a72b60567a112ba3fa7416cb9b606ca6830f3aaf4315253e5a"
+    },
+    {
+      "path": "site/computer-networks/ch01/audio/zh/rate.mp3",
+      "bytes": 95616,
+      "sha256": "b817b2030ac3aa5f66fde7fe1bd961f241b2dd6b2d7a5b30af16295fae9ee6a2"
+    },
+    {
+      "path": "site/computer-networks/ch01/audio/zh/timings.js",
+      "bytes": 6958,
+      "sha256": "56d3206a8c5d26018c398fa794ab860a7eb97c7f324e16ea8dbc55165bc8caeb"
+    },
+    {
+      "path": "site/computer-networks/ch01/audio/zh/total.mp3",
+      "bytes": 130320,
+      "sha256": "ae693d89fbca8d01bb4777bfefd304ab66c683375e3da653b14a7f20391ba1dc"
+    },
+    {
+      "path": "site/computer-networks/ch01/audio/zh/transmit.mp3",
+      "bytes": 117216,
+      "sha256": "ca8ba4aab94951008651b880f5bb179e7fef8ad51aff32660b2cd6e138ffa6af"
+    },
+    {
+      "path": "site/computer-networks/ch01/audio/zh/wrap.mp3",
+      "bytes": 116784,
+      "sha256": "6a5109f2c0b7646724c952fc36586f53bca43156e84fb3dac42b780e3276693e"
+    },
+    {
+      "path": "site/computer-networks/ch01/index.html",
+      "bytes": 13029,
+      "sha256": "beec13f5cb2ed94b5426ba8cb05aa6a66821ccf84da2dc7cb73c28c90b405f2f"
+    },
+    {
+      "path": "site/computer-networks/ch02/audio/zh/final1.mp3",
+      "bytes": 40608,
+      "sha256": "337c556e7abf97f15787936e2a06561609a9b6e37da1dd0e34f2cb31f6aa5bba"
+    },
+    {
+      "path": "site/computer-networks/ch02/audio/zh/finish.mp3",
+      "bytes": 57168,
+      "sha256": "3f9b223ab480d4148afe0b8176a7d6caf380143eeb4fdb3500b5d80d25acec60"
+    },
+    {
+      "path": "site/computer-networks/ch02/audio/zh/firsthop.mp3",
+      "bytes": 137952,
+      "sha256": "65dc986675aa5fefd70b754429395026469d20582170b9bfc10e0e6d353ae84e"
+    },
+    {
+      "path": "site/computer-networks/ch02/audio/zh/formula.mp3",
+      "bytes": 135504,
+      "sha256": "72d0f73b578533dc7c44ed827238a48443833b2f77b5326684e1b0459e8f1b8d"
+    },
+    {
+      "path": "site/computer-networks/ch02/audio/zh/intro.mp3",
+      "bytes": 121824,
+      "sha256": "967652675931881876b0df0067c172f467b515731e8e17cd5833ef0842cf1e7f"
+    },
+    {
+      "path": "site/computer-networks/ch02/audio/zh/lab.mp3",
+      "bytes": 116352,
+      "sha256": "6b637b94cf2af099e7adb41a2c9e83e0444cefe1679180bcab2e6f81055d0e59"
+    },
+    {
+      "path": "site/computer-networks/ch02/audio/zh/packet.mp3",
+      "bytes": 116352,
+      "sha256": "9332771a11e13aa1a2ac139114c5ee85bdcbe08f90dd104c2b1aeafb4f2d3fa9"
+    },
+    {
+      "path": "site/computer-networks/ch02/audio/zh/q1.mp3",
+      "bytes": 31968,
+      "sha256": "402fec38990c6ebe38f695634b5070d1dcc97c28428fe597a5b6b6bf09a410f2"
+    },
+    {
+      "path": "site/computer-networks/ch02/audio/zh/q2.mp3",
+      "bytes": 29808,
+      "sha256": "26447d5041bca8ec28f6354336d278761b4067bb5cdcc37eeb2b2417dd36a116"
+    },
+    {
+      "path": "site/computer-networks/ch02/audio/zh/repeat.mp3",
+      "bytes": 132336,
+      "sha256": "c16274b0b46120d799569e8bc16e9215d1e356f4c9bcaf7a07b37ee5eaf8b16d"
+    },
+    {
+      "path": "site/computer-networks/ch02/audio/zh/store.mp3",
+      "bytes": 149328,
+      "sha256": "f736fc069d38d016da7f15e04a76a56b69f3108294d519852faedb034f5d582e"
+    },
+    {
+      "path": "site/computer-networks/ch02/audio/zh/timings.js",
+      "bytes": 7461,
+      "sha256": "de3ce7dab3d3934dc0c0ba32aada35983d902a8327c3ae47c49d6a54ba5a158d"
+    },
+    {
+      "path": "site/computer-networks/ch02/audio/zh/wrap.mp3",
+      "bytes": 114336,
+      "sha256": "9eab79340da1660614b766b77aaa95b18df38525665c18c5f950617cfdb4e364"
+    },
+    {
+      "path": "site/computer-networks/ch02/index.html",
+      "bytes": 14584,
+      "sha256": "d051afcb39a041848c7dc75c443f7037f7073603ddefd4ed84c89bd383e12dcb"
+    },
+    {
+      "path": "site/computer-networks/ch03/audio/zh/ackLoss.mp3",
+      "bytes": 118800,
+      "sha256": "561ba5f174eca717218503f20951f24680318a7457daa14cb0d4d1310fa9963a"
+    },
+    {
+      "path": "site/computer-networks/ch03/audio/zh/dataLoss.mp3",
+      "bytes": 111312,
+      "sha256": "54c9c4e815a8dc77ed3735f46fe8082a124dd54db58dd944b3fb306fe13180f4"
+    },
+    {
+      "path": "site/computer-networks/ch03/audio/zh/final1.mp3",
+      "bytes": 33552,
+      "sha256": "a6e2b98d1964b54b3b1be3d5f0eeea1766e0407c6bd743af6080a127bcab93c7"
+    },
+    {
+      "path": "site/computer-networks/ch03/audio/zh/finish.mp3",
+      "bytes": 65520,
+      "sha256": "1103a960f43dfd8316f34072f17ce5086763565a45566f3e877c78b207db1ff0"
+    },
+    {
+      "path": "site/computer-networks/ch03/audio/zh/intro.mp3",
+      "bytes": 75600,
+      "sha256": "a973de2e69723e08e5753bc9fead3a98fafa7bda3211538d8d3c9e66dfcea795"
+    },
+    {
+      "path": "site/computer-networks/ch03/audio/zh/lab.mp3",
+      "bytes": 112464,
+      "sha256": "8c37ba3b8ba58b5d575d2c30db0b827990192d29893d1c9d0a08c66492bf6363"
+    },
+    {
+      "path": "site/computer-networks/ch03/audio/zh/normal.mp3",
+      "bytes": 96192,
+      "sha256": "24e48dbd841f1b0a3b56de5017db28b9170b0e41a26b9b566e2cbb79698e5131"
+    },
+    {
+      "path": "site/computer-networks/ch03/audio/zh/q1.mp3",
+      "bytes": 37584,
+      "sha256": "5defa5180adb5b824e1c16d5a02b294e945a639b27885bdddd7d25f00cd2d196"
+    },
+    {
+      "path": "site/computer-networks/ch03/audio/zh/q2.mp3",
+      "bytes": 44208,
+      "sha256": "d38c93e3ad1caf5ccf7f584504a844cb3e71ee4a95b652bdcdb0069c572f52f8"
+    },
+    {
+      "path": "site/computer-networks/ch03/audio/zh/sequence.mp3",
+      "bytes": 110448,
+      "sha256": "d6e4abdbe3569b03f7d00dfa133bd8e8e24adce6a3d18dfe19ff5cd5812bdc07"
+    },
+    {
+      "path": "site/computer-networks/ch03/audio/zh/timeout.mp3",
+      "bytes": 125280,
+      "sha256": "24295ca4256281016759d9963cb6445d91f373a2e0c898d36bc31345ba947e1f"
+    },
+    {
+      "path": "site/computer-networks/ch03/audio/zh/timings.js",
+      "bytes": 6458,
+      "sha256": "1ae604b799d0ea4be408cd1a82e9179efb85e16acce929a0bfbbf265ed62dfdc"
+    },
+    {
+      "path": "site/computer-networks/ch03/audio/zh/wrap.mp3",
+      "bytes": 62208,
+      "sha256": "db8eafe82c23de344683d9cc53842d1782ba73c92baab697d9f542ab1916371c"
+    },
+    {
+      "path": "site/computer-networks/ch03/index.html",
+      "bytes": 12900,
+      "sha256": "78b7cc489eb35b0e46bda2939712e2745c86b9b05014857d8f35b9b0289edc84"
+    },
+    {
+      "path": "site/computer-networks/index.html",
+      "bytes": 3647,
+      "sha256": "39b2c25e5d73db9ec0f1e58ba6a720a578b38e417e8b73b240bde66ae8249124"
+    },
+    {
+      "path": "site/computer-networks/lib/book.css",
+      "bytes": 1928,
+      "sha256": "8d354018cabff650806f6de43e96e67634bd5e80ec7a5c76562723ef54485a6a"
+    },
+    {
+      "path": "site/computer-networks/lib/contents.css",
+      "bytes": 11190,
+      "sha256": "2bc3deb34500ed2419040bfcce1a7afab301ac2929474d69643d58f3d2286d80"
+    },
+    {
+      "path": "site/computer-networks/lib/contents.js",
+      "bytes": 18554,
+      "sha256": "dd13c0379aeda98440c44c984586d1bb7173ad7b81788f48900f8f6626848775"
+    },
+    {
+      "path": "site/computer-networks/lib/engine.css",
+      "bytes": 25274,
+      "sha256": "4b06ed21d4ac535e3fa75eba31b280c5c9290f0d9d12c2208ad176e1ad7bf3b1"
+    },
+    {
+      "path": "site/computer-networks/lib/engine.js",
+      "bytes": 154318,
+      "sha256": "bb23cc0474cce868211bb4ab1a92a2a6b3a40bfc66c7499d49facc5df426a34f"
+    },
+    {
+      "path": "site/computer-networks/lib/math.js",
+      "bytes": 43211,
+      "sha256": "e84a8e18f1f0ceb01f4c3306f703b4ae9768c1a5440e7a88aaef22279e29edf3"
+    },
+    {
+      "path": "site/computer-networks/lib/network.js",
+      "bytes": 9751,
+      "sha256": "e3fdddc5932441c6b905dc05c15fbd7ac7c8584ccb7cb7f9c5921ba8f9fd9873"
+    },
+    {
+      "path": "site/computer-networks/lib/reliable.js",
+      "bytes": 15272,
+      "sha256": "79fa2f4954bdb1f4b65a1a1dc3ac18478fffcf88a0670c5fa5661e7342fbbabe"
+    },
+    {
+      "path": "site/computer-networks/lib/store-forward.js",
+      "bytes": 13457,
+      "sha256": "e514b7f055b302c5f7bfd9fdad94cc96b5cdd8cae33cfe192e0aa478ad998088"
+    },
+    {
+      "path": "site/computer-networks/lib/units.css",
+      "bytes": 6939,
+      "sha256": "56fcb7a69722a9f9dc5ece34f0669467e16c0836ecd1926f5fb97480726eae8f"
+    },
+    {
+      "path": "site/computer-networks/lib/units.js",
+      "bytes": 1635,
+      "sha256": "77c30ff2dc9c7d536d9fb5991c24e42cead3e4496ab532795878d93e9e454316"
+    },
+    {
+      "path": "site/computer-networks/lib/volume.css",
+      "bytes": 1936,
+      "sha256": "2a388d5a2696790c8993e5e5a79b94f27ff8266de1f67576fb09527408bdfcc5"
+    },
+    {
+      "path": "site/computer-networks/lib/volume.js",
+      "bytes": 1469,
+      "sha256": "b2b744eccb843e1497c70d8266eda8c12af237a0821d0590f28d8310e38953d3"
+    },
+    {
+      "path": "site/computer-networks/unit-art.js",
+      "bytes": 2761,
+      "sha256": "76a66304620330796cb3dd24d906092d4caeeb6f054b4c10c089344de58a3383"
+    }
+  ],
+  "errors": [],
+  "passed": true
+}

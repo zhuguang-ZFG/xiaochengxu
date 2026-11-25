@@ -1,0 +1,8 @@
+*.pdf
+books/
+content/
+upstream/
+.qoder/
+.agents/
+__pycache__/
+*.py[cod]

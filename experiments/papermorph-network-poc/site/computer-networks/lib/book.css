@@ -1,0 +1,42 @@
+:root {
+  --page: #e7dfcf;
+  --board: #f7f3e8;
+  --panel: #fffdf8;
+  --edge: #d8cebb;
+  --chalk: #202b33;
+  --dim: #667078;
+  --faint: #b8ae9b;
+  --task: #d96c3f;
+  --quiz: #247ba0;
+  --good: #2f7d58;
+  --bad: #b64b3c;
+  --on-fill: #fffdf8;
+  --vignette: rgba(90, 70, 30, .08);
+  --rule: #e7dfcf;
+  --track: #e7dfcf;
+  --track-ask: #d6e5eb;
+  --bar-edge: #d8cebb;
+  --hover: #efe9dc;
+  --veil: #f7f3e8;
+  --math-font: "Cambria Math", "Times New Roman", serif;
+  color-scheme: light;
+}
+
+:root #frame { box-shadow: 0 0 0 1px var(--edge); } /* Firefox repaints the stage when this transformed frame has a blurred shadow. */
+:root .card { box-shadow: 0 12px 34px rgba(74, 60, 35, .16); }
+:root .state-note { margin: 0; max-width: 520px; color: var(--dim); font-size: 20px; line-height: 1.4; }
+:root .card.band .state-note { max-width: 430px; }
+:root .network-figure { user-select: none; }
+:root .network-figure .rate-control { outline: none; }
+:root .network-figure .rate-knob { transition: stroke .15s, stroke-width .15s; }
+:root .network-figure .rate-control:focus-visible .rate-knob { stroke: var(--quiz); stroke-width: 7; }
+:root .network-figure.is-live .rate-control { cursor: ew-resize; }
+:root .card.screen.rate-practice { pointer-events: none; }
+:root .card.screen.rate-practice > * { pointer-events: auto; }
+:root .rate-practice .head { max-width: 1050px; }
+:root .rate-practice .state-note { position: absolute; top: 64px; right: 70px; width: 340px; margin: 0; text-align: right; pointer-events: none; }
+:root .rate-practice .fb { position: absolute; top: 148px; left: 70px; width: min(1080px, calc(var(--sw, 1600px) - 140px)); max-height: 62px; margin: 0; padding: 8px 14px; overflow: auto; border-radius: 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  :root .network-figure .rate-knob { transition: none; }
+}
